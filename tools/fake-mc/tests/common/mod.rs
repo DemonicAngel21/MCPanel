@@ -1,6 +1,7 @@
 //! Helpers shared by the integration tests (each test crate uses a subset).
 #![allow(dead_code)]
 
+pub mod content_fixture;
 pub mod harness;
 pub mod mc_client;
 pub mod real;

@@ -20,6 +20,7 @@ pub enum Operation {
     EditingConfig,
     BackingUp,
     Restoring,
+    InstallingContent,
 }
 
 impl Operation {
@@ -27,7 +28,11 @@ impl Operation {
     pub fn requires_stopped(self) -> bool {
         matches!(
             self,
-            Self::Installing | Self::Importing | Self::Deleting | Self::Restoring
+            Self::Installing
+                | Self::Importing
+                | Self::Deleting
+                | Self::Restoring
+                | Self::InstallingContent
         )
     }
 

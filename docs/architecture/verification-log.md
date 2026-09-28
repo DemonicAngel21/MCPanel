@@ -119,12 +119,29 @@ result. If the finding contradicts the specification, the spec is updated in the
   404 for unknown names.
 - Not automatable: online-mode (authenticated) logins require a real Minecraft account.
 
+## 2026-09-28 — Modrinth and Hangar (plugin manager)
+
+- **Modrinth API v2** (live): `/v2/search` (facets `project_type`, `categories`
+  = loaders, `versions`; indexes relevance/downloads/updated; multi-platform projects
+  report `project_type: "mod"` but match `project_type:plugin`), `/v2/project/{id}`,
+  `/v2/project/{id}/version?loaders&game_versions` (files with `hashes.sha512`/`sha1`,
+  `cdn.modrinth.com` URLs, dependencies `{version_id?, project_id?, file_name?,
+  dependency_type}`), `/v2/version/{id}`, `POST /v2/version_files` and
+  `POST /v2/version_files/update` (by SHA-512). Rate limit 300/min.
+- **Hangar API v1** (live): `/api/v1/projects?q&platform=PAPER&version&sort`,
+  `/api/v1/projects/{slugOrId}` (404 when unknown), `…/versions?platform&
+  platformVersion&channel` (`downloads.PAPER.fileInfo.sha256Hash`, `downloadUrl` on
+  `hangarcdn.papermc.io` or only `externalUrl`), `…/versions/{name}` (names may
+  contain `+`). No lookup by hash.
+- Real Paper 1.21.11: Chunky (Modrinth) installed while stopped and loaded; ViaVersion
+  (Hangar) installed while running, queued, applied on stop and loaded on the next
+  start; a plugin disabled while running was not loaded after the restart.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
 | Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
-| Modrinth API v2, Hangar API | v0.2 (next) |
 | Fabric meta server launcher endpoint | v0.2 |
 | Forge / NeoForge installer & argfile layout per version | v0.3 |
 | CurseForge API key terms and distribution flags | v0.3+ |

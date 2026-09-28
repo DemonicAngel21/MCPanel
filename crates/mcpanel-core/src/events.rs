@@ -55,6 +55,10 @@ pub enum DomainEvent {
     PlayersChanged {
         server_id: ServerId,
     },
+    /// Installed plugins/mods or queued content changes changed.
+    ContentChanged {
+        server_id: ServerId,
+    },
     JobUpdated {
         job_id: JobId,
         /// e.g. `server.create`, `backup.create`.

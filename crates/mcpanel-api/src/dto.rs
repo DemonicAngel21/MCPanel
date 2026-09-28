@@ -7,6 +7,8 @@ use mcpanel_core::backup::restore::RestorePreview;
 use mcpanel_core::backup::service::BackupView;
 use mcpanel_core::config::schema::{Applicability, PropertySchema, PropertyView};
 use mcpanel_core::console::{ConsoleBatch, ConsoleLine};
+use mcpanel_core::content::service::{ContentList, PendingChange, PendingKind};
+use mcpanel_core::content::{ContentProviderInfo, ContentVersion, ProjectSummary};
 use mcpanel_core::events::{DomainEvent, EventEnvelope};
 use mcpanel_core::files::service::{FileEntry, TextDocument};
 use mcpanel_core::java::JavaCompatibility;
@@ -894,6 +896,9 @@ pub enum EventDto {
     PlayersChanged {
         server_id: String,
     },
+    ContentChanged {
+        server_id: String,
+    },
     JobUpdated {
         job_id: String,
         kind: String,
@@ -973,6 +978,9 @@ impl From<&EventEnvelope> for EventDto {
                 player_name: player_name.clone(),
             },
             D::PlayersChanged { server_id } => Self::PlayersChanged {
+                server_id: server_id.to_string(),
+            },
+            D::ContentChanged { server_id } => Self::ContentChanged {
                 server_id: server_id.to_string(),
             },
             D::JobUpdated {
@@ -1386,5 +1394,310 @@ impl From<ActionOutcome> for PlayerActionOutcomeDto {
             via: enum_str(&o.via),
             messages: o.messages,
         }
+    }
+}
+
+// ─────────────────────────────── content ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ContentProviderDto {
+    pub id: String,
+    pub display_name: String,
+    pub website: String,
+    pub hash_lookup: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ContentEntryDto {
+    pub file_name: String,
+    pub enabled: bool,
+    pub size_bytes: u64,
+    /// Name from MCPanel's record or the jar's descriptor.
+    pub name: String,
+    pub version: Option<String>,
+    /// e.g. `plugin.yml`; `null` = no descriptor found.
+    pub descriptor_format: Option<String>,
+    pub provider: Option<String>,
+    pub project_id: Option<String>,
+    pub version_id: Option<String>,
+    /// Queued change: "install" | "remove" | "disable" | "enable".
+    pub pending: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PendingChangeDto {
+    pub id: String,
+    /// "install" | "remove" | "disable" | "enable"
+    pub action: String,
+    pub file_name: String,
+    pub name: String,
+    pub version: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ContentListDto {
+    /// "plugin" | "mod"
+    pub kind: String,
+    pub folder: String,
+    pub running: bool,
+    pub entries: Vec<ContentEntryDto>,
+    pub pending: Vec<PendingChangeDto>,
+    pub providers: Vec<ContentProviderDto>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ProjectDto {
+    pub provider: String,
+    pub id: String,
+    pub slug: String,
+    pub name: String,
+    pub description: String,
+    pub author: Option<String>,
+    pub downloads: u64,
+    pub icon_url: Option<String>,
+    pub page_url: String,
+    pub updated: Option<i64>,
+    pub license: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchRequestDto {
+    pub provider: String,
+    pub text: String,
+    /// "relevance" | "downloads" | "updated"
+    pub sort: String,
+    pub offset: u32,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchPageDto {
+    pub hits: Vec<ProjectDto>,
+    pub total: u64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ContentDependencyDto {
+    pub project_id: Option<String>,
+    pub name: Option<String>,
+    /// "required" | "optional" | "incompatible" | "embedded"
+    pub kind: String,
+    pub external_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ContentVersionDto {
+    pub provider: String,
+    pub project_id: String,
+    pub id: String,
+    pub name: String,
+    pub version_number: String,
+    /// "release" | "beta" | "alpha"
+    pub channel: String,
+    pub game_versions: Vec<String>,
+    pub published: Option<i64>,
+    pub file_name: Option<String>,
+    pub size_bytes: Option<u64>,
+    /// "sha512" | "sha256" | "sha1"; `null` = unverified.
+    pub hash_algorithm: Option<String>,
+    pub external_url: Option<String>,
+    pub dependencies: Vec<ContentDependencyDto>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlannedInstallDto {
+    pub project: ProjectDto,
+    pub version: ContentVersionDto,
+    pub replaces: Option<String>,
+    pub required_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct InstallPlanDto {
+    pub items: Vec<PlannedInstallDto>,
+    pub unresolved: Vec<String>,
+    pub warnings: Vec<String>,
+    pub deferred: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct InstallRequestDto {
+    pub provider: String,
+    pub project_id: String,
+    pub version_id: Option<String>,
+    pub with_dependencies: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateInfoDto {
+    pub file_name: String,
+    pub name: String,
+    pub current_version: Option<String>,
+    pub latest: ContentVersionDto,
+}
+
+impl From<ProjectSummary> for ProjectDto {
+    fn from(p: ProjectSummary) -> Self {
+        Self {
+            provider: p.provider,
+            id: p.id,
+            slug: p.slug,
+            name: p.name,
+            description: p.description,
+            author: p.author,
+            downloads: p.downloads,
+            icon_url: p.icon_url,
+            page_url: p.page_url,
+            updated: p.updated.map(|t| t.millis()),
+            license: p.license,
+        }
+    }
+}
+
+impl From<ContentVersion> for ContentVersionDto {
+    fn from(v: ContentVersion) -> Self {
+        Self {
+            provider: v.provider,
+            project_id: v.project_id,
+            id: v.id,
+            name: v.name,
+            version_number: v.version_number,
+            channel: enum_str(&v.channel),
+            game_versions: v.game_versions,
+            published: v.published.map(|t| t.millis()),
+            file_name: v.file.as_ref().map(|f| f.file_name.clone()),
+            size_bytes: v.file.as_ref().and_then(|f| f.size),
+            hash_algorithm: v
+                .file
+                .as_ref()
+                .and_then(|f| f.hash.as_ref())
+                .map(|h| enum_str(&h.algorithm)),
+            external_url: v.external_url,
+            dependencies: v
+                .dependencies
+                .into_iter()
+                .map(|d| ContentDependencyDto {
+                    project_id: d.project_id,
+                    name: d.name,
+                    kind: enum_str(&d.kind),
+                    external_url: d.external_url,
+                })
+                .collect(),
+        }
+    }
+}
+
+fn pending_action(k: &PendingKind) -> &'static str {
+    match k {
+        PendingKind::Install { .. } => "install",
+        PendingKind::Remove { .. } => "remove",
+        PendingKind::Disable { .. } => "disable",
+        PendingKind::Enable { .. } => "enable",
+    }
+}
+
+impl ContentListDto {
+    pub fn new(
+        l: ContentList,
+        pending: Vec<PendingChange>,
+        providers: Vec<ContentProviderInfo>,
+    ) -> Self {
+        Self {
+            kind: l.kind.as_str().into(),
+            folder: l.folder,
+            running: l.running,
+            entries: l
+                .entries
+                .into_iter()
+                .map(|e| {
+                    let src = e.record.as_ref().and_then(|r| r.source.clone());
+                    ContentEntryDto {
+                        name: e
+                            .record
+                            .as_ref()
+                            .map(|r| r.name.clone())
+                            .or_else(|| e.descriptor.as_ref().and_then(|d| d.name.clone()))
+                            .unwrap_or_else(|| e.file_name.trim_end_matches(".jar").to_string()),
+                        version: e
+                            .record
+                            .as_ref()
+                            .and_then(|r| r.version_number.clone())
+                            .or_else(|| e.descriptor.as_ref().and_then(|d| d.version.clone())),
+                        descriptor_format: e.descriptor.as_ref().map(|d| d.format.clone()),
+                        provider: src.as_ref().map(|s| s.provider.clone()),
+                        project_id: src.as_ref().map(|s| s.project_id.clone()),
+                        version_id: src.as_ref().map(|s| s.version_id.clone()),
+                        pending: e.pending.as_ref().map(|p| pending_action(p).to_string()),
+                        file_name: e.file_name,
+                        enabled: e.enabled,
+                        size_bytes: e.size,
+                    }
+                })
+                .collect(),
+            pending: pending
+                .into_iter()
+                .map(|p| {
+                    let (name, version) = match &p.change {
+                        PendingKind::Install { record, .. } => {
+                            (record.name.clone(), record.version_number.clone())
+                        }
+                        other => (other_file(other), None),
+                    };
+                    PendingChangeDto {
+                        id: p.id,
+                        action: pending_action(&p.change).into(),
+                        file_name: other_file(&p.change),
+                        name,
+                        version,
+                        created_at: p.created_at.millis(),
+                    }
+                })
+                .collect(),
+            providers: providers
+                .into_iter()
+                .map(|p| ContentProviderDto {
+                    id: p.id,
+                    display_name: p.display_name,
+                    website: p.website,
+                    hash_lookup: p.hash_lookup,
+                })
+                .collect(),
+        }
+    }
+}
+
+fn other_file(k: &PendingKind) -> String {
+    match k {
+        PendingKind::Install { record, .. } => record.file_name.clone(),
+        PendingKind::Remove { file_name }
+        | PendingKind::Disable { file_name }
+        | PendingKind::Enable { file_name } => file_name.clone(),
     }
 }

@@ -4,6 +4,7 @@ import { useUi } from "@/stores/ui";
 
 const LABELS: Record<string, string> = {
   "server.create": "Creating server",
+  "content.install": "Installing",
   "backup.create": "Backing up",
   "backup.scheduled": "Scheduled backup",
   "backup.verify": "Verifying backup",

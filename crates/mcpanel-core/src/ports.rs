@@ -2,6 +2,7 @@
 //! platform, HTTP/providers) implement them. Nothing here names a concrete technology.
 
 use crate::backup::{BackupPolicy, BackupRecord};
+use crate::content::{ContentKind, InstalledContent, PendingChange};
 use crate::error::{CoreResult, ErrorCode};
 use crate::ids::{BackupId, JavaRuntimeId, JobId, ServerId};
 use crate::jobs::{JobRecord, JobStatus};
@@ -78,6 +79,23 @@ pub trait BackupRepository: Send + Sync {
     async fn policy(&self, server_id: ServerId) -> CoreResult<Option<BackupPolicy>>;
     async fn policies(&self) -> CoreResult<Vec<BackupPolicy>>;
     async fn save_policy(&self, policy: &BackupPolicy) -> CoreResult<()>;
+}
+
+#[async_trait]
+pub trait ContentRepository: Send + Sync {
+    async fn installed(&self, server_id: ServerId) -> CoreResult<Vec<InstalledContent>>;
+    /// Insert or replace the record for (server, kind, file name).
+    async fn upsert(&self, content: &InstalledContent) -> CoreResult<()>;
+    async fn remove(
+        &self,
+        server_id: ServerId,
+        kind: ContentKind,
+        file_name: &str,
+    ) -> CoreResult<()>;
+    async fn pending(&self, server_id: ServerId) -> CoreResult<Vec<PendingChange>>;
+    async fn add_pending(&self, change: &PendingChange) -> CoreResult<()>;
+    async fn remove_pending(&self, id: &str) -> CoreResult<()>;
+    async fn servers_with_pending(&self) -> CoreResult<Vec<ServerId>>;
 }
 
 /// Aggregated play history of one player on one server.

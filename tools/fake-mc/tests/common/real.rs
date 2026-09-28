@@ -70,6 +70,17 @@ impl RealServer {
     /// `MCPANEL_E2E_VERSION` (default: newest release) with extra properties.
     pub async fn create(properties: &[(&str, &str)]) -> RealServer {
         let software = std::env::var("MCPANEL_E2E_SOFTWARE").unwrap_or_else(|_| "vanilla".into());
+        let version = std::env::var("MCPANEL_E2E_VERSION").ok();
+        Self::create_with(&software, version.as_deref(), properties).await
+    }
+
+    /// Create a server of the given software (newest release when `version` is None).
+    pub async fn create_with(
+        software: &str,
+        version: Option<&str>,
+        properties: &[(&str, &str)],
+    ) -> RealServer {
+        let software = software.to_string();
         let data = tempfile::tempdir().unwrap();
         let servers = tempfile::tempdir().unwrap();
         let (db, _) = mcpanel_db::Database::open(&data.path().join("mcpanel.db"))
@@ -88,9 +99,9 @@ impl RealServer {
         })
         .await
         .unwrap();
-        let version = match std::env::var("MCPANEL_E2E_VERSION") {
-            Ok(v) => v,
-            Err(_) => core.servers.game_versions(&software, false).await.unwrap()[0]
+        let version = match version {
+            Some(v) => v.to_string(),
+            None => core.servers.game_versions(&software, false).await.unwrap()[0]
                 .id
                 .clone(),
         };

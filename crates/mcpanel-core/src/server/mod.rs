@@ -6,7 +6,7 @@ pub mod props;
 pub mod provisioning;
 pub mod runtime;
 
-pub use manager::{ServerManager, ServerManagerDeps, ServerView};
+pub use manager::{LaunchHook, ServerManager, ServerManagerDeps, ServerView};
 pub use props::{PropertyChange, ServerProperties};
 pub use provisioning::{
     CreateServerRequest, ImportDetection, ImportServerRequest, InstallPreview, LocationCheck,

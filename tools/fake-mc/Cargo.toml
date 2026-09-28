@@ -33,6 +33,9 @@ tempfile.workspace = true
 serde_json.workspace = true
 zip.workspace = true
 uuid.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tokio-util.workspace = true
 
 [lints]
 workspace = true

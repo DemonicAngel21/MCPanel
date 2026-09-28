@@ -324,6 +324,102 @@ pub async fn servers_open_folder(s: State<'_, AppState>, id: String) -> R<()> {
         .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
 }
 
+// ───────────────────────────── content ────────────────────────────
+
+#[tauri::command]
+pub async fn content_list(s: State<'_, AppState>, server_id: String) -> R<ContentListDto> {
+    s.api.content_list(&s.principal(), &server_id).await
+}
+
+#[tauri::command]
+pub async fn content_search(
+    s: State<'_, AppState>,
+    server_id: String,
+    query: SearchRequestDto,
+) -> R<SearchPageDto> {
+    s.api
+        .content_search(&s.principal(), &server_id, query)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_versions(
+    s: State<'_, AppState>,
+    server_id: String,
+    provider: String,
+    project_id: String,
+) -> R<Vec<ContentVersionDto>> {
+    s.api
+        .content_versions(&s.principal(), &server_id, &provider, &project_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_plan(
+    s: State<'_, AppState>,
+    server_id: String,
+    request: InstallRequestDto,
+) -> R<InstallPlanDto> {
+    s.api
+        .content_plan(&s.principal(), &server_id, request)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_install(
+    s: State<'_, AppState>,
+    server_id: String,
+    request: InstallRequestDto,
+) -> R<String> {
+    s.api
+        .content_install(&s.principal(), &server_id, request)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_remove(
+    s: State<'_, AppState>,
+    server_id: String,
+    file_name: String,
+) -> R<bool> {
+    s.api
+        .content_remove(&s.principal(), &server_id, &file_name)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_set_enabled(
+    s: State<'_, AppState>,
+    server_id: String,
+    file_name: String,
+    enabled: bool,
+) -> R<bool> {
+    s.api
+        .content_set_enabled(&s.principal(), &server_id, &file_name, enabled)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_discard_pending(
+    s: State<'_, AppState>,
+    server_id: String,
+    id: String,
+) -> R<()> {
+    s.api
+        .content_discard_pending(&s.principal(), &server_id, &id)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_check_updates(
+    s: State<'_, AppState>,
+    server_id: String,
+) -> R<Vec<UpdateInfoDto>> {
+    s.api
+        .content_check_updates(&s.principal(), &server_id)
+        .await
+}
+
 // ───────────────────────────── players ────────────────────────────
 
 #[tauri::command]
@@ -462,7 +558,16 @@ pub fn open_external(app: AppHandle, url: String) -> R<()> {
         "https://www.minecraft.net/eula",
         "https://github.com/mcpanel/mcpanel",
     ];
-    if !ALLOWED.contains(&url.as_str()) {
+    // Project pages of the content providers (HTTPS, exact host, no credentials).
+    const ALLOWED_HOSTS: &[&str] = &["modrinth.com", "hangar.papermc.io"];
+    let host_ok = tauri::Url::parse(&url).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.username().is_empty()
+            && u.password().is_none()
+            && u.port().is_none()
+            && u.host_str().is_some_and(|h| ALLOWED_HOSTS.contains(&h))
+    });
+    if !ALLOWED.contains(&url.as_str()) && !host_ok {
         return Err(ApiError::invalid("This link cannot be opened"));
     }
     use tauri_plugin_opener::OpenerExt;

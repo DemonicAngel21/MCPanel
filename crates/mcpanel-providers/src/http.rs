@@ -56,46 +56,24 @@ impl HttpClient {
             .send()
             .await
             .map_err(|e| net_err("Request failed", e))?;
-        let status = resp.status();
-        if status.as_u16() == 404 {
-            return Err(CoreError::new(
-                ErrorCode::VersionNotFound,
-                "The requested version was not found",
-            ));
-        }
-        if !status.is_success() {
-            let err = CoreError::new(
-                ErrorCode::ProviderError,
-                format!("Provider returned HTTP {status}"),
-            );
-            return Err(if status.is_server_error() || status.as_u16() == 429 {
-                err.retryable()
-            } else {
-                err
-            });
-        }
-        if resp.content_length().is_some_and(|l| l > 16 * 1024 * 1024) {
-            return Err(CoreError::new(
-                ErrorCode::ProviderError,
-                "Provider response is too large",
-            ));
-        }
-        let bytes = resp
-            .bytes()
+        read_json(resp).await
+    }
+
+    /// POST a JSON body and read a JSON response (same limits as [`Self::get_json`]).
+    pub async fn post_json<B: serde::Serialize + ?Sized, T: DeserializeOwned>(
+        &self,
+        url: &str,
+        body: &B,
+    ) -> CoreResult<T> {
+        let resp = self
+            .client
+            .post(url)
+            .json(body)
+            .timeout(Duration::from_secs(30))
+            .send()
             .await
-            .map_err(|e| net_err("Reading response failed", e))?;
-        if bytes.len() > 16 * 1024 * 1024 {
-            return Err(CoreError::new(
-                ErrorCode::ProviderError,
-                "Provider response is too large",
-            ));
-        }
-        serde_json::from_slice(&bytes).map_err(|e| {
-            CoreError::new(
-                ErrorCode::ProviderError,
-                format!("Unexpected provider response: {e}"),
-            )
-        })
+            .map_err(|e| net_err("Request failed", e))?;
+        read_json(resp).await
     }
 
     pub async fn get_bytes(&self, url: &str, max: usize) -> CoreResult<Vec<u8>> {
@@ -284,6 +262,49 @@ impl Downloader for HttpDownloader {
 
 /// Parse an RFC 3339 timestamp (`2026-09-15T16:53:02+00:00`, `…Z`, fractional seconds)
 /// into unix milliseconds.
+async fn read_json<T: DeserializeOwned>(resp: reqwest::Response) -> CoreResult<T> {
+    let status = resp.status();
+    if status.as_u16() == 404 {
+        return Err(CoreError::new(
+            ErrorCode::VersionNotFound,
+            "The requested version was not found",
+        ));
+    }
+    if !status.is_success() {
+        let err = CoreError::new(
+            ErrorCode::ProviderError,
+            format!("Provider returned HTTP {status}"),
+        );
+        return Err(if status.is_server_error() || status.as_u16() == 429 {
+            err.retryable()
+        } else {
+            err
+        });
+    }
+    if resp.content_length().is_some_and(|l| l > 16 * 1024 * 1024) {
+        return Err(CoreError::new(
+            ErrorCode::ProviderError,
+            "Provider response is too large",
+        ));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| net_err("Reading response failed", e))?;
+    if bytes.len() > 16 * 1024 * 1024 {
+        return Err(CoreError::new(
+            ErrorCode::ProviderError,
+            "Provider response is too large",
+        ));
+    }
+    serde_json::from_slice(&bytes).map_err(|e| {
+        CoreError::new(
+            ErrorCode::ProviderError,
+            format!("Unexpected provider response: {e}"),
+        )
+    })
+}
+
 pub fn parse_rfc3339(s: &str) -> Option<i64> {
     let b = s.as_bytes();
     if b.len() < 19 || b[4] != b'-' || b[7] != b'-' || (b[10] != b'T' && b[10] != b' ') {
