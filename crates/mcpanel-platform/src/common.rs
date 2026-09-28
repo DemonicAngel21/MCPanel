@@ -10,7 +10,23 @@ use sysinfo::{Disks, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, Sy
 
 /// `%LOCALAPPDATA%\MCPanel` for data and `%USERPROFILE%\MCPanel\Servers` for servers
 /// (deliberately not Documents/Desktop, which are often redirected into OneDrive).
+///
+/// `MCPANEL_DATA_DIR` / `MCPANEL_SERVERS_DIR` override both locations (development,
+/// testing and portable setups).
 pub fn default_paths() -> CoreResult<AppPaths> {
+    let base = platform_default_paths()?;
+    let data = std::env::var_os("MCPANEL_DATA_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or(base.data_dir);
+    let servers = std::env::var_os("MCPANEL_SERVERS_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or(base.default_servers_dir);
+    Ok(AppPaths::new(data, servers))
+}
+
+fn platform_default_paths() -> CoreResult<AppPaths> {
     #[cfg(windows)]
     {
         let local = std::env::var_os("LOCALAPPDATA")

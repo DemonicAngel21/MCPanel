@@ -22,6 +22,7 @@ use windows::core::PCWSTR;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
 
 /// Environment variables passed to child processes. Everything else (including
 /// `JAVA_TOOL_OPTIONS` / `_JAVA_OPTIONS`, which inject JVM flags, and any tokens in the
@@ -252,21 +253,40 @@ impl Platform for WindowsPlatform {
     }
 
     fn spawn(&self, spec: &ProcessSpec) -> CoreResult<SpawnedProcess> {
-        let mut cmd = tokio::process::Command::new(&spec.program);
-        cmd.args(&spec.args)
-            .current_dir(&spec.cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(false)
-            .creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
-        minimal_env(&mut cmd);
-        for (k, v) in &spec.env {
-            cmd.env(k, v);
-        }
-        let mut child = cmd.spawn().map_err(|e| {
-            CoreError::io(format!("Failed to start {}", spec.program.display()), &e)
-        })?;
+        let build = |flags: u32| {
+            let mut cmd = tokio::process::Command::new(&spec.program);
+            cmd.args(&spec.args)
+                .current_dir(&spec.cwd)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(false)
+                .creation_flags(flags);
+            minimal_env(&mut cmd);
+            for (k, v) in &spec.env {
+                cmd.env(k, v);
+            }
+            cmd
+        };
+        // Break away from any job MCPanel itself runs in (launchers and dev tools often
+        // use kill-on-close jobs), so servers survive MCPanel exiting (decision #3). If
+        // the parent job forbids breakaway, fall back to a normal child.
+        let base = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP;
+        let mut child = match build(base | CREATE_BREAKAWAY_FROM_JOB).spawn() {
+            Ok(c) => c,
+            Err(e) if e.raw_os_error() == Some(5) => {
+                tracing::info!(target: "mcpanel::platform", "job breakaway not permitted; server will share MCPanel's job");
+                build(base).spawn().map_err(|e| {
+                    CoreError::io(format!("Failed to start {}", spec.program.display()), &e)
+                })?
+            }
+            Err(e) => {
+                return Err(CoreError::io(
+                    format!("Failed to start {}", spec.program.display()),
+                    &e,
+                ));
+            }
+        };
         let pid = child
             .id()
             .ok_or_else(|| CoreError::internal("Process exited immediately"))?;
