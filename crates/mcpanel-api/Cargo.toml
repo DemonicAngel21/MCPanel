@@ -1,7 +1,24 @@
 [package]
 name = "mcpanel-api"
+description = "MCPanel Application API: DTOs, error codes, authorization and command facade"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
+authors.workspace = true
 publish.workspace = true
 
+[dependencies]
+mcpanel-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+ts-rs = { workspace = true, features = ["serde-json-impl", "no-serde-warnings"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

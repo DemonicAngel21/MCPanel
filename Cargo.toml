@@ -43,7 +43,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"]
 tracing-appender = "0.2"
 
 # utilities
-uuid = { version = "1.26", features = ["v7", "serde"] }
+uuid = { version = "1.26", features = ["v4", "v7", "serde"] }
 regex = "1"
 sha1 = "0.10"
 sha2 = "0.10"

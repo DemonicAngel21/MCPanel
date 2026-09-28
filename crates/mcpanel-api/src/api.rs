@@ -1,0 +1,916 @@
+//! The Application API facade. Transport adapters (Tauri IPC in v1; HTTP/WebSocket
+//! later) call these methods; each validates input, authorizes the principal, calls the
+//! core and maps results to DTOs.
+
+use crate::dto::*;
+use crate::error::{ApiError, ApiResult};
+use crate::grants::{GrantKind, GrantRegistry};
+use crate::principal::{Permission, Principal};
+use mcpanel_core::Core;
+use mcpanel_core::console::ConsoleSubscription;
+use mcpanel_core::events::EventEnvelope;
+use mcpanel_core::files::service::WriteText;
+use mcpanel_core::files::text::TextEncoding;
+use mcpanel_core::ids::{JavaRuntimeId, JobId, ServerId};
+use mcpanel_core::model::{AuditQuery, LaunchConfig};
+use mcpanel_core::server::{
+    CreateServerRequest, ImportServerRequest, PropertyChange, UpdateServerRequest,
+};
+use mcpanel_core::settings::AppSettingsPatch;
+use mcpanel_core::time::Timestamp;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::broadcast;
+
+pub struct Api {
+    core: Arc<Core>,
+    pub grants: GrantRegistry,
+    version: String,
+}
+
+fn server_id(s: &str) -> ApiResult<ServerId> {
+    ServerId::from_str(s).map_err(|_| ApiError::invalid("Invalid server id"))
+}
+
+fn java_id(s: &str) -> ApiResult<JavaRuntimeId> {
+    JavaRuntimeId::from_str(s).map_err(|_| ApiError::invalid("Invalid Java runtime id"))
+}
+
+fn launch_from(d: LaunchConfigDto) -> ApiResult<LaunchConfig> {
+    Ok(LaunchConfig {
+        java_runtime_id: d.java_runtime_id.as_deref().map(java_id).transpose()?,
+        min_memory_mb: d.min_memory_mb,
+        max_memory_mb: d.max_memory_mb,
+        jvm_args: d.jvm_args,
+        server_args: d.server_args,
+        stop_timeout_secs: d.stop_timeout_secs,
+    })
+}
+
+impl Api {
+    pub fn new(core: Arc<Core>, version: impl Into<String>) -> Self {
+        Self {
+            core,
+            grants: GrantRegistry::default(),
+            version: version.into(),
+        }
+    }
+
+    pub fn core(&self) -> &Arc<Core> {
+        &self.core
+    }
+
+    fn software_name(&self, id: &str) -> String {
+        self.core
+            .servers
+            .registry()
+            .get_software(id)
+            .map(|p| p.descriptor.display_name.clone())
+            .unwrap_or_else(|_| id.to_string())
+    }
+
+    // ───────────────────────────── system ─────────────────────────────
+
+    pub fn app_info(&self, p: &Principal) -> ApiResult<AppInfoDto> {
+        p.authorize(Permission::SystemRead)?;
+        let paths = &self.core.paths;
+        Ok(AppInfoDto {
+            version: self.version.clone(),
+            platform: self.core.platform.name().into(),
+            data_dir: paths.data_dir.to_string_lossy().into(),
+            default_servers_dir: paths.default_servers_dir.to_string_lossy().into(),
+            logs_dir: paths.logs_dir().to_string_lossy().into(),
+        })
+    }
+
+    pub fn system_metrics(&self, p: &Principal) -> ApiResult<SystemMetricsDto> {
+        p.authorize(Permission::SystemRead)?;
+        Ok(self.core.monitor.system().into())
+    }
+
+    pub fn subscribe_events(&self) -> broadcast::Receiver<EventEnvelope> {
+        self.core.events.subscribe()
+    }
+
+    pub async fn settings_get(&self, p: &Principal) -> ApiResult<SettingsDto> {
+        p.authorize(Permission::SystemRead)?;
+        Ok(self.core.settings.get().await?.into())
+    }
+
+    pub async fn settings_update(
+        &self,
+        p: &Principal,
+        patch: SettingsPatchDto,
+    ) -> ApiResult<SettingsDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let theme = match patch.theme.as_deref() {
+            Some(t) => Some(parse_theme(t).ok_or_else(|| ApiError::invalid("Unknown theme"))?),
+            None => None,
+        };
+        Ok(self
+            .core
+            .settings
+            .update(AppSettingsPatch {
+                theme,
+                tray_notice_shown: patch.tray_notice_shown,
+                console_buffer_lines: patch.console_buffer_lines,
+                quit_stop_timeout_secs: patch.quit_stop_timeout_secs,
+            })
+            .await?
+            .into())
+    }
+
+    // ────────────────────────────── java ──────────────────────────────
+
+    pub async fn java_list(&self, p: &Principal) -> ApiResult<Vec<JavaRuntimeDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .java
+            .list()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn java_detect(&self, p: &Principal) -> ApiResult<Vec<JavaRuntimeDto>> {
+        p.authorize(Permission::JavaManage)?;
+        Ok(self
+            .core
+            .java
+            .detect()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn java_add(&self, p: &Principal, grant: &str) -> ApiResult<JavaRuntimeDto> {
+        p.authorize(Permission::JavaManage)?;
+        let path = self.grants.take(grant, GrantKind::Source)?;
+        Ok(self.core.java.add_manual(path).await?.into())
+    }
+
+    pub async fn java_revalidate(&self, p: &Principal, id: &str) -> ApiResult<JavaRuntimeDto> {
+        p.authorize(Permission::JavaManage)?;
+        Ok(self.core.java.revalidate(java_id(id)?).await?.into())
+    }
+
+    pub async fn java_remove(&self, p: &Principal, id: &str) -> ApiResult<()> {
+        p.authorize(Permission::JavaManage)?;
+        Ok(self.core.java.remove(java_id(id)?).await?)
+    }
+
+    // ──────────────────────────── software ────────────────────────────
+
+    pub fn software_list(&self, p: &Principal) -> ApiResult<Vec<SoftwareDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .servers
+            .registry()
+            .software()
+            .iter()
+            .map(|s| (&s.descriptor).into())
+            .collect())
+    }
+
+    pub async fn software_versions(
+        &self,
+        p: &Principal,
+        software_id: &str,
+        include_snapshots: bool,
+    ) -> ApiResult<Vec<GameVersionDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .servers
+            .game_versions(software_id, include_snapshots)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn software_builds(
+        &self,
+        p: &Principal,
+        software_id: &str,
+        game_version: &str,
+    ) -> ApiResult<Vec<SoftwareBuildDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .servers
+            .builds(software_id, game_version)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn software_preview(
+        &self,
+        p: &Principal,
+        software_id: &str,
+        game_version: &str,
+        build: Option<String>,
+    ) -> ApiResult<InstallPreviewDto> {
+        p.authorize(Permission::ServersRead)?;
+        let preview = self
+            .core
+            .servers
+            .preview_install(software_id, game_version, build)
+            .await?;
+        let plan = preview.plan;
+        let (hash_algorithm, hash_strong, download_bytes) = match plan.steps.first() {
+            Some(mcpanel_core::software::InstallStep::Download {
+                expected_hash,
+                size,
+                ..
+            }) => (
+                expected_hash.as_ref().map(|h| {
+                    serde_json::to_value(h.algorithm)
+                        .ok()
+                        .and_then(|v| v.as_str().map(String::from))
+                        .unwrap_or_default()
+                }),
+                expected_hash
+                    .as_ref()
+                    .is_some_and(|h| h.algorithm.is_strong()),
+                *size,
+            ),
+            None => (None, false, None),
+        };
+        Ok(InstallPreviewDto {
+            software_id: plan.software_id,
+            game_version: plan.game_version,
+            build: plan.build,
+            build_channel: plan.build_channel.map(|c| {
+                serde_json::to_value(c)
+                    .ok()
+                    .and_then(|v| v.as_str().map(String::from))
+                    .unwrap_or_default()
+            }),
+            java_min_major: plan.java.min_major,
+            java_recommended_major: plan.java.recommended_major,
+            recommended_jvm_flags: plan.java.recommended_flags,
+            notes: plan.notes,
+            hash_algorithm,
+            hash_strong,
+            download_bytes,
+            java: preview
+                .java
+                .into_iter()
+                .map(|(id, c)| JavaCompatibilityEntryDto {
+                    java_runtime_id: id.to_string(),
+                    compatibility: c.into(),
+                })
+                .collect(),
+        })
+    }
+
+    // ───────────────────────────── servers ────────────────────────────
+
+    pub async fn servers_list(&self, p: &Principal) -> ApiResult<Vec<ServerDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .servers
+            .list()
+            .await?
+            .into_iter()
+            .map(|v| {
+                let name = self.software_name(&v.server.software.software_id);
+                ServerDto::from_view(v, name)
+            })
+            .collect())
+    }
+
+    pub async fn servers_get(&self, p: &Principal, id: &str) -> ApiResult<ServerDto> {
+        p.authorize(Permission::ServersRead)?;
+        let v = self.core.servers.view(server_id(id)?).await?;
+        let name = self.software_name(&v.server.software.software_id);
+        Ok(ServerDto::from_view(v, name))
+    }
+
+    pub async fn servers_check_location(
+        &self,
+        p: &Principal,
+        name: &str,
+        parent_grant: Option<&str>,
+    ) -> ApiResult<LocationCheckDto> {
+        p.authorize(Permission::ServersRead)?;
+        let parent = parent_grant
+            .map(|g| self.grants.peek(g, GrantKind::Directory))
+            .transpose()?;
+        let c = self.core.servers.check_new_location(name, parent).await?;
+        Ok(LocationCheckDto {
+            directory: c.directory.to_string_lossy().into(),
+            warnings: warnings(&c.warnings),
+        })
+    }
+
+    /// Returns the id of the provisioning job.
+    pub async fn servers_create(&self, p: &Principal, req: CreateServerDto) -> ApiResult<String> {
+        p.authorize(Permission::ServersManage)?;
+        let parent = req
+            .parent_directory_grant
+            .as_deref()
+            .map(|g| self.grants.take(g, GrantKind::Directory))
+            .transpose()?;
+        let job = self
+            .core
+            .servers
+            .create(
+                CreateServerRequest {
+                    name: req.name,
+                    parent_directory: parent,
+                    software_id: req.software_id,
+                    game_version: req.game_version,
+                    build: req.build,
+                    java_runtime_id: java_id(&req.java_runtime_id)?,
+                    min_memory_mb: req.min_memory_mb,
+                    max_memory_mb: req.max_memory_mb,
+                    jvm_args: req.jvm_args,
+                    properties: req
+                        .properties
+                        .into_iter()
+                        .map(|p| (p.key, p.value))
+                        .collect(),
+                    accept_eula: req.accept_eula,
+                },
+                p.actor(),
+            )
+            .await?;
+        Ok(job.to_string())
+    }
+
+    pub async fn servers_detect_import(
+        &self,
+        p: &Principal,
+        grant: &str,
+    ) -> ApiResult<ImportDetectionDto> {
+        p.authorize(Permission::ServersRead)?;
+        let dir = self.grants.peek(grant, GrantKind::Directory)?;
+        let d = self.core.servers.detect_import(dir.clone()).await?;
+        Ok(ImportDetectionDto {
+            detected: d.detected.map(|s| DetectedSoftwareDto {
+                software_id: s.software_id,
+                game_version: s.game_version,
+                build: s.build,
+                jar: s.jar,
+                confidence: s.confidence,
+            }),
+            has_eula: d.has_eula,
+            has_properties: d.has_properties,
+            jars: d.jars,
+            warnings: warnings(&d.warnings),
+            directory: mcpanel_core::files::fsx::simplify(&dir)
+                .to_string_lossy()
+                .into(),
+        })
+    }
+
+    pub async fn servers_import(
+        &self,
+        p: &Principal,
+        req: ImportServerDto,
+    ) -> ApiResult<ServerDto> {
+        p.authorize(Permission::ServersManage)?;
+        let dir = self
+            .grants
+            .take(&req.directory_grant, GrantKind::Directory)?;
+        let server = self
+            .core
+            .servers
+            .import(
+                ImportServerRequest {
+                    name: req.name,
+                    directory: dir,
+                    software_id: req.software_id,
+                    game_version: req.game_version,
+                    jar: req.jar,
+                    java_runtime_id: req.java_runtime_id.as_deref().map(java_id).transpose()?,
+                    min_memory_mb: req.min_memory_mb,
+                    max_memory_mb: req.max_memory_mb,
+                },
+                p.actor(),
+            )
+            .await?;
+        self.servers_get(p, &server.id.to_string()).await
+    }
+
+    pub async fn servers_update(
+        &self,
+        p: &Principal,
+        id: &str,
+        req: UpdateServerDto,
+    ) -> ApiResult<ServerDto> {
+        p.authorize(Permission::ServersManage)?;
+        let sid = server_id(id)?;
+        self.core
+            .servers
+            .update(
+                sid,
+                UpdateServerRequest {
+                    name: req.name,
+                    launch: req.launch.map(launch_from).transpose()?,
+                },
+                p.actor(),
+            )
+            .await?;
+        self.servers_get(p, id).await
+    }
+
+    pub async fn servers_delete(
+        &self,
+        p: &Principal,
+        id: &str,
+        delete_files: bool,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::ServersManage)?;
+        Ok(self
+            .core
+            .servers
+            .delete(server_id(id)?, delete_files, p.actor())
+            .await?)
+    }
+
+    pub async fn servers_accept_eula(&self, p: &Principal, id: &str) -> ApiResult<()> {
+        p.authorize(Permission::ServersManage)?;
+        Ok(self
+            .core
+            .servers
+            .accept_eula(server_id(id)?, p.actor())
+            .await?)
+    }
+
+    pub async fn servers_start(&self, p: &Principal, id: &str) -> ApiResult<()> {
+        p.authorize(Permission::ServersControl)?;
+        Ok(self.core.servers.start(server_id(id)?, p.actor()).await?)
+    }
+
+    pub async fn servers_stop(&self, p: &Principal, id: &str, force: bool) -> ApiResult<()> {
+        p.authorize(Permission::ServersControl)?;
+        Ok(self
+            .core
+            .servers
+            .stop(server_id(id)?, force, p.actor())
+            .await?)
+    }
+
+    pub async fn servers_restart(&self, p: &Principal, id: &str) -> ApiResult<()> {
+        p.authorize(Permission::ServersControl)?;
+        Ok(self.core.servers.restart(server_id(id)?, p.actor()).await?)
+    }
+
+    pub async fn servers_command(&self, p: &Principal, id: &str, command: &str) -> ApiResult<()> {
+        p.authorize(Permission::ServersControl)?;
+        Ok(self
+            .core
+            .servers
+            .send_command(server_id(id)?, command)
+            .await?)
+    }
+
+    pub async fn servers_metrics(&self, p: &Principal, id: &str) -> ApiResult<ServerMetricsDto> {
+        p.authorize(Permission::ServersRead)?;
+        let sid = server_id(id)?;
+        let v = self.core.servers.view(sid).await?;
+        let uptime = if v.runtime.state.has_process() {
+            v.runtime
+                .started_at
+                .map(|s| Timestamp::now().millis() - s.millis())
+        } else {
+            None
+        };
+        Ok(self.core.monitor.server(sid, uptime).into())
+    }
+
+    pub fn servers_running_count(&self, p: &Principal) -> ApiResult<u32> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.servers.running_servers().len() as u32)
+    }
+
+    /// Stop all attached servers gracefully (used when quitting MCPanel).
+    pub async fn servers_stop_all(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::ServersControl)?;
+        let timeout = self.core.settings.get().await?.quit_stop_timeout_secs;
+        self.core
+            .servers
+            .stop_all(Duration::from_secs(timeout as u64))
+            .await;
+        Ok(())
+    }
+
+    pub async fn servers_properties(
+        &self,
+        p: &Principal,
+        id: &str,
+    ) -> ApiResult<ServerPropertiesDto> {
+        p.authorize(Permission::ServersRead)?;
+        let props = self.core.servers.properties(server_id(id)?).await?;
+        Ok(ServerPropertiesDto {
+            file_exists: props.file_exists,
+            game_version: props.game_version,
+            restart_required: props.restart_required,
+            properties: props.properties.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    pub async fn servers_properties_update(
+        &self,
+        p: &Principal,
+        id: &str,
+        changes: Vec<PropertyChangeDto>,
+    ) -> ApiResult<ServerPropertiesDto> {
+        p.authorize(Permission::ServersManage)?;
+        self.core
+            .servers
+            .update_properties(
+                server_id(id)?,
+                changes
+                    .into_iter()
+                    .map(|c| PropertyChange {
+                        key: c.key,
+                        value: c.value,
+                    })
+                    .collect(),
+                p.actor(),
+            )
+            .await?;
+        self.servers_properties(p, id).await
+    }
+
+    // ───────────────────────────── console ────────────────────────────
+
+    pub fn console_history(
+        &self,
+        p: &Principal,
+        id: &str,
+        from_seq: Option<u64>,
+        limit: u32,
+    ) -> ApiResult<Vec<ConsoleLineDto>> {
+        p.authorize(Permission::ServersRead)?;
+        let hub = self.core.servers.console(server_id(id)?);
+        Ok(hub
+            .snapshot(from_seq, limit.clamp(1, 200_000) as usize)
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub fn console_search(
+        &self,
+        p: &Principal,
+        id: &str,
+        query: &str,
+        limit: u32,
+    ) -> ApiResult<Vec<ConsoleLineDto>> {
+        p.authorize(Permission::ServersRead)?;
+        let hub = self.core.servers.console(server_id(id)?);
+        Ok(hub
+            .search(query, limit.clamp(1, 5_000) as usize)
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    /// Stream subscription; the transport adapter drives `next_batch` and forwards DTOs.
+    pub fn console_subscribe(
+        &self,
+        p: &Principal,
+        id: &str,
+        after_seq: Option<u64>,
+        backlog: u32,
+    ) -> ApiResult<ConsoleSubscription> {
+        p.authorize(Permission::ServersRead)?;
+        let hub = self.core.servers.console(server_id(id)?);
+        Ok(hub.subscribe(after_seq, backlog.min(20_000) as usize))
+    }
+
+    // ────────────────────────────── files ─────────────────────────────
+
+    pub async fn files_list(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+    ) -> ApiResult<Vec<FileEntryDto>> {
+        p.authorize(Permission::FilesRead)?;
+        Ok(self
+            .core
+            .files
+            .list(server_id(id)?, path.to_string())
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn files_read(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+    ) -> ApiResult<TextDocumentDto> {
+        p.authorize(Permission::FilesRead)?;
+        Ok(self
+            .core
+            .files
+            .read_text(server_id(id)?, path.to_string())
+            .await?
+            .into())
+    }
+
+    pub async fn files_write(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+        doc: WriteTextDto,
+    ) -> ApiResult<TextDocumentDto> {
+        p.authorize(Permission::FilesWrite)?;
+        Ok(self
+            .core
+            .files
+            .write_text(
+                server_id(id)?,
+                path.to_string(),
+                WriteText {
+                    content: doc.content,
+                    encoding: TextEncoding {
+                        name: doc.encoding,
+                        bom: doc.bom,
+                    },
+                    expected_sha256: doc.expected_sha256,
+                },
+                p.actor(),
+            )
+            .await?
+            .into())
+    }
+
+    pub async fn files_mkdir(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+    ) -> ApiResult<FileEntryDto> {
+        p.authorize(Permission::FilesWrite)?;
+        Ok(self
+            .core
+            .files
+            .create_dir(server_id(id)?, path.into(), p.actor())
+            .await?
+            .into())
+    }
+
+    pub async fn files_create(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+    ) -> ApiResult<FileEntryDto> {
+        p.authorize(Permission::FilesWrite)?;
+        Ok(self
+            .core
+            .files
+            .create_file(server_id(id)?, path.into(), p.actor())
+            .await?
+            .into())
+    }
+
+    pub async fn files_rename(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+        new_name: &str,
+    ) -> ApiResult<FileEntryDto> {
+        p.authorize(Permission::FilesWrite)?;
+        Ok(self
+            .core
+            .files
+            .rename(server_id(id)?, path.into(), new_name.into(), p.actor())
+            .await?
+            .into())
+    }
+
+    pub async fn files_move(
+        &self,
+        p: &Principal,
+        id: &str,
+        paths: Vec<String>,
+        dest: &str,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::FilesWrite)?;
+        Ok(self
+            .core
+            .files
+            .move_to(server_id(id)?, paths, dest.into(), p.actor())
+            .await?)
+    }
+
+    pub async fn files_copy(
+        &self,
+        p: &Principal,
+        id: &str,
+        paths: Vec<String>,
+        dest: &str,
+    ) -> ApiResult<FileOpResultDto> {
+        p.authorize(Permission::FilesWrite)?;
+        let s = self
+            .core
+            .files
+            .copy_to(server_id(id)?, paths, dest.into(), p.actor())
+            .await?;
+        Ok(FileOpResultDto {
+            files: s.files,
+            bytes: s.bytes,
+            skipped_links: s.skipped_links,
+            skipped_sensitive: 0,
+            entry: None,
+        })
+    }
+
+    pub async fn files_delete(
+        &self,
+        p: &Principal,
+        id: &str,
+        paths: Vec<String>,
+        permanent: bool,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::FilesWrite)?;
+        Ok(self
+            .core
+            .files
+            .delete(server_id(id)?, paths, permanent, p.actor())
+            .await?)
+    }
+
+    pub async fn files_zip(
+        &self,
+        p: &Principal,
+        id: &str,
+        paths: Vec<String>,
+        archive_name: &str,
+    ) -> ApiResult<FileOpResultDto> {
+        p.authorize(Permission::FilesWrite)?;
+        let (entry, r) = self
+            .core
+            .files
+            .zip(server_id(id)?, paths, archive_name.into(), p.actor())
+            .await?;
+        Ok(FileOpResultDto {
+            files: r.files,
+            bytes: r.bytes,
+            skipped_links: r.skipped_links,
+            skipped_sensitive: r.skipped_sensitive,
+            entry: Some(entry.into()),
+        })
+    }
+
+    pub async fn files_unzip(
+        &self,
+        p: &Principal,
+        id: &str,
+        archive: &str,
+        dest: &str,
+        overwrite: bool,
+    ) -> ApiResult<FileOpResultDto> {
+        p.authorize(Permission::FilesWrite)?;
+        let r = self
+            .core
+            .files
+            .unzip(
+                server_id(id)?,
+                archive.into(),
+                dest.into(),
+                overwrite,
+                p.actor(),
+            )
+            .await?;
+        Ok(FileOpResultDto {
+            files: r.files,
+            bytes: r.bytes,
+            skipped_links: 0,
+            skipped_sensitive: 0,
+            entry: None,
+        })
+    }
+
+    pub async fn files_import(
+        &self,
+        p: &Principal,
+        id: &str,
+        grants: Vec<String>,
+        dest: &str,
+    ) -> ApiResult<Vec<FileEntryDto>> {
+        p.authorize(Permission::FilesWrite)?;
+        let sid = server_id(id)?;
+        let mut out = Vec::new();
+        for g in grants {
+            let src = self.grants.take(&g, GrantKind::Source)?;
+            out.push(
+                self.core
+                    .files
+                    .import(sid, src, dest.into(), p.actor())
+                    .await?
+                    .into(),
+            );
+        }
+        Ok(out)
+    }
+
+    pub async fn files_export(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+        save_grant: &str,
+    ) -> ApiResult<u64> {
+        p.authorize(Permission::FilesRead)?;
+        let dest = self.grants.take(save_grant, GrantKind::SaveTarget)?;
+        Ok(self
+            .core
+            .files
+            .export(server_id(id)?, path.into(), dest, p.actor())
+            .await?)
+    }
+
+    pub async fn files_search(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+        query: &str,
+        limit: u32,
+    ) -> ApiResult<Vec<FileEntryDto>> {
+        p.authorize(Permission::FilesRead)?;
+        Ok(self
+            .core
+            .files
+            .search(server_id(id)?, path.into(), query.into(), limit as usize)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    // ───────────────────────────── jobs / audit ───────────────────────
+
+    pub async fn jobs_list(&self, p: &Principal, limit: u32) -> ApiResult<Vec<JobDto>> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self
+            .core
+            .jobs
+            .recent(limit)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn jobs_get(&self, p: &Principal, id: &str) -> ApiResult<JobDto> {
+        p.authorize(Permission::ActivityRead)?;
+        let jid = JobId::from_str(id).map_err(|_| ApiError::invalid("Invalid job id"))?;
+        self.core
+            .jobs
+            .get(jid)
+            .await?
+            .map(Into::into)
+            .ok_or_else(|| ApiError::new("NOT_FOUND", "Job not found"))
+    }
+
+    pub fn jobs_cancel(&self, p: &Principal, id: &str) -> ApiResult<bool> {
+        p.authorize(Permission::ServersManage)?;
+        let jid = JobId::from_str(id).map_err(|_| ApiError::invalid("Invalid job id"))?;
+        Ok(self.core.jobs.cancel(jid))
+    }
+
+    pub async fn audit_query(
+        &self,
+        p: &Principal,
+        server: Option<&str>,
+        before: Option<i64>,
+        limit: u32,
+    ) -> ApiResult<Vec<AuditEntryDto>> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self
+            .core
+            .audit
+            .query(&AuditQuery {
+                server_id: server.map(server_id).transpose()?,
+                before: before.map(Timestamp),
+                limit,
+            })
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+}
