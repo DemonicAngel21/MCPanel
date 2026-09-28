@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Activity, Coffee, LayoutDashboard, Plus, Search, Server, Settings } from "lucide-react";
+import { Activity, Archive, Coffee, LayoutDashboard, Plus, Search, Server, Settings } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { CommandPalette } from "@/components/command-palette";
 import { JobToasts } from "@/components/job-toasts";
@@ -141,6 +141,7 @@ export function AppShell() {
         </Link>
         <RailLink to="/" exact icon={<LayoutDashboard />} label="Dashboard" />
         <RailLink to="/servers" icon={<Server />} label="Servers" />
+        <RailLink to="/backups" icon={<Archive />} label="Backups" />
         <RailLink to="/java" icon={<Coffee />} label="Java runtimes" />
         <RailLink to="/activity" icon={<Activity />} label="Activity" />
         <div className="flex-1" />

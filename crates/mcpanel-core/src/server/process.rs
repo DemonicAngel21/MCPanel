@@ -239,6 +239,7 @@ impl ServerManager {
             i.pid = None;
             i.process_start_time = None;
             i.last_exit_code = exit.code;
+            i.last_exit_at = Some(crate::time::Timestamp::now());
             i.online_players.clear();
             let restart = std::mem::take(&mut i.restart_after_exit);
             (

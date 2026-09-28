@@ -18,6 +18,9 @@ export const qk = {
   files: (id: string, path: string) => ["servers", id, "files", path] as const,
   audit: (serverId: string | null) => ["audit", serverId] as const,
   jobs: ["jobs"] as const,
+  backups: (serverId: string | null) => ["backups", serverId] as const,
+  backupPolicy: (serverId: string) => ["backups", "policy", serverId] as const,
+  backupLocation: ["backups", "location"] as const,
 };
 
 export const useAppInfo = () => useQuery({ queryKey: qk.appInfo, queryFn: api.app.info, staleTime: Infinity });
@@ -46,3 +49,7 @@ export function useAuditPages(serverId: string | null) {
     getNextPageParam: (last) => (last.length < AUDIT_PAGE ? undefined : (last[last.length - 1]?.occurredAt ?? undefined)),
   });
 }
+
+export const useBackups = (serverId: string | null) => useQuery({ queryKey: qk.backups(serverId), queryFn: () => api.backups.list(serverId) });
+export const useBackupPolicy = (serverId: string) => useQuery({ queryKey: qk.backupPolicy(serverId), queryFn: () => api.backups.policy(serverId) });
+export const useBackupLocation = () => useQuery({ queryKey: qk.backupLocation, queryFn: api.backups.location });

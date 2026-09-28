@@ -8,7 +8,10 @@
 //!   MCPanel, so files are the only channel).
 //!
 //! Commands: `stop`, `crash`, `flood <n>`, `join <name>`, `leave <name>`, `say <text>`,
-//! `oom`, `hang` (stop reading stdin).
+//! `oom`, `hang` (stop reading stdin), `save-off`, `save-all [flush]`, `save-on`.
+//!
+//! With `"world": true` it keeps `world/session.lock` locked like a real server, and
+//! `save-all` writes a save counter to `world/level.dat`.
 
 use serde::Deserialize;
 use std::io::{BufRead, Write};
@@ -22,6 +25,8 @@ struct Config {
     fail_bind: bool,
     exit_immediately_code: Option<i32>,
     java_major: Option<u32>,
+    world: bool,
+    save_delay_ms: u64,
 }
 
 fn log(level: &str, msg: &str) {
@@ -65,6 +70,13 @@ fn main() {
         );
         std::process::exit(1);
     }
+    let _session_lock = cfg.world.then(|| {
+        std::fs::create_dir_all("world").ok();
+        let f = std::fs::File::create("world/session.lock").ok()?;
+        f.lock().ok()?;
+        Some(f)
+    });
+    let mut saves = 0u32;
     std::thread::sleep(Duration::from_millis(cfg.startup_ms));
     log("INFO", "Done (1.234s)! For help, type \"help\"");
 
@@ -106,6 +118,17 @@ fn main() {
             "join" => log("INFO", &format!("{rest} joined the game")),
             "leave" => log("INFO", &format!("{rest} left the game")),
             "say" => log("INFO", &format!("[Server] {rest}")),
+            "save-off" => log("INFO", "Automatic saving is now disabled"),
+            "save-on" => log("INFO", "Automatic saving is now enabled"),
+            "save-all" => {
+                log("INFO", "Saving the game (this may take a moment!)");
+                std::thread::sleep(Duration::from_millis(cfg.save_delay_ms));
+                if cfg.world {
+                    saves += 1;
+                    let _ = std::fs::write("world/level.dat", format!("saves={saves}"));
+                }
+                log("INFO", "Saved the game");
+            }
             "hang" => loop {
                 std::thread::sleep(Duration::from_secs(3600));
             },

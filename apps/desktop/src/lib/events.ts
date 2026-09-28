@@ -42,10 +42,9 @@ function handle(qc: QueryClient, e: EventDto) {
       void qc.invalidateQueries({ queryKey: qk.server(e.serverId), exact: true });
       break;
     case "jobUpdated": {
-      const existing = useUi.getState().jobs[e.jobId];
       useUi.getState().upsertJob({
         id: e.jobId,
-        kind: existing?.kind ?? "",
+        kind: e.kind,
         serverId: e.serverId,
         status: e.status,
         progress: e.progress,
@@ -62,6 +61,9 @@ function handle(qc: QueryClient, e: EventDto) {
       break;
     case "auditRecorded":
       void qc.invalidateQueries({ queryKey: ["audit"] });
+      break;
+    case "backupsChanged":
+      void qc.invalidateQueries({ queryKey: ["backups"] });
       break;
   }
 }

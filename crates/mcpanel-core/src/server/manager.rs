@@ -594,8 +594,20 @@ impl ServerManager {
     }
 
     pub async fn restart(self: &Arc<Self>, id: ServerId, actor: &str) -> CoreResult<()> {
-        let state = self.runtime(id).state();
-        let result = if state.can_start() {
+        let rt = self.runtime(id);
+        let (state, blocking) = {
+            let i = rt.lock();
+            (
+                i.state,
+                i.operations.iter().find(|o| o.blocks_start()).copied(),
+            )
+        };
+        let result = if let Some(op) = blocking {
+            Err(CoreError::new(
+                ErrorCode::ServerBusy,
+                format!("The server cannot be restarted while busy ({op:?})"),
+            ))
+        } else if state.can_start() {
             self.start_inner(id, false).await
         } else {
             self.stop_inner(id, false, true).await

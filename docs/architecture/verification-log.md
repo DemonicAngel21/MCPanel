@@ -84,6 +84,19 @@ result. If the finding contradicts the specification, the spec is updated in the
   started (ready in ~8 s), accepted a `list` command, stopped gracefully with exit code
   0, and generated `server.properties`. No process, port or file left behind.
 
+## 2026-09-28 — Live backup against Vanilla 26.3
+
+- `save-off` / `save-all flush` / `save-on` work on 26.3, but **26.x logs command
+  feedback with a `System chat: ` prefix** (`System chat: Saved the game`,
+  `System chat: Automatic saving is now disabled`). The `save_complete` dialect pattern
+  now accepts the optional prefix (player chat is `<name> …` and cannot match).
+  The first attempt timed out waiting for the unprefixed line — found by the real test.
+- Result: live backup of a fresh 26.3 world = 74 files / 125 MB, nothing skipped
+  (`world/session.lock` is locked by the JVM and excluded by design); archive verified;
+  restored into the stopped server, which booted in ~7 s and stopped with exit code 0.
+- Not yet verified: whether join/leave messages also gain the prefix on 26.x (needs a
+  client connection) — tracked for the players feature.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |

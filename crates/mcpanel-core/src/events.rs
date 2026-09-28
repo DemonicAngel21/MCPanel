@@ -5,7 +5,7 @@
 //! queries. Multi-step reactions are implemented as policies that run jobs, not as event
 //! chains.
 
-use crate::ids::{EventId, JavaRuntimeId, JobId, ServerId};
+use crate::ids::{BackupId, EventId, JavaRuntimeId, JobId, ServerId};
 use crate::jobs::JobStatus;
 use crate::lifecycle::LifecycleState;
 use crate::time::Timestamp;
@@ -53,6 +53,8 @@ pub enum DomainEvent {
     },
     JobUpdated {
         job_id: JobId,
+        /// e.g. `server.create`, `backup.create`.
+        kind: String,
         server_id: Option<ServerId>,
         status: JobStatus,
         progress: Option<f32>,
@@ -63,6 +65,11 @@ pub enum DomainEvent {
     },
     SettingsChanged {
         key: String,
+    },
+    /// A backup was created, finished, failed, verified or deleted.
+    BackupsChanged {
+        server_id: Option<ServerId>,
+        backup_id: BackupId,
     },
     AuditRecorded,
 }

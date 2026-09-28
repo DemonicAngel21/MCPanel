@@ -6,6 +6,7 @@
 //! [`software`]. See `docs/architecture/README.md`.
 
 pub mod audit;
+pub mod backup;
 pub mod config;
 pub mod console;
 pub mod core;

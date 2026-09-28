@@ -1,6 +1,7 @@
 //! Composition root of the headless core.
 
 use crate::audit::AuditLog;
+use crate::backup::{BackupService, BackupServiceDeps};
 use crate::error::CoreResult;
 use crate::events::EventBus;
 use crate::java::JavaManager;
@@ -8,8 +9,8 @@ use crate::jobs::JobManager;
 use crate::monitoring::Monitor;
 use crate::paths::AppPaths;
 use crate::ports::{
-    AuditRepository, Downloader, JavaRuntimeRepository, JobRepository, Platform, ServerRepository,
-    SettingsRepository,
+    AuditRepository, BackupRepository, Downloader, JavaRuntimeRepository, JobRepository, Platform,
+    ServerRepository, SettingsRepository,
 };
 use crate::server::{ServerManager, ServerManagerDeps};
 use crate::server_files::ServerFiles;
@@ -24,6 +25,7 @@ pub struct Repositories {
     pub audit: Arc<dyn AuditRepository>,
     pub jobs: Arc<dyn JobRepository>,
     pub settings: Arc<dyn SettingsRepository>,
+    pub backups: Arc<dyn BackupRepository>,
 }
 
 pub struct CoreDeps {
@@ -46,6 +48,7 @@ pub struct Core {
     pub audit: Arc<AuditLog>,
     pub settings: Arc<SettingsService>,
     pub monitor: Arc<Monitor>,
+    pub backups: Arc<BackupService>,
 }
 
 impl Core {
@@ -85,6 +88,21 @@ impl Core {
         let files = Arc::new(ServerFiles::new(Arc::clone(&servers)));
         let monitor = Monitor::new(Arc::clone(&deps.platform));
         monitor.spawn(Arc::clone(&servers));
+        let backups = BackupService::new(BackupServiceDeps {
+            repo: deps.repos.backups,
+            servers: Arc::clone(&servers),
+            jobs: Arc::clone(&jobs),
+            events: events.clone(),
+            audit: Arc::clone(&audit),
+            settings: Arc::clone(&settings),
+            paths: deps.paths.clone(),
+            platform: Arc::clone(&deps.platform),
+        });
+        let interrupted = backups.recover_interrupted().await?;
+        if interrupted > 0 {
+            tracing::warn!(target: "mcpanel::backup", interrupted, "backups were interrupted by the previous shutdown");
+        }
+        backups.spawn_scheduler();
 
         Ok(Arc::new(Core {
             paths: deps.paths,
@@ -98,6 +116,7 @@ impl Core {
             audit,
             settings,
             monitor,
+            backups,
         }))
     }
 }

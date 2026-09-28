@@ -18,6 +18,7 @@ const TABS = [
   { to: "/console", label: "Console" },
   { to: "/files", label: "Files" },
   { to: "/properties", label: "Properties" },
+  { to: "/backups", label: "Backups" },
   { to: "/settings", label: "Settings" },
   { to: "/activity", label: "Activity" },
 ] as const;

@@ -2,6 +2,9 @@
 //! TypeScript (`apps/desktop/src/bindings`) by ts-rs. Domain types never cross the
 //! boundary directly.
 
+use mcpanel_core::backup::BackupPolicy;
+use mcpanel_core::backup::restore::RestorePreview;
+use mcpanel_core::backup::service::BackupView;
 use mcpanel_core::config::schema::{Applicability, PropertySchema, PropertyView};
 use mcpanel_core::console::{ConsoleBatch, ConsoleLine};
 use mcpanel_core::events::{DomainEvent, EventEnvelope};
@@ -888,6 +891,7 @@ pub enum EventDto {
     },
     JobUpdated {
         job_id: String,
+        kind: String,
         server_id: Option<String>,
         status: String,
         progress: Option<f32>,
@@ -896,6 +900,10 @@ pub enum EventDto {
     JavaRuntimesChanged,
     SettingsChanged,
     AuditRecorded,
+    BackupsChanged {
+        server_id: Option<String>,
+        backup_id: String,
+    },
 }
 
 impl From<&EventEnvelope> for EventDto {
@@ -961,12 +969,14 @@ impl From<&EventEnvelope> for EventDto {
             },
             D::JobUpdated {
                 job_id,
+                kind,
                 server_id,
                 status,
                 progress,
                 message,
             } => Self::JobUpdated {
                 job_id: job_id.to_string(),
+                kind: kind.clone(),
                 server_id: server_id.map(|s| s.to_string()),
                 status: status.as_str().into(),
                 progress: *progress,
@@ -975,6 +985,186 @@ impl From<&EventEnvelope> for EventDto {
             D::JavaRuntimesChanged { .. } => Self::JavaRuntimesChanged,
             D::SettingsChanged { .. } => Self::SettingsChanged,
             D::AuditRecorded => Self::AuditRecorded,
+            D::BackupsChanged {
+                server_id,
+                backup_id,
+            } => Self::BackupsChanged {
+                server_id: server_id.map(|s| s.to_string()),
+                backup_id: backup_id.to_string(),
+            },
         }
     }
+}
+
+// ─────────────────────────────── backups ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SkippedFileDto {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BackupDto {
+    pub id: String,
+    pub server_id: Option<String>,
+    pub server_name: String,
+    /// "manual" | "scheduled" | "pre_restore"
+    pub kind: String,
+    /// "creating" | "ready" | "failed"
+    pub status: String,
+    pub path: String,
+    pub file_name: String,
+    pub file_present: bool,
+    pub created_at: i64,
+    pub finished_at: Option<i64>,
+    pub size_bytes: u64,
+    pub content_bytes: u64,
+    pub file_count: u64,
+    pub live: bool,
+    pub contains_sensitive: bool,
+    pub software_id: String,
+    pub game_version: String,
+    pub note: Option<String>,
+    pub protected: bool,
+    pub skipped: Vec<SkippedFileDto>,
+    pub error_message: Option<String>,
+}
+
+impl From<BackupView> for BackupDto {
+    fn from(v: BackupView) -> Self {
+        let b = v.backup;
+        Self {
+            id: b.id.to_string(),
+            server_id: b.server_id.map(|s| s.to_string()),
+            server_name: b.server_name,
+            kind: b.kind.as_str().into(),
+            status: b.status.as_str().into(),
+            file_name: b
+                .path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            path: b.path.to_string_lossy().into(),
+            file_present: v.file_present,
+            created_at: b.created_at.millis(),
+            finished_at: b.finished_at.map(|t| t.millis()),
+            size_bytes: b.size_bytes,
+            content_bytes: b.content_bytes,
+            file_count: b.file_count,
+            live: b.live,
+            contains_sensitive: b.contains_sensitive,
+            software_id: b.software_id,
+            game_version: b.game_version,
+            note: b.note,
+            protected: b.protected,
+            skipped: b
+                .skipped
+                .into_iter()
+                .map(|s| SkippedFileDto {
+                    path: s.path,
+                    reason: s.reason,
+                })
+                .collect(),
+            error_message: b.error_message,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BackupPolicyDto {
+    pub server_id: String,
+    pub enabled: bool,
+    pub interval_minutes: u32,
+    pub skip_if_idle: bool,
+    pub keep_last: u32,
+    pub keep_daily: u32,
+    pub keep_weekly: u32,
+    pub keep_monthly: u32,
+    pub last_run_at: Option<i64>,
+    /// When the scheduler next considers this server (if enabled).
+    pub next_run_at: Option<i64>,
+}
+
+impl From<BackupPolicy> for BackupPolicyDto {
+    fn from(p: BackupPolicy) -> Self {
+        Self {
+            server_id: p.server_id.to_string(),
+            enabled: p.enabled,
+            interval_minutes: p.interval_minutes,
+            skip_if_idle: p.skip_if_idle,
+            keep_last: p.retention.keep_last,
+            keep_daily: p.retention.keep_daily,
+            keep_weekly: p.retention.keep_weekly,
+            keep_monthly: p.retention.keep_monthly,
+            last_run_at: p.last_run_at.map(|t| t.millis()),
+            next_run_at: p
+                .enabled
+                .then(|| {
+                    p.last_run_at
+                        .map(|t| t.millis() + p.interval_minutes as i64 * 60_000)
+                })
+                .flatten(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BackupPolicyUpdateDto {
+    pub enabled: bool,
+    pub interval_minutes: u32,
+    pub skip_if_idle: bool,
+    pub keep_last: u32,
+    pub keep_daily: u32,
+    pub keep_weekly: u32,
+    pub keep_monthly: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RestorePreviewDto {
+    pub added: u64,
+    pub removed: u64,
+    pub changed: u64,
+    pub unchanged: u64,
+    pub changed_jars: Vec<String>,
+    pub removed_sample: Vec<String>,
+    pub total_bytes: u64,
+    pub contains_sensitive: bool,
+}
+
+impl From<RestorePreview> for RestorePreviewDto {
+    fn from(p: RestorePreview) -> Self {
+        Self {
+            added: p.added,
+            removed: p.removed,
+            changed: p.changed,
+            unchanged: p.unchanged,
+            changed_jars: p.changed_jars,
+            removed_sample: p.removed_sample,
+            total_bytes: p.total_bytes,
+            contains_sensitive: p.contains_sensitive,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BackupLocationDto {
+    pub directory: String,
+    pub is_default: bool,
+    pub default_directory: String,
+    /// Free space on the drive, when the folder exists.
+    pub available_bytes: Option<u64>,
+    pub warnings: Vec<String>,
 }

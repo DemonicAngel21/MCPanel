@@ -8,14 +8,25 @@ pub struct AppPaths {
     pub data_dir: PathBuf,
     /// Default parent directory for new servers (`%USERPROFILE%\MCPanel\Servers`).
     pub default_servers_dir: PathBuf,
+    /// Default directory for local backups (`%USERPROFILE%\MCPanel\Backups`); the user
+    /// can choose another one in Settings.
+    pub default_backups_dir: PathBuf,
 }
 
 impl AppPaths {
+    /// Backups default to `<data_dir>/backups`; hosts set the user-facing default with
+    /// [`AppPaths::with_backups_dir`].
     pub fn new(data_dir: PathBuf, default_servers_dir: PathBuf) -> Self {
         Self {
+            default_backups_dir: data_dir.join("backups"),
             data_dir,
             default_servers_dir,
         }
+    }
+
+    pub fn with_backups_dir(mut self, dir: PathBuf) -> Self {
+        self.default_backups_dir = dir;
+        self
     }
 
     pub fn database_file(&self) -> PathBuf {

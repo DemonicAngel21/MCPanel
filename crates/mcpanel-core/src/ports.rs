@@ -1,8 +1,9 @@
 //! Ports: the interfaces the core needs from the outside world. Adapters (database,
 //! platform, HTTP/providers) implement them. Nothing here names a concrete technology.
 
+use crate::backup::{BackupPolicy, BackupRecord};
 use crate::error::{CoreResult, ErrorCode};
-use crate::ids::{JavaRuntimeId, JobId, ServerId};
+use crate::ids::{BackupId, JavaRuntimeId, JobId, ServerId};
 use crate::jobs::{JobRecord, JobStatus};
 use crate::model::{AuditEntry, AuditQuery, JavaRuntime, RuntimeStateRecord, Server};
 use crate::time::Timestamp;
@@ -64,6 +65,19 @@ pub trait SettingsRepository: Send + Sync {
     async fn get(&self, key: &str) -> CoreResult<Option<serde_json::Value>>;
     async fn set(&self, key: &str, value: &serde_json::Value) -> CoreResult<()>;
     async fn all(&self) -> CoreResult<Vec<(String, serde_json::Value)>>;
+}
+
+#[async_trait]
+pub trait BackupRepository: Send + Sync {
+    async fn insert(&self, backup: &BackupRecord) -> CoreResult<()>;
+    async fn update(&self, backup: &BackupRecord) -> CoreResult<()>;
+    async fn get(&self, id: BackupId) -> CoreResult<Option<BackupRecord>>;
+    /// Newest first; all servers when `server_id` is `None`.
+    async fn list(&self, server_id: Option<ServerId>) -> CoreResult<Vec<BackupRecord>>;
+    async fn delete(&self, id: BackupId) -> CoreResult<()>;
+    async fn policy(&self, server_id: ServerId) -> CoreResult<Option<BackupPolicy>>;
+    async fn policies(&self) -> CoreResult<Vec<BackupPolicy>>;
+    async fn save_policy(&self, policy: &BackupPolicy) -> CoreResult<()>;
 }
 
 // ─────────────────────────────── Platform ───────────────────────────────

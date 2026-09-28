@@ -55,27 +55,29 @@ fn rejected(msg: impl Into<String>) -> CoreError {
     CoreError::new(ErrorCode::ArchiveRejected, msg.into())
 }
 
-struct PlannedEntry {
-    index: usize,
-    components: Vec<String>,
-    is_dir: bool,
-    size: u64,
+pub(crate) struct PlannedEntry {
+    pub index: usize,
+    pub components: Vec<String>,
+    pub is_dir: bool,
+    pub size: u64,
 }
 
-/// Extract `archive` into directory `dest`. `staging` must be an empty, MCPanel-owned
-/// directory on the same volume as `dest` (it is removed afterwards).
-pub fn extract_zip(
-    archive: &Path,
-    dest: &SafePath,
-    staging: &Path,
-    limits: ExtractLimits,
-    overwrite: bool,
-) -> CoreResult<ExtractReport> {
-    dest.ensure_no_reparse_points()?;
-    let file = fs::File::open(archive).map_err(|e| CoreError::io("Cannot open archive", &e))?;
-    let mut zip = zip::ZipArchive::new(file)
-        .map_err(|e| rejected(format!("Not a valid ZIP archive: {e}")))?;
+impl PlannedEntry {
+    pub fn key(&self) -> String {
+        self.components.join("/")
+    }
+}
 
+pub(crate) fn open_zip(archive: &Path) -> CoreResult<zip::ZipArchive<fs::File>> {
+    let file = fs::File::open(archive).map_err(|e| CoreError::io("Cannot open archive", &e))?;
+    zip::ZipArchive::new(file).map_err(|e| rejected(format!("Not a valid ZIP archive: {e}")))
+}
+
+/// Phase 1: validate every entry before anything is written.
+pub(crate) fn plan_entries(
+    zip: &mut zip::ZipArchive<fs::File>,
+    limits: ExtractLimits,
+) -> CoreResult<Vec<PlannedEntry>> {
     if zip.len() > limits.max_entries {
         return Err(rejected(format!(
             "Archive has {} entries (limit {})",
@@ -83,8 +85,6 @@ pub fn extract_zip(
             limits.max_entries
         )));
     }
-
-    // ── Phase 1: validate everything before writing anything ──
     let mut planned = Vec::with_capacity(zip.len());
     let mut seen = HashSet::new();
     let mut total: u64 = 0;
@@ -155,6 +155,101 @@ pub fn extract_zip(
             }
         }
     }
+    Ok(planned)
+}
+
+/// A file written by [`write_entries`]: its archive path and, when hashing, its SHA-256.
+pub(crate) struct WrittenFile {
+    pub key: String,
+    pub sha256: Option<String>,
+}
+
+/// Phase 2: write planned entries below `staging` (created if missing). Never trusts the
+/// declared size. `cancelled` is polled between entries; `progress` receives bytes.
+pub(crate) fn write_entries(
+    zip: &mut zip::ZipArchive<fs::File>,
+    planned: &[PlannedEntry],
+    staging: &Path,
+    hash: bool,
+    cancelled: &dyn Fn() -> bool,
+    progress: &mut dyn FnMut(u64),
+) -> CoreResult<(ExtractReport, Vec<WrittenFile>)> {
+    use sha2::Digest;
+    fs::create_dir_all(staging).map_err(|e| CoreError::io("Cannot create staging", &e))?;
+    let mut report = ExtractReport::default();
+    let mut written_files = Vec::new();
+    for p in planned {
+        if cancelled() {
+            return Err(CoreError::cancelled());
+        }
+        let mut target = staging.to_path_buf();
+        p.components.iter().for_each(|c| target.push(c));
+        if p.is_dir {
+            fs::create_dir_all(&target)
+                .map_err(|e| CoreError::io("Cannot create directory", &e))?;
+            report.directories += 1;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|e| CoreError::io("Cannot create directory", &e))?;
+        }
+        let mut entry = zip
+            .by_index(p.index)
+            .map_err(|e| rejected(format!("Cannot read entry: {e}")))?;
+        let mut out = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|e| CoreError::io("Cannot create file", &e))?;
+        // Read at most declared + 1 bytes.
+        let mut limited = (&mut entry).take(p.size + 1);
+        let mut hasher = hash.then(sha2::Sha256::new);
+        let mut buf = vec![0u8; 64 * 1024];
+        let mut written: u64 = 0;
+        loop {
+            let n = limited
+                .read(&mut buf)
+                .map_err(|e| rejected(format!("Cannot extract entry: {e}")))?;
+            if n == 0 {
+                break;
+            }
+            written += n as u64;
+            if written > p.size {
+                return Err(rejected(
+                    "Entry is larger than declared (possible zip bomb)",
+                ));
+            }
+            if let Some(h) = hasher.as_mut() {
+                h.update(&buf[..n]);
+            }
+            out.write_all(&buf[..n])
+                .map_err(|e| CoreError::io("Cannot write file", &e))?;
+            progress(n as u64);
+        }
+        out.flush()
+            .map_err(|e| CoreError::io("Cannot write file", &e))?;
+        report.files += 1;
+        report.bytes += written;
+        written_files.push(WrittenFile {
+            key: p.key(),
+            sha256: hasher.map(|h| hex::encode(h.finalize())),
+        });
+    }
+    Ok((report, written_files))
+}
+
+/// Extract `archive` into directory `dest`. `staging` must be an empty, MCPanel-owned
+/// directory on the same volume as `dest` (it is removed afterwards).
+pub fn extract_zip(
+    archive: &Path,
+    dest: &SafePath,
+    staging: &Path,
+    limits: ExtractLimits,
+    overwrite: bool,
+) -> CoreResult<ExtractReport> {
+    dest.ensure_no_reparse_points()?;
+    let mut zip = open_zip(archive)?;
+    let planned = plan_entries(&mut zip, limits)?;
 
     // Conflicts with existing files.
     if !overwrite {
@@ -179,47 +274,10 @@ pub fn extract_zip(
         }
     }
 
-    // ── Phase 2: extract into staging ──
-    fs::create_dir_all(staging).map_err(|e| CoreError::io("Cannot create staging", &e))?;
     let result = (|| -> CoreResult<ExtractReport> {
-        let mut report = ExtractReport::default();
-        for p in &planned {
-            let mut target = staging.to_path_buf();
-            p.components.iter().for_each(|c| target.push(c));
-            if p.is_dir {
-                fs::create_dir_all(&target)
-                    .map_err(|e| CoreError::io("Cannot create directory", &e))?;
-                continue;
-            }
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| CoreError::io("Cannot create directory", &e))?;
-            }
-            let mut entry = zip
-                .by_index(p.index)
-                .map_err(|e| rejected(format!("Cannot read entry: {e}")))?;
-            let mut out = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&target)
-                .map_err(|e| CoreError::io("Cannot create file", &e))?;
-            // Never trust the declared size: read at most declared + 1 bytes.
-            let mut limited = (&mut entry).take(p.size + 1);
-            let written = std::io::copy(&mut limited, &mut out)
-                .map_err(|e| rejected(format!("Cannot extract entry: {e}")))?;
-            if written > p.size {
-                return Err(rejected(
-                    "Entry is larger than declared (possible zip bomb)",
-                ));
-            }
-            out.flush()
-                .map_err(|e| CoreError::io("Cannot write file", &e))?;
-            report.files += 1;
-            report.bytes += written;
-        }
-        report.directories = planned.iter().filter(|p| p.is_dir).count() as u64;
-
-        // ── Phase 3: move into place ──
+        let (report, _) =
+            write_entries(&mut zip, &planned, staging, false, &|| false, &mut |_| {})?;
+        // Phase 3: move into place.
         move_merge(staging, &dest.absolute(), overwrite)?;
         Ok(report)
     })();

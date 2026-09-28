@@ -228,6 +228,28 @@ mod tests {
     }
 
     #[test]
+    fn save_confirmation_across_versions() {
+        let d = dialect("minecraft");
+        let saved = |line: &str| {
+            let m = parse_line(line).message;
+            d.save_complete.iter().any(|r| r.is_match(&m))
+        };
+        // 1.13+ and 1.12 wording; 26.x logs command feedback as "System chat: …"
+        // (observed with Vanilla 26.3).
+        assert!(saved("[18:51:36] [Server thread/INFO]: Saved the game"));
+        assert!(saved("[18:51:36] [Server thread/INFO]: Saved the world"));
+        assert!(saved(
+            "[18:51:36] [Server thread/INFO]: System chat: Saved the game"
+        ));
+        assert!(!saved(
+            "[18:51:36] [Server thread/INFO]: <Alex> Saved the game"
+        ));
+        assert!(!saved(
+            "[18:51:36] [Server thread/INFO]: Saving the game (this may take a moment!)"
+        ));
+    }
+
+    #[test]
     fn strips_ansi() {
         let p = parse_line("\x1b[33m[12:00:00 WARN]: hi\x1b[0m");
         assert_eq!(p.level, Some(LogLevel::Warn));
