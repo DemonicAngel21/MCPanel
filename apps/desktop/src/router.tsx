@@ -20,6 +20,7 @@ import { ServerSettings } from "@/pages/server/settings";
 import { ServerActivity } from "@/pages/server/activity";
 import { ServerBackups } from "@/pages/server/backups";
 import { ServerPlayers } from "@/pages/server/players";
+import { ServerContent } from "@/pages/server/content";
 
 // Monaco is large: load the editor only when a file is opened.
 const ServerEditor = lazy(() => import("@/pages/server/editor"));
@@ -53,6 +54,7 @@ export const serverEditorRoute = createRoute({
 const serverProperties = createRoute({ getParentRoute: () => serverRoute, path: "/properties", component: ServerProperties });
 const serverSettings = createRoute({ getParentRoute: () => serverRoute, path: "/settings", component: ServerSettings });
 const serverPlayers = createRoute({ getParentRoute: () => serverRoute, path: "/players", component: ServerPlayers });
+const serverContent = createRoute({ getParentRoute: () => serverRoute, path: "/content", component: ServerContent });
 const serverBackups = createRoute({ getParentRoute: () => serverRoute, path: "/backups", component: ServerBackups });
 const serverActivity = createRoute({ getParentRoute: () => serverRoute, path: "/activity", component: ServerActivity });
 
@@ -71,6 +73,7 @@ const routeTree = rootRoute.addChildren([
     serverFilesRoute,
     serverEditorRoute,
     serverPlayers,
+    serverContent,
     serverProperties,
     serverBackups,
     serverSettings,

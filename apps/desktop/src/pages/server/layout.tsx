@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { Badge, Banner, EmptyState, Spinner } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { useServer } from "@/lib/queries";
+import { useServer, useSoftware } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
 import { cn, errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
@@ -18,6 +18,7 @@ const TABS = [
   { to: "/console", label: "Console" },
   { to: "/files", label: "Files" },
   { to: "/players", label: "Players" },
+  { to: "/content", label: "Plugins" },
   { to: "/properties", label: "Properties" },
   { to: "/backups", label: "Backups" },
   { to: "/settings", label: "Settings" },
@@ -99,6 +100,7 @@ function ServerBanners({ server }: { server: ServerDto }) {
 export function ServerLayout() {
   const id = useServerId();
   const { data: server, isLoading, error } = useServer(id);
+  const { data: software } = useSoftware();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const base = `/servers/${id}`;
 
@@ -111,6 +113,12 @@ export function ServerLayout() {
   }
   if (!server) return <EmptyState title="Server not found" description={error ? errorMessage(error) : undefined} />;
   const meta = stateMeta(server.state);
+  // The content tab is named after (and only shown for) what the software supports.
+  const content = software?.find((sw) => sw.id === server.software.softwareId)?.content ?? [];
+  const contentLabel = content.some((c) => c.endsWith("_plugins")) ? "Plugins" : content.some((c) => c.endsWith("_mods")) ? "Mods" : null;
+  const tabs: { to: string; label: string }[] = TABS.flatMap((t): { to: string; label: string }[] =>
+    t.to === "/content" ? (contentLabel ? [{ to: t.to, label: contentLabel }] : []) : [t],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -141,7 +149,7 @@ export function ServerLayout() {
           </div>
         </div>
         <nav className="-mb-px flex gap-1">
-          {TABS.map((t) => {
+          {tabs.map((t) => {
             const to = `${base}${t.to}`;
             const active =
               t.to === "" ? path === base || path === `${base}/` : path.startsWith(to) || (t.to === "/files" && path.startsWith(`${base}/edit`));

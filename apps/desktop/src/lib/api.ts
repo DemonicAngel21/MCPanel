@@ -12,6 +12,8 @@ import type { BackupLocationDto } from "@/bindings/BackupLocationDto";
 import type { BackupPolicyDto } from "@/bindings/BackupPolicyDto";
 import type { BackupPolicyUpdateDto } from "@/bindings/BackupPolicyUpdateDto";
 import type { ConsoleBatchDto } from "@/bindings/ConsoleBatchDto";
+import type { ContentListDto } from "@/bindings/ContentListDto";
+import type { ContentVersionDto } from "@/bindings/ContentVersionDto";
 import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
 import type { FileEntryDto } from "@/bindings/FileEntryDto";
@@ -20,7 +22,9 @@ import type { GameVersionDto } from "@/bindings/GameVersionDto";
 import type { GrantDto } from "@/bindings/GrantDto";
 import type { ImportDetectionDto } from "@/bindings/ImportDetectionDto";
 import type { ImportServerDto } from "@/bindings/ImportServerDto";
+import type { InstallPlanDto } from "@/bindings/InstallPlanDto";
 import type { InstallPreviewDto } from "@/bindings/InstallPreviewDto";
+import type { InstallRequestDto } from "@/bindings/InstallRequestDto";
 import type { JavaRuntimeDto } from "@/bindings/JavaRuntimeDto";
 import type { JobDto } from "@/bindings/JobDto";
 import type { LocationCheckDto } from "@/bindings/LocationCheckDto";
@@ -29,6 +33,8 @@ import type { PlayerActionDto } from "@/bindings/PlayerActionDto";
 import type { PlayerActionOutcomeDto } from "@/bindings/PlayerActionOutcomeDto";
 import type { PropertyDto } from "@/bindings/PropertyDto";
 import type { RestorePreviewDto } from "@/bindings/RestorePreviewDto";
+import type { SearchPageDto } from "@/bindings/SearchPageDto";
+import type { SearchRequestDto } from "@/bindings/SearchRequestDto";
 import type { ServerDto } from "@/bindings/ServerDto";
 import type { ServerMetricsDto } from "@/bindings/ServerMetricsDto";
 import type { ServerPlayersDto } from "@/bindings/ServerPlayersDto";
@@ -39,6 +45,7 @@ import type { SoftwareBuildDto } from "@/bindings/SoftwareBuildDto";
 import type { SoftwareDto } from "@/bindings/SoftwareDto";
 import type { SystemMetricsDto } from "@/bindings/SystemMetricsDto";
 import type { TextDocumentDto } from "@/bindings/TextDocumentDto";
+import type { UpdateInfoDto } from "@/bindings/UpdateInfoDto";
 import type { UpdateServerDto } from "@/bindings/UpdateServerDto";
 import type { WriteTextDto } from "@/bindings/WriteTextDto";
 
@@ -158,6 +165,20 @@ export const api = {
     import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
     export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
     search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+  },
+  content: {
+    list: (serverId: string) => call<ContentListDto>("content_list", { serverId }),
+    search: (serverId: string, query: SearchRequestDto) => call<SearchPageDto>("content_search", { serverId, query }),
+    versions: (serverId: string, provider: string, projectId: string) =>
+      call<ContentVersionDto[]>("content_versions", { serverId, provider, projectId }),
+    plan: (serverId: string, request: InstallRequestDto) => call<InstallPlanDto>("content_plan", { serverId, request }),
+    /** Returns the job id. */
+    install: (serverId: string, request: InstallRequestDto) => call<string>("content_install", { serverId, request }),
+    /** Returns true when the change was queued until the server stops. */
+    remove: (serverId: string, fileName: string) => call<boolean>("content_remove", { serverId, fileName }),
+    setEnabled: (serverId: string, fileName: string, enabled: boolean) => call<boolean>("content_set_enabled", { serverId, fileName, enabled }),
+    discardPending: (serverId: string, id: string) => call<void>("content_discard_pending", { serverId, id }),
+    checkUpdates: (serverId: string) => call<UpdateInfoDto[]>("content_check_updates", { serverId }),
   },
   players: {
     get: (serverId: string) => call<ServerPlayersDto>("players_get", { serverId }),

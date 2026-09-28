@@ -78,7 +78,10 @@ a local test server to check join/leave detection, player commands and file edit
 cargo test -p fake-mc --test real_players -- --nocapture
 ```
 
-The client supports only protocol versions whose packet ids were verified (currently
+`real_content` installs plugins from Modrinth and Hangar onto a real Paper 1.21.11
+server and checks that Paper loads them (network access required).
+
+The player test client supports only protocol versions whose packet ids were verified (currently
 26.3 / protocol 777). Online-mode logins need a Minecraft account and are not automated.
 
 ## Live provider tests

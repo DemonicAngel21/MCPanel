@@ -11,3 +11,5 @@ Functional bugs are fixed immediately and do not belong here.
 | Toasts | Several toasts stack tightly in the corner during quick successive actions. | v0.2 backups |
 | Backups | Restore dialog content fades in with the dialog; the preview spinner is small. | v0.2 backups |
 | Backups | The backups-folder path in the server Backups tab header wraps awkwardly for long paths. | v0.2 backups |
+| Plugins | The plugin folder path in the Plugins header wraps; consider a shortened path with a tooltip. | v0.2 plugins |
+| Plugins | Search results lack a loading shimmer while typing; results jump when they arrive. | v0.2 plugins |

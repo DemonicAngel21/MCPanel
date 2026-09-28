@@ -57,6 +57,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   while it is stopped, MCPanel edits `ops.json` / `whitelist.json` / `banned-*.json`
   directly (names resolved via the user cache, the Mojang profile service in online
   mode, or the offline UUID). Play sessions are recorded; IP addresses are not.
+- Plugin manager (v0.2): Plugins tab to browse Modrinth and Hangar (filtered to the
+  server's software and Minecraft version), install with required dependencies after a
+  plan preview, update, disable/enable and remove. Downloads come only from the
+  providers' CDNs, are checked against the published SHA-512/SHA-256 and must contain a
+  `plugin.yml`/`paper-plugin.yml`; replaced files go to the server's trash and a failed
+  install is rolled back. Changes to a running server are queued and applied when it
+  stops or right before it starts ("Apply & restart"). Plugins added by hand are
+  identified on Modrinth by their hash.
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed
@@ -69,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are deleted, instead of silently leaving them in `%TEMP%` on Windows.
 
 ### Security
+
+- The content security policy allows images from `cdn.modrinth.com` and
+  `hangarcdn.papermc.io` (project icons) only; external links are limited to exact
+  allow-listed URLs and the Modrinth/Hangar sites.
 
 - No network listener, no telemetry, strict CSP, argv-only process spawning, redacted
   logs, sensitive-file guard.

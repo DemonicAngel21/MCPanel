@@ -30,7 +30,7 @@
         "default-src": "'self'",
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data: blob:",
+        "img-src": "'self' data: blob: https://cdn.modrinth.com https://hangarcdn.papermc.io",
         "font-src": "'self' data:",
         "worker-src": "'self' blob:",
         "connect-src": "ipc: http://ipc.localhost",
