@@ -18,6 +18,8 @@ export const qk = {
   files: (id: string, path: string) => ["servers", id, "files", path] as const,
   audit: (serverId: string | null) => ["audit", serverId] as const,
   jobs: ["jobs"] as const,
+  restartPolicy: (serverId: string) => ["servers", serverId, "restart-policy"] as const,
+  crashes: (serverId: string) => ["servers", serverId, "crashes"] as const,
   content: (serverId: string) => ["servers", serverId, "content"] as const,
   players: (serverId: string) => ["servers", serverId, "players"] as const,
   backups: (serverId: string | null) => ["backups", serverId] as const,
@@ -57,3 +59,5 @@ export const useBackupPolicy = (serverId: string) => useQuery({ queryKey: qk.bac
 export const useBackupLocation = () => useQuery({ queryKey: qk.backupLocation, queryFn: api.backups.location });
 export const usePlayers = (serverId: string) => useQuery({ queryKey: qk.players(serverId), queryFn: () => api.players.get(serverId) });
 export const useContent = (serverId: string) => useQuery({ queryKey: qk.content(serverId), queryFn: () => api.content.list(serverId) });
+export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.restartPolicy(serverId), queryFn: () => api.crashes.policy(serverId) });
+export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });

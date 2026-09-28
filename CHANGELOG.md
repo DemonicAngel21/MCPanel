@@ -65,10 +65,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   install is rolled back. Changes to a running server are queued and applied when it
   stops or right before it starts ("Apply & restart"). Plugins added by hand are
   identified on Modrinth by their hash.
+- Crash auto-restart (v0.2): crashes are recorded with the exit code, a classification
+  (out of memory, watchdog, crash report, …), the crash report path and the console tail
+  (Recent crashes on the Overview), and restarted per server policy: by default up to
+  3 times within 10 minutes, 10 s delay doubled per attempt, reset after 5 minutes of
+  uptime, optional backup first. Failures a restart cannot fix (wrong Java, EULA, port
+  in use) are never restarted.
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed
 
+- An automatic restart no longer gives up when a backup or queued plugin changes hold
+  the server at that moment; it waits for them.
 - Minecraft 26.x player joins and leaves (logged as `System chat: …`) are detected.
 
 - The database is closed on quit (checkpointing the WAL) and when an open is refused

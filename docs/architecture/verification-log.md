@@ -137,6 +137,13 @@ result. If the finding contradicts the specification, the spec is updated in the
   (Hangar) installed while running, queued, applied on stop and loaded on the next
   start; a plugin disabled while running was not loaded after the restart.
 
+## 2026-09-28 — Crash recovery against Vanilla 26.3
+
+- The server's Java process was killed from outside MCPanel (`taskkill /T /F`): MCPanel
+  classified it as a crash (exit code 1, "exited unexpectedly"), and the restart policy
+  (2 s delay) brought 26.3 back up in ~9 s. Watchdog detection uses vanilla's
+  "Considering it to be crashed, server will forcibly shutdown" line.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |

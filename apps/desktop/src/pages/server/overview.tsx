@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
 import { ActivityList } from "@/components/activity-list";
+import { CrashHistory } from "@/components/crash-history";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, Tooltip } from "@/components/ui/primitives";
@@ -130,6 +131,8 @@ export function ServerOverview() {
           </dl>
         </Card>
       </div>
+
+      <CrashHistory serverId={id} />
 
       <Card>
         <CardHeader

@@ -12,6 +12,7 @@ const ACTIONS: Record<string, string> = {
   "server.stop": "Stopped server",
   "server.force_stop": "Force-stopped server",
   "server.restart": "Restarted server",
+  "server.restart_policy": "Changed the restart policy",
   "content.install": "Installed a plugin/mod",
   "content.remove": "Removed a plugin/mod",
   "content.disable": "Disabled a plugin/mod",

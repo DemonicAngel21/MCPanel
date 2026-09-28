@@ -121,6 +121,10 @@ port bind, watchdog, mod/plugin error, unknown); persist; optional crash backup;
 with `max_attempts` within `window` (default 3 in 10 min), delay 10 s with backoff,
 counter reset after 5 min stable uptime. Unfixable classifications (wrong Java, EULA,
 port conflict) never auto-restart.
+Implemented in v0.2 as a policy listening to `ServerCrashed` (tables
+`server_restart_policies`, `crash_events`); auto-restart is on by default, waits for
+operations that briefly hold the server, and does nothing if the server was started or
+removed during the delay. A process killed from outside MCPanel counts as a crash.
 
 ## 6. ServerProvider architecture
 
