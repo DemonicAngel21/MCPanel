@@ -94,15 +94,37 @@ result. If the finding contradicts the specification, the spec is updated in the
 - Result: live backup of a fresh 26.3 world = 74 files / 125 MB, nothing skipped
   (`world/session.lock` is locked by the JVM and excluded by design); archive verified;
   restored into the stopped server, which booted in ~7 s and stopped with exit code 0.
-- Not yet verified: whether join/leave messages also gain the prefix on 26.x (needs a
-  client connection) — tracked for the players feature.
+- Join/leave messages: see the players entry below.
+
+## 2026-09-28 — Players against Vanilla 26.3 (headless test client)
+
+- Protocol for the test client verified at minecraft.wiki (Java Edition protocol,
+  Packets): 26.3 = **protocol 777**; handshake/login/configuration/play packet ids as
+  used in `tools/fake-mc/tests/common/mc_client.rs`. The client reads the protocol from
+  a Server List Ping and refuses unknown protocols instead of guessing.
+- 26.3 logs `System chat: <name> joined the game` / `… left the game` and all command
+  feedback with the `System chat: ` prefix (`Made X a server operator`, `Nothing
+  changed. The player is already an operator`, `Added X to the whitelist`,
+  `Banned X: reason`, `Kicked X: reason`, `Whitelist is now turned off`). Join/leave
+  patterns now accept the prefix — before this fix online players were not tracked on
+  26.x.
+- Offline-mode logins print no `UUID of player …` line; `usercache.json` holds the UUID,
+  which equals the offline UUID (`UUID.nameUUIDFromBytes("OfflinePlayer:"+name)`).
+- **26.3 generates `white-list=true` for new servers.** The property schema reflects this
+  from 26.3; earlier 26.x releases were not checked.
+- Files edited by MCPanel while the server is stopped (ops, whitelist, white-list
+  property) were loaded by the real server on the next start.
+- Mojang profile lookup verified live: `api.minecraftservices.com/minecraft/profile/
+  lookup/name/{name}` and `api.mojang.com/users/profiles/minecraft/{name}` → `{id, name}`,
+  404 for unknown names.
+- Not automatable: online-mode (authenticated) logins require a real Minecraft account.
 
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
 | Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
-| Modrinth API v2, Hangar API | v0.2 |
+| Modrinth API v2, Hangar API | v0.2 (next) |
 | Fabric meta server launcher endpoint | v0.2 |
 | Forge / NeoForge installer & argfile layout per version | v0.3 |
 | CurseForge API key terms and distribution flags | v0.3+ |

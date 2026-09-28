@@ -13,6 +13,8 @@ use mcpanel_core::java::JavaCompatibility;
 use mcpanel_core::jobs::JobRecord;
 use mcpanel_core::model::{AuditEntry, JavaRuntime, LaunchConfig};
 use mcpanel_core::monitoring::{ServerMetrics, SystemMetrics};
+use mcpanel_core::players::lists::Ban;
+use mcpanel_core::players::{ActionOutcome, PlayerAction, ServerPlayers};
 use mcpanel_core::ports::{LocationWarning, SystemSnapshot};
 use mcpanel_core::server::ServerView;
 use mcpanel_core::settings::{AppSettings, ThemePreference};
@@ -889,6 +891,9 @@ pub enum EventDto {
         server_id: String,
         player_name: String,
     },
+    PlayersChanged {
+        server_id: String,
+    },
     JobUpdated {
         job_id: String,
         kind: String,
@@ -966,6 +971,9 @@ impl From<&EventEnvelope> for EventDto {
             } => Self::PlayerLeft {
                 server_id: server_id.to_string(),
                 player_name: player_name.clone(),
+            },
+            D::PlayersChanged { server_id } => Self::PlayersChanged {
+                server_id: server_id.to_string(),
             },
             D::JobUpdated {
                 job_id,
@@ -1167,4 +1175,216 @@ pub struct BackupLocationDto {
     /// Free space on the drive, when the folder exists.
     pub available_bytes: Option<u64>,
     pub warnings: Vec<String>,
+}
+
+// ─────────────────────────────── players ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OperatorDto {
+    pub name: String,
+    pub uuid: Option<String>,
+    pub level: u8,
+    pub bypasses_player_limit: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ListedPlayerDto {
+    pub name: String,
+    pub uuid: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BanDto {
+    /// Player name, or the IP address for IP bans.
+    pub target: String,
+    pub uuid: Option<String>,
+    pub reason: Option<String>,
+    pub source: Option<String>,
+    pub created: Option<String>,
+    /// `null` = permanent.
+    pub expires: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct KnownPlayerDto {
+    pub name: String,
+    pub uuid: Option<String>,
+    pub online: bool,
+    pub op_level: Option<u8>,
+    pub whitelisted: bool,
+    pub banned: bool,
+    pub first_seen: Option<i64>,
+    pub last_seen: Option<i64>,
+    pub total_play_ms: Option<i64>,
+    pub sessions: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerPlayersDto {
+    /// Changes are sent to the running server through its console.
+    pub live: bool,
+    pub read_only_reason: Option<String>,
+    pub online_known: bool,
+    pub online: Vec<String>,
+    pub online_mode: bool,
+    pub whitelist_enabled: bool,
+    pub enforce_whitelist: bool,
+    pub max_players: Option<u32>,
+    pub operators: Vec<OperatorDto>,
+    pub whitelist: Vec<ListedPlayerDto>,
+    pub bans: Vec<BanDto>,
+    pub ip_bans: Vec<BanDto>,
+    pub known: Vec<KnownPlayerDto>,
+}
+
+fn ban_dto(b: Ban) -> BanDto {
+    BanDto {
+        target: b.target,
+        uuid: b.uuid.map(|u| u.to_string()),
+        reason: b.reason,
+        source: b.source,
+        created: b.created,
+        expires: b.expires,
+    }
+}
+
+impl From<ServerPlayers> for ServerPlayersDto {
+    fn from(p: ServerPlayers) -> Self {
+        Self {
+            live: p.live,
+            read_only_reason: p.read_only_reason,
+            online_known: p.online_known,
+            online: p.online,
+            online_mode: p.online_mode,
+            whitelist_enabled: p.whitelist_enabled,
+            enforce_whitelist: p.enforce_whitelist,
+            max_players: p.max_players,
+            operators: p
+                .operators
+                .into_iter()
+                .map(|o| OperatorDto {
+                    name: o.name,
+                    uuid: o.uuid.map(|u| u.to_string()),
+                    level: o.level,
+                    bypasses_player_limit: o.bypasses_player_limit,
+                })
+                .collect(),
+            whitelist: p
+                .whitelist
+                .into_iter()
+                .map(|w| ListedPlayerDto {
+                    name: w.name,
+                    uuid: w.uuid.map(|u| u.to_string()),
+                })
+                .collect(),
+            bans: p.bans.into_iter().map(ban_dto).collect(),
+            ip_bans: p.ip_bans.into_iter().map(ban_dto).collect(),
+            known: p
+                .known
+                .into_iter()
+                .map(|k| KnownPlayerDto {
+                    name: k.name,
+                    uuid: k.uuid.map(|u| u.to_string()),
+                    online: k.online,
+                    op_level: k.op_level,
+                    whitelisted: k.whitelisted,
+                    banned: k.banned,
+                    first_seen: k.stats.as_ref().map(|s| s.first_seen.millis()),
+                    last_seen: k.stats.as_ref().map(|s| s.last_seen.millis()),
+                    total_play_ms: k.stats.as_ref().map(|s| s.total_play_ms),
+                    sessions: k.stats.as_ref().map(|s| s.sessions),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// A player-management action. Names and reasons are validated by the core.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(
+    tag = "action",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum PlayerActionDto {
+    Op {
+        name: String,
+    },
+    Deop {
+        name: String,
+    },
+    WhitelistAdd {
+        name: String,
+    },
+    WhitelistRemove {
+        name: String,
+    },
+    SetWhitelist {
+        enabled: bool,
+    },
+    Ban {
+        name: String,
+        reason: Option<String>,
+    },
+    Pardon {
+        name: String,
+    },
+    BanIp {
+        ip: String,
+        reason: Option<String>,
+    },
+    PardonIp {
+        ip: String,
+    },
+    Kick {
+        name: String,
+        reason: Option<String>,
+    },
+}
+
+impl From<PlayerActionDto> for PlayerAction {
+    fn from(a: PlayerActionDto) -> Self {
+        use PlayerActionDto as D;
+        match a {
+            D::Op { name } => Self::Op { name },
+            D::Deop { name } => Self::Deop { name },
+            D::WhitelistAdd { name } => Self::WhitelistAdd { name },
+            D::WhitelistRemove { name } => Self::WhitelistRemove { name },
+            D::SetWhitelist { enabled } => Self::SetWhitelist { enabled },
+            D::Ban { name, reason } => Self::Ban { name, reason },
+            D::Pardon { name } => Self::Pardon { name },
+            D::BanIp { ip, reason } => Self::BanIp { ip, reason },
+            D::PardonIp { ip } => Self::PardonIp { ip },
+            D::Kick { name, reason } => Self::Kick { name, reason },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlayerActionOutcomeDto {
+    /// "console" | "files"
+    pub via: String,
+    pub messages: Vec<String>,
+}
+
+impl From<ActionOutcome> for PlayerActionOutcomeDto {
+    fn from(o: ActionOutcome) -> Self {
+        Self {
+            via: enum_str(&o.via),
+            messages: o.messages,
+        }
+    }
 }

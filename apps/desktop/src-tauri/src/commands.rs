@@ -324,6 +324,24 @@ pub async fn servers_open_folder(s: State<'_, AppState>, id: String) -> R<()> {
         .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
 }
 
+// ───────────────────────────── players ────────────────────────────
+
+#[tauri::command]
+pub async fn players_get(s: State<'_, AppState>, server_id: String) -> R<ServerPlayersDto> {
+    s.api.players_get(&s.principal(), &server_id).await
+}
+
+#[tauri::command]
+pub async fn players_action(
+    s: State<'_, AppState>,
+    server_id: String,
+    action: PlayerActionDto,
+) -> R<PlayerActionOutcomeDto> {
+    s.api
+        .players_action(&s.principal(), &server_id, action)
+        .await
+}
+
 // ───────────────────────────── backups ────────────────────────────
 
 #[tauri::command]

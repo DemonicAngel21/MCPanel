@@ -43,7 +43,8 @@
     { "key": "enable-query", "type": "boolean", "default": "false", "category": "network", "label": "Enable query (UDP)" },
     { "key": "query.port", "type": "integer", "min": 1, "max": 65535, "default": "25565", "category": "network", "label": "Query port" },
 
-    { "key": "white-list", "type": "boolean", "default": "false", "category": "security", "label": "Whitelist" },
+    { "key": "white-list", "type": "boolean", "default": "false", "category": "security", "label": "Whitelist", "until": "26.3" },
+    { "key": "white-list", "type": "boolean", "default": "true", "category": "security", "label": "Whitelist", "description": "Only players on the whitelist can join. New servers have it on since 26.3.", "since": "26.3" },
     { "key": "enforce-whitelist", "type": "boolean", "default": "false", "category": "security", "label": "Enforce whitelist", "description": "Kick players not on the whitelist when it is reloaded." },
     { "key": "enforce-secure-profile", "type": "boolean", "default": "true", "category": "security", "label": "Enforce secure chat profiles", "since": "1.19" },
     { "key": "op-permission-level", "type": "integer", "min": 0, "max": 4, "default": "4", "category": "security", "label": "Operator permission level" },

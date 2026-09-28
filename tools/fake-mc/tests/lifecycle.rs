@@ -271,6 +271,7 @@ async fn orphaned_server_is_detected_by_a_new_session_and_can_be_force_stopped()
             mcpanel_providers::http_client().unwrap(),
         )),
         registry: registry(),
+        profiles: Arc::new(TestProfiles),
         repos: db2.repositories(),
     })
     .await

@@ -80,6 +80,9 @@ async fn create_start_and_stop_a_real_server() {
         platform: Arc::new(mcpanel_platform::NativePlatform::new()),
         downloader: Arc::new(mcpanel_providers::HttpDownloader::new(http.clone())),
         registry: mcpanel_providers::builtin_registry(&http),
+        profiles: Arc::new(mcpanel_providers::MojangProfiles::new(
+            mcpanel_providers::http_client().unwrap(),
+        )),
         repos: db.repositories(),
     })
     .await

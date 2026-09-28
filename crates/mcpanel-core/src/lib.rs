@@ -20,6 +20,7 @@ pub mod lifecycle;
 pub mod model;
 pub mod monitoring;
 pub mod paths;
+pub mod players;
 pub mod ports;
 pub mod server;
 pub mod server_files;

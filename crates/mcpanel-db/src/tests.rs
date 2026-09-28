@@ -322,3 +322,49 @@ async fn backups_roundtrip_and_outlive_their_server() {
     r.backups.delete(b.id).await.unwrap();
     assert!(r.backups.get(b.id).await.unwrap().is_none());
 }
+
+#[tokio::test]
+async fn player_sessions_aggregate_play_time() {
+    let db = Database::open_in_memory().await.unwrap();
+    let r = db.repositories();
+    let s = server("C:/p", None);
+    r.servers.insert(&s).await.unwrap();
+    let p = &r.players;
+    p.session_started(s.id, "Steve", Timestamp(1_000))
+        .await
+        .unwrap();
+    p.session_ended(s.id, "steve", Timestamp(61_000))
+        .await
+        .unwrap();
+    p.session_started(s.id, "Alex", Timestamp(2_000))
+        .await
+        .unwrap();
+    // A second join without a leave ends the first session as interrupted.
+    p.session_started(s.id, "Alex", Timestamp(5_000))
+        .await
+        .unwrap();
+    assert_eq!(
+        p.end_open_sessions(s.id, Timestamp(10_000)).await.unwrap(),
+        1
+    );
+    p.session_started(s.id, "STEVE", Timestamp(100_000))
+        .await
+        .unwrap();
+    assert_eq!(p.interrupt_open_sessions().await.unwrap(), 1);
+
+    let stats = p.stats(s.id).await.unwrap();
+    let steve = stats
+        .iter()
+        .find(|x| x.name.eq_ignore_ascii_case("steve"))
+        .unwrap();
+    assert_eq!(steve.name, "STEVE", "latest spelling");
+    assert_eq!(steve.sessions, 2);
+    assert_eq!(
+        steve.total_play_ms, 60_000,
+        "interrupted sessions do not count"
+    );
+    assert_eq!(steve.first_seen, Timestamp(1_000));
+    let alex = stats.iter().find(|x| x.name == "Alex").unwrap();
+    assert_eq!((alex.sessions, alex.total_play_ms), (2, 5_000));
+    assert_eq!(stats[0].name, "STEVE", "most recent first");
+}

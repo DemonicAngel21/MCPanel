@@ -225,6 +225,36 @@ mod tests {
         // Chat cannot spoof a join.
         let chat = parse_line("[10:00:00] [Server thread/INFO]: <Alex> Steve joined the game");
         assert!(!d.player_joined.iter().any(|r| r.is_match(&chat.message)));
+        // 26.x logs broadcasts as system chat (observed with Vanilla 26.3).
+        let name = |pats: &[regex::Regex], line: &str| {
+            let m = parse_line(line).message;
+            pats.iter()
+                .find_map(|r| r.captures(&m))
+                .map(|c| c["name"].to_string())
+        };
+        assert_eq!(
+            name(
+                &d.player_joined,
+                "[19:33:18] [Server thread/INFO]: System chat: McpTester joined the game"
+            )
+            .as_deref(),
+            Some("McpTester")
+        );
+        assert_eq!(
+            name(
+                &d.player_left,
+                "[19:33:28] [Server thread/INFO]: System chat: McpTester left the game"
+            )
+            .as_deref(),
+            Some("McpTester")
+        );
+        assert_eq!(
+            name(
+                &d.player_joined,
+                "[19:33:18] [Server thread/INFO]: System chat: <Alex> Steve joined the game"
+            ),
+            None
+        );
     }
 
     #[test]

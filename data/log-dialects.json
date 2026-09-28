@@ -6,8 +6,8 @@
       "ready": ["^Done \\((?P<secs>\\d+(?:[.,]\\d+)?)s\\)! For help, type"],
       "stopping": ["^Stopping (?:the )?server$", "^Stopping server$"],
       "save_complete": ["^(?:System chat: )?Saved the (?:game|world)$"],
-      "player_joined": ["^(?P<name>[A-Za-z0-9_.*]{1,32}) joined the game$"],
-      "player_left": ["^(?P<name>[A-Za-z0-9_.*]{1,32}) left the game$"],
+      "player_joined": ["^(?:System chat: )?(?P<name>[A-Za-z0-9_.*]{1,32}) joined the game$"],
+      "player_left": ["^(?:System chat: )?(?P<name>[A-Za-z0-9_.*]{1,32}) left the game$"],
       "fatal": [
         { "pattern": "FAILED TO BIND TO PORT", "kind": "port_in_use", "message": "The server port is already in use by another program." },
         { "pattern": "You need to agree to the EULA", "kind": "eula", "message": "The Minecraft EULA has not been accepted for this server." },

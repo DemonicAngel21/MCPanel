@@ -919,6 +919,28 @@ impl Api {
             .collect())
     }
 
+    // ───────────────────────────── players ─────────────────────────────
+
+    pub async fn players_get(&self, p: &Principal, server: &str) -> ApiResult<ServerPlayersDto> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.players.view(server_id(server)?).await?.into())
+    }
+
+    pub async fn players_action(
+        &self,
+        p: &Principal,
+        server: &str,
+        action: PlayerActionDto,
+    ) -> ApiResult<PlayerActionOutcomeDto> {
+        p.authorize(Permission::PlayersManage)?;
+        Ok(self
+            .core
+            .players
+            .apply(server_id(server)?, action.into(), p.actor())
+            .await?
+            .into())
+    }
+
     // ───────────────────────────── backups ─────────────────────────────
 
     pub async fn backups_list(

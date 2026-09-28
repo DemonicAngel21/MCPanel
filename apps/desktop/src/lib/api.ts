@@ -25,10 +25,13 @@ import type { JavaRuntimeDto } from "@/bindings/JavaRuntimeDto";
 import type { JobDto } from "@/bindings/JobDto";
 import type { LocationCheckDto } from "@/bindings/LocationCheckDto";
 import type { PropertyChangeDto } from "@/bindings/PropertyChangeDto";
+import type { PlayerActionDto } from "@/bindings/PlayerActionDto";
+import type { PlayerActionOutcomeDto } from "@/bindings/PlayerActionOutcomeDto";
 import type { PropertyDto } from "@/bindings/PropertyDto";
 import type { RestorePreviewDto } from "@/bindings/RestorePreviewDto";
 import type { ServerDto } from "@/bindings/ServerDto";
 import type { ServerMetricsDto } from "@/bindings/ServerMetricsDto";
+import type { ServerPlayersDto } from "@/bindings/ServerPlayersDto";
 import type { ServerPropertiesDto } from "@/bindings/ServerPropertiesDto";
 import type { SettingsDto } from "@/bindings/SettingsDto";
 import type { SettingsPatchDto } from "@/bindings/SettingsPatchDto";
@@ -155,6 +158,11 @@ export const api = {
     import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
     export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
     search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+  },
+  players: {
+    get: (serverId: string) => call<ServerPlayersDto>("players_get", { serverId }),
+    /** Sent to the running server's console, or written to its files when stopped. */
+    action: (serverId: string, action: PlayerActionDto) => call<PlayerActionOutcomeDto>("players_action", { serverId, action }),
   },
   backups: {
     list: (serverId: string | null) => call<BackupDto[]>("backups_list", { serverId }),

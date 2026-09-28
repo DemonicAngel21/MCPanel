@@ -17,6 +17,7 @@ const TABS = [
   { to: "", label: "Overview" },
   { to: "/console", label: "Console" },
   { to: "/files", label: "Files" },
+  { to: "/players", label: "Players" },
   { to: "/properties", label: "Properties" },
   { to: "/backups", label: "Backups" },
   { to: "/settings", label: "Settings" },

@@ -71,6 +71,16 @@ It creates, starts and stops the server, takes a live backup, verifies it, resto
 into the stopped server and boots the restored server. Everything lives in temporary
 directories that are deleted afterwards.
 
+`real_players` connects a headless offline-mode client (`tests/common/mc_client.rs`) to
+a local test server to check join/leave detection, player commands and file edits:
+
+```powershell
+cargo test -p fake-mc --test real_players -- --nocapture
+```
+
+The client supports only protocol versions whose packet ids were verified (currently
+26.3 / protocol 777). Online-mode logins need a Minecraft account and are not automated.
+
 ## Live provider tests
 
 ```powershell
