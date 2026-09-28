@@ -39,6 +39,11 @@ impl ServerManager {
         }
     }
 
+    /// Properties that apply to a brand-new server of `game_version` (for the wizard).
+    pub async fn property_schema_for(&self, game_version: &str) -> Vec<PropertyView> {
+        schema::describe(&PropertiesDocument::default(), game_version, &self.versions).await
+    }
+
     pub async fn properties(&self, id: ServerId) -> CoreResult<ServerProperties> {
         let server = self.get(id).await?;
         let root = SafeRoot::open(&server.directory)?;

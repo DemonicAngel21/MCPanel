@@ -490,6 +490,58 @@ impl Api {
         Ok(self.core.monitor.server(sid, uptime).into())
     }
 
+    /// `server.properties` keys applicable to a new server of `game_version`.
+    pub async fn software_property_schema(
+        &self,
+        p: &Principal,
+        game_version: &str,
+    ) -> ApiResult<Vec<PropertyDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .servers
+            .property_schema_for(game_version)
+            .await
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    /// Write the buffered console output to a file chosen in a save dialog.
+    pub async fn console_export(
+        &self,
+        p: &Principal,
+        id: &str,
+        save_grant: &str,
+    ) -> ApiResult<u64> {
+        p.authorize(Permission::ServersRead)?;
+        let hub = self.core.servers.console(server_id(id)?);
+        let dest = self.grants.take(save_grant, GrantKind::SaveTarget)?;
+        let lines = hub.snapshot(None, usize::MAX);
+        let count = lines.len() as u64;
+        tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            use std::io::Write;
+            let mut w = std::io::BufWriter::new(std::fs::File::create(&dest)?);
+            for l in lines {
+                match l.stream {
+                    mcpanel_core::console::ConsoleStream::Stdout => writeln!(w, "{}", l.text)?,
+                    mcpanel_core::console::ConsoleStream::Stderr => {
+                        writeln!(w, "[stderr] {}", l.text)?
+                    }
+                    mcpanel_core::console::ConsoleStream::System => {
+                        writeln!(w, "[mcpanel] {}", l.text)?
+                    }
+                    mcpanel_core::console::ConsoleStream::Command => writeln!(w, "> {}", l.text)?,
+                }
+            }
+            w.flush()
+        })
+        .await
+        .map_err(|e| ApiError::new("INTERNAL", e.to_string()))?
+        .map_err(|e| ApiError::new("IO", format!("Cannot write log file: {e}")))?;
+        Ok(count)
+    }
+
     pub fn servers_running_count(&self, p: &Principal) -> ApiResult<u32> {
         p.authorize(Permission::ServersRead)?;
         Ok(self.core.servers.running_servers().len() as u32)
