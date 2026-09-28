@@ -448,6 +448,17 @@ dependencies = [
 [[package]]
 name = "fake-mc"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "mcpanel-core",
+ "mcpanel-db",
+ "mcpanel-platform",
+ "mcpanel-providers",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
 
 [[package]]
 name = "fastrand"
