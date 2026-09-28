@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────
+# MCPanel .gitignore
+# Git tracks MCPanel SOURCE CODE only. Minecraft server data
+# (worlds, player data, jars, logs, backups) belongs to the
+# MCPanel backup system, never to Git.
+# ─────────────────────────────────────────────────────────────
+
+# ── Rust / build artifacts ───────────────────────────────────
+/target/
+**/target/
+**/*.rs.bk
+*.pdb
+
+# ── Node / frontend ──────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+
+# ── Tauri generated ──────────────────────────────────────────
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+
+# ── Local databases ──────────────────────────────────────────
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Secrets, credentials, keys (NEVER COMMIT) ────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+key.pem
+*.age
+*.minisign
+*.sig
+secrets/
+credentials*.json
+oauth*.json
+token*.json
+*.token
+playit*.toml
+!data/**/playit*.toml
+
+# ── Minecraft server data (belongs to backups, not Git) ──────
+servers/
+world/
+world_nether/
+world_the_end/
+**/world*/region/
+**/playerdata/
+**/crash-reports/
+eula.txt
+usercache.json
+ops.json
+whitelist.json
+banned-players.json
+banned-ips.json
+*.jar
+!tests/fixtures/**/*.jar
+!tools/**/fixtures/**/*.jar
+
+# ── Backups ──────────────────────────────────────────────────
+backups/
+*.mcpb
+*.bak
+
+# ── IDE / editor ─────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*~
+
+# ── OS files ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ── Local machine config ─────────────────────────────────────
+.claude/settings.local.json
+*.local.json
