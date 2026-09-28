@@ -23,6 +23,7 @@ impl Default for SingleJarLauncher {
 impl LaunchResolver for SingleJarLauncher {
     fn launch_args(
         &self,
+        _root: &Path,
         installed: &InstalledSoftware,
         _launch: &LaunchConfig,
     ) -> CoreResult<LaunchArgs> {
@@ -31,6 +32,8 @@ impl LaunchResolver for SingleJarLauncher {
         Ok(LaunchArgs {
             jvm_args: Vec::new(),
             jar: installed.jar.clone(),
+            main_class: None,
+            class_path: Vec::new(),
             server_args: self.server_args.clone(),
         })
     }

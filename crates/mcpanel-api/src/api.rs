@@ -241,25 +241,41 @@ impl Api {
             .preview_install(software_id, game_version, build)
             .await?;
         let plan = preview.plan;
-        let (hash_algorithm, hash_strong, download_bytes) = match plan.steps.first() {
-            Some(mcpanel_core::software::InstallStep::Download {
-                expected_hash,
-                size,
-                ..
-            }) => (
-                expected_hash.as_ref().map(|h| {
-                    serde_json::to_value(h.algorithm)
-                        .ok()
-                        .and_then(|v| v.as_str().map(String::from))
-                        .unwrap_or_default()
-                }),
-                expected_hash
-                    .as_ref()
-                    .is_some_and(|h| h.algorithm.is_strong()),
-                *size,
-            ),
-            None => (None, false, None),
+        // Summarise every download: the weakest hash, strong only if all are, total size.
+        let downloads: Vec<_> = plan
+            .steps
+            .iter()
+            .filter_map(|s| match s {
+                mcpanel_core::software::InstallStep::Download {
+                    expected_hash,
+                    size,
+                    ..
+                } => Some((expected_hash, size)),
+                _ => None,
+            })
+            .collect();
+        let rank = |a: mcpanel_core::ports::HashAlgorithm| {
+            use mcpanel_core::ports::HashAlgorithm as H;
+            match a {
+                H::Md5 => 0,
+                H::Sha1 => 1,
+                H::Sha256 => 2,
+                H::Sha512 => 3,
+            }
         };
+        let all_hashed = !downloads.is_empty() && downloads.iter().all(|(h, _)| h.is_some());
+        let weakest = downloads
+            .iter()
+            .filter_map(|(h, _)| h.as_ref().map(|h| h.algorithm))
+            .min_by_key(|a| rank(*a));
+        let hash_algorithm = weakest.filter(|_| all_hashed).map(|a| {
+            serde_json::to_value(a)
+                .ok()
+                .and_then(|v| v.as_str().map(String::from))
+                .unwrap_or_default()
+        });
+        let hash_strong = all_hashed && weakest.is_some_and(|a| a.is_strong());
+        let download_bytes = downloads.iter().map(|(_, s)| **s).sum::<Option<u64>>();
         Ok(InstallPreviewDto {
             software_id: plan.software_id,
             game_version: plan.game_version,

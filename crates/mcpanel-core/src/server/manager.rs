@@ -499,9 +499,10 @@ impl ServerManager {
         }
 
         // Launch spec (argv only).
-        let launch_args = provider
-            .launcher
-            .launch_args(&server.software, &server.launch)?;
+        let launch_args =
+            provider
+                .launcher
+                .launch_args(root.path(), &server.software, &server.launch)?;
         let mut args: Vec<String> = Vec::new();
         if server.launch.min_memory_mb > 0 {
             args.push(format!("-Xms{}M", server.launch.min_memory_mb));
@@ -516,8 +517,21 @@ impl ServerManager {
         ]);
         args.extend(server.launch.jvm_args.iter().cloned());
         args.extend(launch_args.jvm_args);
-        args.push("-jar".to_string());
-        args.push(launch_args.jar);
+        match launch_args.main_class {
+            Some(main) => {
+                // Class-path launch: every entry must stay inside the server root.
+                for entry in &launch_args.class_path {
+                    root.resolve(entry)?.ensure_no_reparse_points()?;
+                }
+                args.push("-cp".to_string());
+                args.push(launch_args.class_path.join(";"));
+                args.push(main);
+            }
+            None => {
+                args.push("-jar".to_string());
+                args.push(launch_args.jar);
+            }
+        }
         args.extend(launch_args.server_args);
         args.extend(server.launch.server_args.iter().cloned());
 

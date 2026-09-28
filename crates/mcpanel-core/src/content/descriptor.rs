@@ -17,6 +17,9 @@ pub struct Descriptor {
     pub format: String,
     pub name: Option<String>,
     pub version: Option<String>,
+    /// The mod declares it only runs on the client (`"environment": "client"`).
+    #[serde(default)]
+    pub client_only: bool,
 }
 
 fn rejected(msg: impl Into<String>) -> CoreError {
@@ -82,28 +85,32 @@ pub fn read(jar: &Path) -> CoreResult<Option<Descriptor>> {
                 format: yml.into(),
                 name: yaml_scalar(&t, "name"),
                 version: yaml_scalar(&t, "version"),
+                client_only: false,
             }));
         }
     }
     for json in ["fabric.mod.json", "quilt.mod.json"] {
         if let Some(t) = read_entry(&mut zip, json)? {
             let v: serde_json::Value = serde_json::from_str(&t).unwrap_or_default();
-            let (name, version) = if json == "quilt.mod.json" {
+            let (name, version, env) = if json == "quilt.mod.json" {
                 let l = &v["quilt_loader"];
                 (
                     l["metadata"]["name"].as_str().or(l["id"].as_str()),
                     l["version"].as_str(),
+                    v["minecraft"]["environment"].as_str(),
                 )
             } else {
                 (
                     v["name"].as_str().or(v["id"].as_str()),
                     v["version"].as_str(),
+                    v["environment"].as_str(),
                 )
             };
             return Ok(Some(Descriptor {
                 format: json.into(),
                 name: name.map(String::from),
                 version: version.map(String::from),
+                client_only: env == Some("client"),
             }));
         }
     }
@@ -113,6 +120,7 @@ pub fn read(jar: &Path) -> CoreResult<Option<Descriptor>> {
                 format: toml.into(),
                 name: toml_scalar(&t, "displayName").or_else(|| toml_scalar(&t, "modId")),
                 version: toml_scalar(&t, "version"),
+                client_only: false,
             }));
         }
     }
@@ -125,6 +133,9 @@ pub fn validate(jar: &Path, kind: ContentKind) -> CoreResult<Descriptor> {
         .ok_or_else(|| rejected("The file is not a plugin or mod (no descriptor found)"))?;
     let is_plugin = d.format.ends_with("plugin.yml");
     match (kind, is_plugin) {
+        (ContentKind::Mod, false) if d.client_only => Err(rejected(
+            "This mod only works on the client, not on a server",
+        )),
         (ContentKind::Plugin, true) | (ContentKind::Mod, false) => Ok(d),
         (ContentKind::Plugin, false) => Err(rejected("This file is a mod, not a plugin")),
         (ContentKind::Mod, true) => Err(rejected("This file is a plugin, not a mod")),

@@ -296,9 +296,7 @@ impl ServerManager {
             _ => {
                 rt.console.push(
                     ConsoleStream::System,
-                    &format!(
-                        "Server crashed (exit code {code_text}). Automatic restart is not enabled."
-                    ),
+                    &format!("Server crashed (exit code {code_text})."),
                 );
             }
         }
