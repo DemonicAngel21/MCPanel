@@ -76,6 +76,7 @@ pub struct JobContext {
 
 struct ProgressReporter {
     events: EventBus,
+    kind: String,
     last_emit: Mutex<Option<Instant>>,
 }
 
@@ -114,6 +115,7 @@ impl JobContext {
         }
         self.reporter.events.publish(DomainEvent::JobUpdated {
             job_id: self.id,
+            kind: self.reporter.kind.clone(),
             server_id: self.server_id,
             status: JobStatus::Running,
             progress: fraction.map(|f| f.clamp(0.0, 1.0)),
@@ -181,11 +183,13 @@ impl JobManager {
             cancel,
             reporter: Arc::new(ProgressReporter {
                 events: self.events.clone(),
+                kind: kind.to_string(),
                 last_emit: Mutex::new(None),
             }),
         };
         self.events.publish(DomainEvent::JobUpdated {
             job_id: record.id,
+            kind: kind.to_string(),
             server_id,
             status: JobStatus::Running,
             progress: None,
@@ -233,6 +237,7 @@ impl JobManager {
         }
         self.events.publish(DomainEvent::JobUpdated {
             job_id,
+            kind: kind.to_string(),
             server_id,
             status,
             progress: if status == JobStatus::Succeeded {

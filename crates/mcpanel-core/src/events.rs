@@ -53,6 +53,8 @@ pub enum DomainEvent {
     },
     JobUpdated {
         job_id: JobId,
+        /// e.g. `server.create`, `backup.create`.
+        kind: String,
         server_id: Option<ServerId>,
         status: JobStatus,
         progress: Option<f32>,

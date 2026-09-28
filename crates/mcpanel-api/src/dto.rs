@@ -891,6 +891,7 @@ pub enum EventDto {
     },
     JobUpdated {
         job_id: String,
+        kind: String,
         server_id: Option<String>,
         status: String,
         progress: Option<f32>,
@@ -968,12 +969,14 @@ impl From<&EventEnvelope> for EventDto {
             },
             D::JobUpdated {
                 job_id,
+                kind,
                 server_id,
                 status,
                 progress,
                 message,
             } => Self::JobUpdated {
                 job_id: job_id.to_string(),
+                kind: kind.clone(),
                 server_id: server_id.map(|s| s.to_string()),
                 status: status.as_str().into(),
                 progress: *progress,
