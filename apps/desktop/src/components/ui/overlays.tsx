@@ -73,6 +73,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   destructive,
   confirmText,
+  confirmDisabled,
   onConfirm,
   children,
 }: {
@@ -83,12 +84,13 @@ export function ConfirmDialog({
   confirmLabel?: string;
   destructive?: boolean;
   confirmText?: string;
+  confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
   children?: ReactNode;
 }) {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
-  const ok = !confirmText || typed === confirmText;
+  const ok = (!confirmText || typed === confirmText) && !confirmDisabled;
   return (
     <Dialog
       open={open}

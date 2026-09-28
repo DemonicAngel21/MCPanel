@@ -333,7 +333,9 @@ pub(crate) fn check_entries_match(
     Ok(())
 }
 
+/// Returned as the result of a verification job (camelCase like the API).
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VerifyReport {
     pub ok: bool,
     pub files_checked: u64,

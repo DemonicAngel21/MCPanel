@@ -94,6 +94,7 @@ async fn stopped_server_backup_verify_and_restore() {
     let job = h.core.backups.verify(bid, "test").await.unwrap();
     let report = wait_job(&h.core, job).await.unwrap();
     assert_eq!(report["ok"], true, "{report}");
+    assert_eq!(report["filesChecked"], 8, "{report}");
 
     // Change the server after the backup, including its recorded software.
     std::fs::write(dir.join("world/level.dat"), "changed!").unwrap();

@@ -4,6 +4,10 @@ import { useUi } from "@/stores/ui";
 
 const LABELS: Record<string, string> = {
   "server.create": "Creating server",
+  "backup.create": "Backing up",
+  "backup.scheduled": "Scheduled backup",
+  "backup.verify": "Verifying backup",
+  "backup.restore": "Restoring backup",
 };
 
 /** Mirrors long-running jobs as toasts with live progress. */

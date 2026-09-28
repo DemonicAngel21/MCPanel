@@ -45,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test tooling: `fake-mc` test double, end-to-end lifecycle tests, `mcpanel-seed` for
   isolated UI runs, opt-in real Minecraft server test (requires explicit EULA opt-in).
 
+- Local backups (v0.2): plain ZIP archives with a manifest of SHA-256 hashes, live
+  backups of running servers (`save-off` / `save-all flush` / `save-on`), verification,
+  restore with preview, a protected pre-restore backup and rollback, per-server
+  schedules that can skip idle servers, and GFS retention. Backups that contain the
+  Floodgate key are flagged as sensitive. New Backups page and server Backups tab;
+  backups go to `%USERPROFILE%\MCPanel\Backups` by default (configurable).
+- Job progress events carry the job kind, so every job shows a meaningful toast.
+
 ### Fixed
 
 - The database is closed on quit (checkpointing the WAL) and when an open is refused

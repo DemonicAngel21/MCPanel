@@ -7,6 +7,10 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type { ApiError as ApiErrorDto } from "@/bindings/ApiError";
 import type { AppInfoDto } from "@/bindings/AppInfoDto";
 import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
+import type { BackupDto } from "@/bindings/BackupDto";
+import type { BackupLocationDto } from "@/bindings/BackupLocationDto";
+import type { BackupPolicyDto } from "@/bindings/BackupPolicyDto";
+import type { BackupPolicyUpdateDto } from "@/bindings/BackupPolicyUpdateDto";
 import type { ConsoleBatchDto } from "@/bindings/ConsoleBatchDto";
 import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
@@ -22,6 +26,7 @@ import type { JobDto } from "@/bindings/JobDto";
 import type { LocationCheckDto } from "@/bindings/LocationCheckDto";
 import type { PropertyChangeDto } from "@/bindings/PropertyChangeDto";
 import type { PropertyDto } from "@/bindings/PropertyDto";
+import type { RestorePreviewDto } from "@/bindings/RestorePreviewDto";
 import type { ServerDto } from "@/bindings/ServerDto";
 import type { ServerMetricsDto } from "@/bindings/ServerMetricsDto";
 import type { ServerPropertiesDto } from "@/bindings/ServerPropertiesDto";
@@ -150,6 +155,24 @@ export const api = {
     import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
     export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
     search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+  },
+  backups: {
+    list: (serverId: string | null) => call<BackupDto[]>("backups_list", { serverId }),
+    /** Returns the job id. */
+    create: (serverId: string, note: string | null) => call<string>("backups_create", { serverId, note }),
+    delete: (id: string) => call<void>("backups_delete", { id }),
+    /** Returns the job id; the job result is `{ ok, filesChecked, bytesChecked, problems }`. */
+    verify: (id: string) => call<string>("backups_verify", { id }),
+    restorePreview: (id: string) => call<RestorePreviewDto>("backups_restore_preview", { id }),
+    /** Returns the job id. */
+    restore: (id: string) => call<string>("backups_restore", { id }),
+    policy: (serverId: string) => call<BackupPolicyDto>("backups_policy", { serverId }),
+    updatePolicy: (serverId: string, policy: BackupPolicyUpdateDto) => call<BackupPolicyDto>("backups_policy_update", { serverId, policy }),
+    location: () => call<BackupLocationDto>("backups_location"),
+    /** `null` resets to the default folder. */
+    setLocation: (grant: string | null) => call<BackupLocationDto>("backups_set_location", { grant }),
+    reveal: (id: string) => call<void>("backups_reveal", { id }),
+    openFolder: () => call<void>("backups_open_folder"),
   },
   jobs: {
     list: (limit: number) => call<JobDto[]>("jobs_list", { limit }),

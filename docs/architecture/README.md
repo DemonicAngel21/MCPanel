@@ -170,6 +170,12 @@ Pipeline: request → OperationLock → consistency strategy → file selection 
   unless configured.
 - Restore: stop → pre-restore backup → staged extraction with archive safety →
   manifest verification → diff (highlighting changed JARs) → atomic swap.
+- Implemented in v0.2: default folder `%USERPROFILE%\MCPanel\Backups` (configurable,
+  must not overlap a server folder), one folder per server, file names in local time;
+  excluded: `.mcpanel/`, `session.lock`, links; files locked by another program are
+  skipped and listed in the manifest. Schedule + retention are stored together in
+  `backup_policies` while only the local destination exists (destinations arrive with
+  cloud backups in v0.4). A backup blocks server starts/restarts until it finishes.
 
 ### Sensitive files (decided)
 

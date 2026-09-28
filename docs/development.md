@@ -29,8 +29,10 @@ cargo deny check             # advisories / licenses / sources
 
 ## Isolated data directories
 
-`MCPANEL_DATA_DIR` and `MCPANEL_SERVERS_DIR` override `%LOCALAPPDATA%\MCPanel` and
-`%USERPROFILE%\MCPanel\Servers`. Use them so development never touches your real data.
+`MCPANEL_DATA_DIR`, `MCPANEL_SERVERS_DIR` and `MCPANEL_BACKUPS_DIR` override
+`%LOCALAPPDATA%\MCPanel`, `%USERPROFILE%\MCPanel\Servers` and
+`%USERPROFILE%\MCPanel\Backups`. Set all three so development never touches your real
+data.
 
 ## UI end-to-end runs with fake-mc
 
@@ -42,6 +44,7 @@ cargo build -p fake-mc
 $e2e = "$env:TEMP\mcpanel-e2e"
 .\target\debug\mcpanel-seed.exe "$e2e\data" "$e2e\servers" .\target\debug\fake-mc.exe
 $env:MCPANEL_DATA_DIR = "$e2e\data"; $env:MCPANEL_SERVERS_DIR = "$e2e\servers"
+$env:MCPANEL_BACKUPS_DIR = "$e2e\backups"
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
 pnpm dev
 # In another terminal: drive the WebView over CDP (Playwright)
@@ -63,6 +66,10 @@ $env:MCPANEL_E2E_ACCEPT_MINECRAFT_EULA = "yes"
 $env:MCPANEL_E2E_SOFTWARE = "paper"      # optional: vanilla (default) | paper | purpur
 cargo test -p fake-mc --test real_server -- --nocapture
 ```
+
+It creates, starts and stops the server, takes a live backup, verifies it, restores it
+into the stopped server and boots the restored server. Everything lives in temporary
+directories that are deleted afterwards.
 
 ## Live provider tests
 
