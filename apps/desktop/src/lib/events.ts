@@ -36,6 +36,10 @@ function handle(qc: QueryClient, e: EventDto) {
       void qc.invalidateQueries({ queryKey: qk.servers, exact: true });
       void qc.invalidateQueries({ queryKey: qk.server(e.serverId), exact: true });
       if (e.type === "serverUpdated") void qc.invalidateQueries({ queryKey: qk.serverProperties(e.serverId) });
+      void qc.invalidateQueries({ queryKey: qk.players(e.serverId) });
+      break;
+    case "playersChanged":
+      void qc.invalidateQueries({ queryKey: qk.players(e.serverId) });
       break;
     case "serverCrashed":
       void qc.invalidateQueries({ queryKey: qk.servers, exact: true });

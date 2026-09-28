@@ -51,9 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schedules that can skip idle servers, and GFS retention. Backups that contain the
   Floodgate key are flagged as sensitive. New Backups page and server Backups tab;
   backups go to `%USERPROFILE%\MCPanel\Backups` by default (configurable).
+- Player management (v0.2): Players tab with online players, known players (play time,
+  last seen), whitelist, operators, player and IP bans, kick and a whitelist switch.
+  While a server runs, changes are console commands and the server's reply is shown;
+  while it is stopped, MCPanel edits `ops.json` / `whitelist.json` / `banned-*.json`
+  directly (names resolved via the user cache, the Mojang profile service in online
+  mode, or the offline UUID). Play sessions are recorded; IP addresses are not.
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed
+
+- Minecraft 26.x player joins and leaves (logged as `System chat: …`) are detected.
 
 - The database is closed on quit (checkpointing the WAL) and when an open is refused
   (for example a schema from a newer MCPanel), so the file is released.

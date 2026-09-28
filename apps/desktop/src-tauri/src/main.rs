@@ -39,6 +39,7 @@ async fn build_api() -> Result<Started, String> {
         platform: Arc::new(mcpanel_platform::NativePlatform::new()),
         downloader: Arc::new(mcpanel_providers::HttpDownloader::new(http.clone())),
         registry: mcpanel_providers::builtin_registry(&http),
+        profiles: Arc::new(mcpanel_providers::MojangProfiles::new(http.clone())),
         repos: db.repositories(),
     })
     .await
@@ -199,6 +200,8 @@ fn main() {
             commands::settings_get,
             commands::settings_update,
             commands::open_logs_folder,
+            commands::players_get,
+            commands::players_action,
             commands::backups_list,
             commands::backups_create,
             commands::backups_delete,
