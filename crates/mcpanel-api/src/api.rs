@@ -929,6 +929,49 @@ impl Api {
             .collect())
     }
 
+    // ──────────────────────────── templates ────────────────────────────
+
+    pub fn templates_list(&self, p: &Principal) -> ApiResult<Vec<TemplateDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.templates.list().iter().map(Into::into).collect())
+    }
+
+    pub async fn templates_resolve(
+        &self,
+        p: &Principal,
+        id: &str,
+        software_id: &str,
+        game_version: &str,
+    ) -> ApiResult<ResolvedTemplateDto> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .templates
+            .resolve(id, software_id, game_version)
+            .await?
+            .into())
+    }
+
+    /// Apply a template's policies and chosen plugins to a created server; returns the
+    /// plugin install job ids.
+    pub async fn templates_apply(
+        &self,
+        p: &Principal,
+        server: &str,
+        id: &str,
+        plugins: Vec<String>,
+    ) -> ApiResult<Vec<String>> {
+        p.authorize(Permission::ServersManage)?;
+        Ok(self
+            .core
+            .templates
+            .apply(server_id(server)?, id, &plugins, p.actor())
+            .await?
+            .into_iter()
+            .map(|j| j.to_string())
+            .collect())
+    }
+
     // ───────────────────────────── crashes ─────────────────────────────
 
     pub async fn restart_policy(&self, p: &Principal, server: &str) -> ApiResult<RestartPolicyDto> {

@@ -33,6 +33,7 @@ import type { PropertyChangeDto } from "@/bindings/PropertyChangeDto";
 import type { PlayerActionDto } from "@/bindings/PlayerActionDto";
 import type { PlayerActionOutcomeDto } from "@/bindings/PlayerActionOutcomeDto";
 import type { PropertyDto } from "@/bindings/PropertyDto";
+import type { ResolvedTemplateDto } from "@/bindings/ResolvedTemplateDto";
 import type { RestartPolicyDto } from "@/bindings/RestartPolicyDto";
 import type { RestorePreviewDto } from "@/bindings/RestorePreviewDto";
 import type { SearchPageDto } from "@/bindings/SearchPageDto";
@@ -46,6 +47,7 @@ import type { SettingsPatchDto } from "@/bindings/SettingsPatchDto";
 import type { SoftwareBuildDto } from "@/bindings/SoftwareBuildDto";
 import type { SoftwareDto } from "@/bindings/SoftwareDto";
 import type { SystemMetricsDto } from "@/bindings/SystemMetricsDto";
+import type { TemplateDto } from "@/bindings/TemplateDto";
 import type { TextDocumentDto } from "@/bindings/TextDocumentDto";
 import type { UpdateInfoDto } from "@/bindings/UpdateInfoDto";
 import type { UpdateServerDto } from "@/bindings/UpdateServerDto";
@@ -167,6 +169,12 @@ export const api = {
     import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
     export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
     search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+  },
+  templates: {
+    list: () => call<TemplateDto[]>("templates_list"),
+    resolve: (id: string, softwareId: string, gameVersion: string) => call<ResolvedTemplateDto>("templates_resolve", { id, softwareId, gameVersion }),
+    /** Returns the plugin install job ids. */
+    apply: (serverId: string, id: string, plugins: string[]) => call<string[]>("templates_apply", { serverId, id, plugins }),
   },
   crashes: {
     policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),

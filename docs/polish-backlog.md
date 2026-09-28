@@ -4,6 +4,15 @@ Minor visual, animation and wording issues found during feature development. The
 collected here for the dedicated polish/QA phase instead of interrupting feature work.
 Functional bugs are fixed immediately and do not belong here.
 
+## Open decisions for the QA phase
+
+- The create wizard defaults to the newest Minecraft version even when the software only
+  has experimental builds for it (e.g. Paper 26.3: beta). Consider defaulting to the
+  newest version with a stable build.
+- Provider-recommended JVM flags are applied as published; JDK 26 already deprecates
+  `ParallelRefProcEnabled`. MCPanel diagnoses a rejected flag, but could also test flags
+  against the chosen Java when a server is created.
+
 | Area | Issue | Found |
 |---|---|---|
 | Players tab | After clicking a tab, the previously focused tab can still look underlined (focus vs. selected styling). | v0.2 players |
@@ -13,3 +22,4 @@ Functional bugs are fixed immediately and do not belong here.
 | Backups | The backups-folder path in the server Backups tab header wraps awkwardly for long paths. | v0.2 backups |
 | Plugins | The plugin folder path in the Plugins header wraps; consider a shortened path with a tooltip. | v0.2 plugins |
 | Plugins | Search results lack a loading shimmer while typing; results jump when they arrive. | v0.2 plugins |
+| Templates | Template cards have no preview of the resolved values for the newest version. | v0.2 templates |

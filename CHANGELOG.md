@@ -71,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3 times within 10 minutes, 10 s delay doubled per attempt, reset after 5 minutes of
   uptime, optional backup first. Failures a restart cannot fix (wrong Java, EULA, port
   in use) are never restarted.
+- Server templates (v0.2): five built-in templates (Survival, Friends only, Creative
+  build world, Hardcore, Large world tuned) on a new Templates page. The create wizard is
+  filled in from a template (software, memory, version-appropriate properties validated
+  against the property schema), shows what else it sets, and after creation applies its
+  backup schedule, restart policy and chosen suggested plugins.
+- Servers that fail because Java rejects a JVM argument ("Unrecognized VM option") get
+  a clear diagnosis and are not restarted in a loop.
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed

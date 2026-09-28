@@ -9,6 +9,7 @@ import { CreateServerPage } from "@/pages/create-server";
 import { ImportServerPage } from "@/pages/import-server";
 import { JavaPage } from "@/pages/java";
 import { ActivityPage } from "@/pages/activity";
+import { TemplatesPage } from "@/pages/templates";
 import { BackupsPage } from "@/pages/backups";
 import { SettingsPage } from "@/pages/settings";
 import { ServerLayout } from "@/pages/server/layout";
@@ -29,7 +30,13 @@ const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({ c
 
 const dashboard = createRoute({ getParentRoute: () => rootRoute, path: "/", component: DashboardPage });
 const servers = createRoute({ getParentRoute: () => rootRoute, path: "/servers", component: ServersPage });
-const createServer = createRoute({ getParentRoute: () => rootRoute, path: "/servers/new", component: CreateServerPage });
+export const createServerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/servers/new",
+  validateSearch: (s: Record<string, unknown>): { template?: string } => (typeof s.template === "string" ? { template: s.template } : {}),
+  component: CreateServerPage,
+});
+const templates = createRoute({ getParentRoute: () => rootRoute, path: "/templates", component: TemplatesPage });
 const importServer = createRoute({ getParentRoute: () => rootRoute, path: "/servers/import", component: ImportServerPage });
 const java = createRoute({ getParentRoute: () => rootRoute, path: "/java", component: JavaPage });
 const backups = createRoute({ getParentRoute: () => rootRoute, path: "/backups", component: BackupsPage });
@@ -61,7 +68,8 @@ const serverActivity = createRoute({ getParentRoute: () => serverRoute, path: "/
 const routeTree = rootRoute.addChildren([
   dashboard,
   servers,
-  createServer,
+  createServerRoute,
+  templates,
   importServer,
   java,
   backups,

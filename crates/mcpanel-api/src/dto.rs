@@ -22,6 +22,7 @@ use mcpanel_core::ports::{LocationWarning, SystemSnapshot};
 use mcpanel_core::server::ServerView;
 use mcpanel_core::settings::{AppSettings, ThemePreference};
 use mcpanel_core::software::{GameVersion, SoftwareBuild, SoftwareDescriptor};
+use mcpanel_core::templates::{ResolvedTemplate, Template, TemplatePlugin};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -1768,6 +1769,112 @@ impl From<CrashEvent> for CrashEventDto {
             restart_at: e.restart_at.map(|t| t.millis()),
             crash_report: e.crash_report,
             console_tail: e.console_tail,
+        }
+    }
+}
+
+// ────────────────────────────── templates ─────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MemoryRangeDto {
+    pub min: u32,
+    pub max: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TemplatePluginDto {
+    pub provider: String,
+    pub project: String,
+    pub name: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TemplateDto {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub icon: String,
+    pub software: Vec<String>,
+    pub memory_mb: Option<MemoryRangeDto>,
+    /// Keys the template sets (values depend on the Minecraft version).
+    pub property_keys: Vec<String>,
+    pub backup_interval_minutes: Option<u32>,
+    pub auto_restart: bool,
+    pub plugins: Vec<TemplatePluginDto>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TemplatePropertyDto {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ResolvedTemplateDto {
+    pub template_id: String,
+    pub properties: Vec<TemplatePropertyDto>,
+    pub plugins: Vec<TemplatePluginDto>,
+    pub memory_mb: Option<MemoryRangeDto>,
+    pub notes: Vec<String>,
+}
+
+fn plugin_dto(p: &TemplatePlugin) -> TemplatePluginDto {
+    TemplatePluginDto {
+        provider: p.provider.clone(),
+        project: p.project.clone(),
+        name: p.name.clone(),
+        reason: p.reason.clone(),
+    }
+}
+
+impl From<&Template> for TemplateDto {
+    fn from(t: &Template) -> Self {
+        let mut keys: Vec<String> = t.properties.iter().map(|p| p.key.clone()).collect();
+        keys.dedup();
+        Self {
+            id: t.id.clone(),
+            name: t.name.clone(),
+            description: t.description.clone(),
+            icon: t.icon.clone(),
+            software: t.software.clone(),
+            memory_mb: t.memory_mb.as_ref().map(|m| MemoryRangeDto {
+                min: m.min,
+                max: m.max,
+            }),
+            property_keys: keys,
+            backup_interval_minutes: t.backups.as_ref().map(|b| b.interval_minutes),
+            auto_restart: t.auto_restart,
+            plugins: t.plugins.iter().map(plugin_dto).collect(),
+        }
+    }
+}
+
+impl From<ResolvedTemplate> for ResolvedTemplateDto {
+    fn from(r: ResolvedTemplate) -> Self {
+        Self {
+            template_id: r.template_id,
+            properties: r
+                .properties
+                .into_iter()
+                .map(|(key, value)| TemplatePropertyDto { key, value })
+                .collect(),
+            plugins: r.plugins.iter().map(plugin_dto).collect(),
+            memory_mb: r.memory_mb.map(|m| MemoryRangeDto {
+                min: m.min,
+                max: m.max,
+            }),
+            notes: r.notes,
         }
     }
 }

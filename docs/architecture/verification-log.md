@@ -144,6 +144,19 @@ result. If the finding contradicts the specification, the spec is updated in the
   (2 s delay) brought 26.3 back up in ~9 s. Watchdog detection uses vanilla's
   "Considering it to be crashed, server will forcibly shutdown" line.
 
+## 2026-09-28 — Templates and JVM flags
+
+- PaperMC "Aikar's flags" (docs.papermc.io/paper/aikars-flags) are accepted by JDK
+  25.0.4; JDK 26.0.1 warns that `ParallelRefProcEnabled` is deprecated and will likely be
+  removed. Templates therefore carry no JVM flags (providers publish recommended flags),
+  and a rejected flag is diagnosed: JDK 25 prints `Unrecognized VM option '<name>'` or
+  `Unrecognized option: <opt>`, then `Could not create the Java Virtual Machine`.
+- Every built-in template resolves without skipped entries for 1.12.2, 1.16.5, 1.20.1,
+  1.21.4 and 26.3 (unit test), using the version-split property values of the schema.
+- Created a Paper 26.3 server from the Creative template in the app: properties
+  (gamemode, difficulty, level-type, spawn-monsters, allow-flight, pvp) were written and
+  the backup schedule and restart policy were applied.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, Check, ExternalLink, FolderOpen, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { AlertTriangle, Check, ExternalLink, FolderOpen, LayoutTemplate, ShieldCheck, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { GrantDto } from "@/bindings/GrantDto";
@@ -14,7 +14,7 @@ import { Select } from "@/components/ui/overlays";
 import { Badge, Banner, Card, Checkbox, Field, Input, Progress, Spinner, Switch } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
-import { qk, useJava, useServers, useSoftware, useSystemMetrics } from "@/lib/queries";
+import { qk, useJava, useServers, useSoftware, useSystemMetrics, useTemplates } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
 import { useUi } from "@/stores/ui";
 
@@ -57,18 +57,26 @@ export function CreateServerPage() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("My Server");
   const [parent, setParent] = useState<GrantDto | null>(null);
-  const [softwareId, setSoftwareId] = useState("paper");
+  const search = useSearch({ strict: false }) as { template?: string };
+  const { data: templates } = useTemplates();
+  const template = templates?.find((t) => t.id === search.template);
+  const [softwareChoice, setSoftwareId] = useState<string | null>(null);
+  const { data: softwareList } = useSoftware();
+  const templateSoftware = template?.software.find((id) => softwareList?.some((s) => s.id === id && s.supported));
+  const softwareId = softwareChoice ?? templateSoftware ?? "paper";
   const [snapshots, setSnapshots] = useState(false);
   const [versionChoice, setVersion] = useState<string | undefined>();
   // Build and Java choices are remembered per software+version; otherwise defaults apply.
   const [buildChoice, setBuildChoice] = useState<{ key: string; value: string } | null>(null);
   const [javaChoice, setJavaChoice] = useState<{ key: string; value: string } | null>(null);
-  const [minMem, setMinMem] = useState(1024);
+  const [minMemChoice, setMinMem] = useState<number | null>(null);
+  const [pluginsOff, setPluginsOff] = useState<string[]>([]);
   const [maxMemChoice, setMaxMem] = useState<number | null>(null);
   const [useFlags, setUseFlags] = useState(true);
   const [props, setProps] = useState<Record<string, string>>({});
   const [eula, setEula] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [appliedTemplate, setAppliedTemplate] = useState<{ id: string; name: string; plugins: string[] } | null>(null);
   const job = useUi((s) => (jobId ? s.jobs[jobId] : undefined));
 
   const { data: software } = useSoftware();
@@ -111,8 +119,17 @@ export function CreateServerPage() {
     enabled: !!version,
   });
 
-  // Default memory: half the system RAM, capped at 4 GB.
-  const maxMem = maxMemChoice ?? (totalMb ? Math.max(1024, Math.min(4096, Math.floor(totalMb / 2 / 512) * 512)) : 4096);
+  // Default memory: the template's range, else half the system RAM capped at 4 GB — never
+  // more than the computer can spare.
+  const ramCap = totalMb ? Math.max(1024, Math.floor((totalMb - 2048) / 512) * 512) : null;
+  const maxMem =
+    maxMemChoice ??
+    (template?.memoryMb
+      ? Math.min(template.memoryMb.max, ramCap ?? template.memoryMb.max)
+      : totalMb
+        ? Math.max(1024, Math.min(4096, Math.floor(totalMb / 2 / 512) * 512))
+        : 4096);
+  const minMem = minMemChoice ?? Math.min(template?.memoryMb?.min ?? 1024, maxMem);
 
   // Default Java: the closest compatible runtime (recommended major, else the oldest compatible).
   const compat = useMemo(() => Object.fromEntries((preview.data?.java ?? []).map((j) => [j.javaRuntimeId, j.compatibility])), [preview.data]);
@@ -127,7 +144,15 @@ export function CreateServerPage() {
 
   const schemaByKey = useMemo(() => Object.fromEntries((schema.data ?? []).map((p) => [p.key, p.schema])), [schema.data]);
   const wizardKeys = WIZARD_KEYS.filter((k) => k in schemaByKey);
-  const value = (k: string) => props[k] ?? schemaByKey[k]?.default ?? "";
+  const resolved = useQuery({
+    queryKey: ["template-resolve", template?.id, softwareId, version],
+    queryFn: () => api.templates.resolve(template?.id ?? "", softwareId, version ?? ""),
+    enabled: !!template && !!version && (template?.software.includes(softwareId) ?? false),
+  });
+  const templateValues = useMemo(() => Object.fromEntries((resolved.data?.properties ?? []).map((p) => [p.key, p.value])), [resolved.data]);
+  const value = (k: string) => props[k] ?? templateValues[k] ?? schemaByKey[k]?.default ?? "";
+  const templateExtras = (resolved.data?.properties ?? []).filter((p) => !wizardKeys.includes(p.key));
+  const templatePlugins = (resolved.data?.plugins ?? []).filter((p) => !pluginsOff.includes(p.project));
   const portInUse = servers?.find((s) => String(s.port ?? 25565) === value("server-port"));
 
   const propErrors = wizardKeys.map((k) => validateProperty(schemaByKey[k] ?? null, value(k))).filter(Boolean);
@@ -141,7 +166,7 @@ export function CreateServerPage() {
 
   const create = async () => {
     if (!version || !javaId) return;
-    const properties = wizardKeys.map((k) => ({ key: k, value: value(k) })).filter((p) => p.value !== "");
+    const properties = [...wizardKeys.map((k) => ({ key: k, value: value(k) })), ...templateExtras].filter((p) => p.value !== "");
     try {
       const id = await api.servers.create({
         name,
@@ -157,6 +182,7 @@ export function CreateServerPage() {
         acceptEula: eula,
       });
       useUi.getState().upsertJob({ id, kind: "server.create", serverId: null, status: "running", progress: 0, message: "Starting" });
+      if (template) setAppliedTemplate({ id: template.id, name: template.name, plugins: templatePlugins.map((p) => p.project) });
       setJobId(id);
     } catch (e) {
       toast.error(errorMessage(e));
@@ -169,9 +195,16 @@ export function CreateServerPage() {
     void api.jobs.get(jobId).then((j) => {
       const sid = (j.result as { serverId?: string } | null)?.serverId;
       void qc.invalidateQueries({ queryKey: qk.servers });
-      if (sid) void navigate({ to: "/servers/$serverId", params: { serverId: sid } });
+      if (!sid) return;
+      const go = () => void navigate({ to: "/servers/$serverId", params: { serverId: sid } });
+      if (!appliedTemplate) return go();
+      api.templates
+        .apply(sid, appliedTemplate.id, appliedTemplate.plugins)
+        .then(() => toast.success(`Applied the ${appliedTemplate.name} template`))
+        .catch((e) => toast.error(`The template could not be applied fully: ${errorMessage(e)}`))
+        .finally(go);
     });
-  }, [job?.status, jobId, navigate, qc]);
+  }, [job?.status, jobId, navigate, qc, appliedTemplate]);
   const jobFailed = !!jobId && !!job && job.status !== "running" && job.status !== "succeeded";
   const sw = software?.find((s) => s.id === softwareId);
 
@@ -206,6 +239,20 @@ export function CreateServerPage() {
       </PageHeader>
       <PageBody>
         <div className="mx-auto max-w-2xl space-y-5">
+          {template && !jobId && (
+            <Banner
+              tone="info"
+              icon={<LayoutTemplate />}
+              title={`Template: ${template.name}`}
+              actions={
+                <Button asChild size="sm" variant="ghost">
+                  <Link to="/servers/new">Start without template</Link>
+                </Button>
+              }
+            >
+              {template.description} The settings below are filled in from the template; you can change them.
+            </Banner>
+          )}
           {jobId ? (
             <Card className="space-y-3 p-6">
               <p className="text-sm font-medium text-fg">{jobFailed ? `Could not create ${name}` : `Creating ${name}…`}</p>
@@ -411,6 +458,38 @@ export function CreateServerPage() {
 
               {step === 4 && (
                 <Card className="space-y-4 p-5">
+                  {template && (
+                    <div className="space-y-2 rounded-lg border border-border bg-surface-2 p-3 text-xs">
+                      <p className="font-medium text-fg">From the {template.name} template</p>
+                      {templateExtras.length > 0 && (
+                        <p className="text-muted">Also sets: {templateExtras.map((p) => `${p.key}=${p.value}`).join(", ")}</p>
+                      )}
+                      <p className="text-muted">
+                        {template.backupIntervalMinutes
+                          ? `Backups every ${template.backupIntervalMinutes >= 60 ? `${template.backupIntervalMinutes / 60} hours` : `${template.backupIntervalMinutes} minutes`}`
+                          : "No backup schedule"}
+                        {" · "}
+                        {template.autoRestart ? "restart after a crash" : "no automatic restart"}
+                      </p>
+                      {(resolved.data?.plugins ?? []).map((p) => (
+                        <label key={p.project} className="flex items-start gap-2 text-fg">
+                          <Checkbox
+                            className="mt-0.5"
+                            checked={!pluginsOff.includes(p.project)}
+                            onCheckedChange={(c) => setPluginsOff((off) => (c === true ? off.filter((x) => x !== p.project) : [...off, p.project]))}
+                          />
+                          <span>
+                            Install {p.name} <span className="text-muted">— {p.reason}</span>
+                          </span>
+                        </label>
+                      ))}
+                      {resolved.data?.notes.map((n) => (
+                        <p key={n} className="text-warning">
+                          {n}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   <dl className="grid grid-cols-[160px_1fr] gap-x-4 gap-y-2 text-[13px]">
                     <dt className="text-muted">Name</dt>
                     <dd className="text-fg">{name}</dd>
