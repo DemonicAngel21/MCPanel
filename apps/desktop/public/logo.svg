@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="32" y="32" width="960" height="960" rx="208" fill="#11161d"/>
+  <rect x="32" y="32" width="960" height="960" rx="208" fill="none" stroke="#243040" stroke-width="16"/>
+  <!-- isometric block: top (grass), left and right faces -->
+  <polygon points="512,196 800,356 512,516 224,356" fill="#4ade80"/>
+  <polygon points="224,356 512,516 512,836 224,676" fill="#2f8f57"/>
+  <polygon points="800,356 512,516 512,836 800,676" fill="#1e5f3b"/>
+  <!-- panel lines on the right face -->
+  <polygon points="560,560 752,452 752,500 560,608" fill="#11161d" opacity="0.55"/>
+  <polygon points="560,648 752,540 752,588 560,696" fill="#11161d" opacity="0.55"/>
+  <circle cx="610" cy="740" r="18" fill="#4ade80"/>
+</svg>

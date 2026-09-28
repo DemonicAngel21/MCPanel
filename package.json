@@ -1,0 +1,19 @@
+{
+  "name": "mcpanel",
+  "private": true,
+  "description": "MCPanel — desktop control panel for local Minecraft Java servers",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @mcpanel/desktop tauri dev",
+    "build": "pnpm --filter @mcpanel/desktop tauri build",
+    "lint": "pnpm --filter @mcpanel/desktop lint",
+    "typecheck": "pnpm --filter @mcpanel/desktop typecheck",
+    "test": "pnpm --filter @mcpanel/desktop test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "gen:bindings": "cargo test -p mcpanel-api --lib export_bindings"
+  }
+}

@@ -1,0 +1,48 @@
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export const qk = {
+  appInfo: ["app-info"] as const,
+  settings: ["settings"] as const,
+  systemMetrics: ["system-metrics"] as const,
+  java: ["java"] as const,
+  software: ["software"] as const,
+  versions: (softwareId: string, snapshots: boolean) => ["versions", softwareId, snapshots] as const,
+  builds: (softwareId: string, version: string) => ["builds", softwareId, version] as const,
+  preview: (softwareId: string, version: string, build: string | null) => ["preview", softwareId, version, build] as const,
+  propertySchema: (version: string) => ["property-schema", version] as const,
+  servers: ["servers"] as const,
+  server: (id: string) => ["servers", id] as const,
+  serverMetrics: (id: string) => ["servers", id, "metrics"] as const,
+  serverProperties: (id: string) => ["servers", id, "properties"] as const,
+  files: (id: string, path: string) => ["servers", id, "files", path] as const,
+  audit: (serverId: string | null) => ["audit", serverId] as const,
+  jobs: ["jobs"] as const,
+};
+
+export const useAppInfo = () => useQuery({ queryKey: qk.appInfo, queryFn: api.app.info, staleTime: Infinity });
+export const useSettings = () => useQuery({ queryKey: qk.settings, queryFn: api.settings.get });
+export const useServers = () => useQuery({ queryKey: qk.servers, queryFn: api.servers.list });
+export const useServer = (id: string) => useQuery({ queryKey: qk.server(id), queryFn: () => api.servers.get(id) });
+export const useJava = () => useQuery({ queryKey: qk.java, queryFn: api.java.list });
+export const useSoftware = () => useQuery({ queryKey: qk.software, queryFn: api.software.list, staleTime: Infinity });
+
+export const useSystemMetrics = () => useQuery({ queryKey: qk.systemMetrics, queryFn: api.system.metrics, refetchInterval: 2000 });
+
+export const useServerMetrics = (id: string, enabled: boolean) =>
+  useQuery({ queryKey: qk.serverMetrics(id), queryFn: () => api.servers.metrics(id), refetchInterval: enabled ? 2000 : false });
+
+export const useAudit = (serverId: string | null, limit = 50) =>
+  useQuery({ queryKey: qk.audit(serverId), queryFn: () => api.audit.query(serverId, null, limit) });
+
+const AUDIT_PAGE = 100;
+
+/** Paged audit log (newest first), optionally scoped to one server. */
+export function useAuditPages(serverId: string | null) {
+  return useInfiniteQuery({
+    queryKey: ["audit", serverId, "pages"],
+    queryFn: ({ pageParam }) => api.audit.query(serverId, pageParam, AUDIT_PAGE),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.length < AUDIT_PAGE ? undefined : (last[last.length - 1]?.occurredAt ?? undefined)),
+  });
+}
