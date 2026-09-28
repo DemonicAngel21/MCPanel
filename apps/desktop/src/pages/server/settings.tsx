@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Select } from "@/components/ui/overlays";
 import { Banner, Card, CardHeader, Checkbox, Field, Input, Spinner, Textarea } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { qk, useJava, useServer, useSystemMetrics } from "@/lib/queries";
+import { qk, useJava, useRestartPolicy, useServer, useSystemMetrics } from "@/lib/queries";
+import type { RestartPolicyDto } from "@/bindings/RestartPolicyDto";
+import { Switch } from "@/components/ui/primitives";
 import { hasProcess } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
@@ -139,6 +141,8 @@ function ServerSettingsForm({ server }: { server: ServerDto }) {
         </div>
       </Card>
 
+      <RestartPolicyCard serverId={id} />
+
       <Card className="border-danger/30">
         <CardHeader title="Danger zone" />
         <div className="flex items-center justify-between gap-4 p-4">
@@ -179,5 +183,66 @@ function ServerSettingsForm({ server }: { server: ServerDto }) {
         </label>
       </ConfirmDialog>
     </PageBody>
+  );
+}
+
+function RestartPolicyCard({ serverId }: { serverId: string }) {
+  const { data } = useRestartPolicy(serverId);
+  if (!data) return null;
+  return <RestartPolicyForm key={JSON.stringify(data)} serverId={serverId} policy={data} />;
+}
+
+function RestartPolicyForm({ serverId, policy }: { serverId: string; policy: RestartPolicyDto }) {
+  const qc = useQueryClient();
+  const [p, setP] = useState(policy);
+  const [saving, setSaving] = useState(false);
+  const num = (v: string) => Number(v.replace(/\D/g, "")) || 0;
+  const save = async () => {
+    setSaving(true);
+    try {
+      qc.setQueryData(qk.restartPolicy(serverId), await api.crashes.updatePolicy(serverId, p));
+      toast.success("Restart policy saved");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Card>
+      <CardHeader
+        title="Restart after a crash"
+        description="Problems a restart cannot fix (wrong Java, EULA, port in use) are never restarted."
+        actions={
+          <label className="flex items-center gap-2 text-xs text-muted">
+            {p.enabled ? "On" : "Off"}
+            <Switch checked={p.enabled} onCheckedChange={(enabled) => setP({ ...p, enabled })} aria-label="Restart after a crash" />
+          </label>
+        }
+      />
+      <div className="grid grid-cols-2 gap-4 p-4">
+        <Field label="Attempts" hint="How many restarts in a row before giving up.">
+          <Input inputMode="numeric" value={p.maxAttempts} onChange={(e) => setP({ ...p, maxAttempts: num(e.target.value) })} />
+        </Field>
+        <Field label="Within (minutes)" hint="Crashes further apart start counting again.">
+          <Input inputMode="numeric" value={Math.round(p.windowSecs / 60)} onChange={(e) => setP({ ...p, windowSecs: num(e.target.value) * 60 })} />
+        </Field>
+        <Field label="First delay (seconds)" hint="Doubled for each further attempt (at most 5 minutes).">
+          <Input inputMode="numeric" value={p.delaySecs} onChange={(e) => setP({ ...p, delaySecs: num(e.target.value) })} />
+        </Field>
+        <Field label="Stable after (minutes)" hint="A server that ran this long starts counting from one again.">
+          <Input inputMode="numeric" value={Math.round(p.stableSecs / 60)} onChange={(e) => setP({ ...p, stableSecs: num(e.target.value) * 60 })} />
+        </Field>
+        <label className="col-span-2 flex items-start gap-2 text-xs text-fg">
+          <Checkbox checked={p.crashBackup} onCheckedChange={(c) => setP({ ...p, crashBackup: c === true })} className="mt-0.5" />
+          <span>Back up the server before restarting it (keeps the state right after the crash)</span>
+        </label>
+      </div>
+      <div className="flex justify-end border-t border-border px-4 py-3">
+        <Button variant="primary" onClick={save} disabled={saving}>
+          {saving ? <Spinner className="text-accent-fg" /> : <Save />} Save
+        </Button>
+      </div>
+    </Card>
   );
 }

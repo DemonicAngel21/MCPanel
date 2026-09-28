@@ -15,7 +15,8 @@
         { "pattern": "Unable to access jarfile", "kind": "jar_missing", "message": "The server jar file is missing." },
         { "pattern": "Could not reserve enough space for object heap", "kind": "memory", "message": "Java could not reserve the requested memory. Lower the maximum memory." },
         { "pattern": "Invalid maximum heap size", "kind": "memory", "message": "The maximum memory setting is invalid for this Java runtime." },
-        { "pattern": "java.lang.OutOfMemoryError", "kind": "out_of_memory", "message": "The server ran out of memory. Consider increasing the maximum memory." }
+        { "pattern": "java.lang.OutOfMemoryError", "kind": "out_of_memory", "message": "The server ran out of memory. Consider increasing the maximum memory." },
+        { "pattern": "Considering it to be crashed, server will forcibly shutdown", "kind": "watchdog", "message": "The server stopped responding (a single tick took too long) and was shut down by its watchdog." }
       ]
     }
   }

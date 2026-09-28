@@ -15,6 +15,7 @@ import type { ConsoleBatchDto } from "@/bindings/ConsoleBatchDto";
 import type { ContentListDto } from "@/bindings/ContentListDto";
 import type { ContentVersionDto } from "@/bindings/ContentVersionDto";
 import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
+import type { CrashEventDto } from "@/bindings/CrashEventDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
 import type { FileEntryDto } from "@/bindings/FileEntryDto";
 import type { FileOpResultDto } from "@/bindings/FileOpResultDto";
@@ -32,6 +33,7 @@ import type { PropertyChangeDto } from "@/bindings/PropertyChangeDto";
 import type { PlayerActionDto } from "@/bindings/PlayerActionDto";
 import type { PlayerActionOutcomeDto } from "@/bindings/PlayerActionOutcomeDto";
 import type { PropertyDto } from "@/bindings/PropertyDto";
+import type { RestartPolicyDto } from "@/bindings/RestartPolicyDto";
 import type { RestorePreviewDto } from "@/bindings/RestorePreviewDto";
 import type { SearchPageDto } from "@/bindings/SearchPageDto";
 import type { SearchRequestDto } from "@/bindings/SearchRequestDto";
@@ -165,6 +167,11 @@ export const api = {
     import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
     export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
     search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+  },
+  crashes: {
+    policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),
+    updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
+    history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
   },
   content: {
     list: (serverId: string) => call<ContentListDto>("content_list", { serverId }),

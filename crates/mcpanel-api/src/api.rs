@@ -929,6 +929,56 @@ impl Api {
             .collect())
     }
 
+    // ───────────────────────────── crashes ─────────────────────────────
+
+    pub async fn restart_policy(&self, p: &Principal, server: &str) -> ApiResult<RestartPolicyDto> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.crashes.policy(server_id(server)?).await?.into())
+    }
+
+    pub async fn restart_policy_update(
+        &self,
+        p: &Principal,
+        server: &str,
+        d: RestartPolicyDto,
+    ) -> ApiResult<RestartPolicyDto> {
+        p.authorize(Permission::ServersManage)?;
+        Ok(self
+            .core
+            .crashes
+            .set_policy(
+                mcpanel_core::crash::RestartPolicy {
+                    server_id: server_id(server)?,
+                    enabled: d.enabled,
+                    max_attempts: d.max_attempts,
+                    window_secs: d.window_secs,
+                    delay_secs: d.delay_secs,
+                    stable_secs: d.stable_secs,
+                    crash_backup: d.crash_backup,
+                },
+                p.actor(),
+            )
+            .await?
+            .into())
+    }
+
+    pub async fn crash_history(
+        &self,
+        p: &Principal,
+        server: &str,
+        limit: u32,
+    ) -> ApiResult<Vec<CrashEventDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .crashes
+            .history(server_id(server)?, limit)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     // ───────────────────────────── content ─────────────────────────────
 
     pub async fn content_list(&self, p: &Principal, server: &str) -> ApiResult<ContentListDto> {

@@ -324,6 +324,33 @@ pub async fn servers_open_folder(s: State<'_, AppState>, id: String) -> R<()> {
         .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
 }
 
+// ───────────────────────────── crashes ────────────────────────────
+
+#[tauri::command]
+pub async fn restart_policy(s: State<'_, AppState>, server_id: String) -> R<RestartPolicyDto> {
+    s.api.restart_policy(&s.principal(), &server_id).await
+}
+
+#[tauri::command]
+pub async fn restart_policy_update(
+    s: State<'_, AppState>,
+    server_id: String,
+    policy: RestartPolicyDto,
+) -> R<RestartPolicyDto> {
+    s.api
+        .restart_policy_update(&s.principal(), &server_id, policy)
+        .await
+}
+
+#[tauri::command]
+pub async fn crash_history(
+    s: State<'_, AppState>,
+    server_id: String,
+    limit: u32,
+) -> R<Vec<CrashEventDto>> {
+    s.api.crash_history(&s.principal(), &server_id, limit).await
+}
+
 // ───────────────────────────── content ────────────────────────────
 
 #[tauri::command]
