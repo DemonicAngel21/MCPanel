@@ -17,8 +17,13 @@ use tauri::{DragDropEvent, Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_notification::NotificationExt;
 
-async fn build_api() -> Result<(Arc<Api>, Vec<tracing_appender::non_blocking::WorkerGuard>), String>
-{
+type Started = (
+    Arc<Api>,
+    mcpanel_db::Database,
+    Vec<tracing_appender::non_blocking::WorkerGuard>,
+);
+
+async fn build_api() -> Result<Started, String> {
     let paths = mcpanel_platform::default_paths().map_err(|e| e.message)?;
     let guards = logging::init(&paths.logs_dir());
     tracing::info!(target: "mcpanel_desktop", version = env!("CARGO_PKG_VERSION"), "MCPanel starting");
@@ -47,7 +52,11 @@ async fn build_api() -> Result<(Arc<Api>, Vec<tracing_appender::non_blocking::Wo
             }
         });
     }
-    Ok((Arc::new(Api::new(core, env!("CARGO_PKG_VERSION"))), guards))
+    Ok((
+        Arc::new(Api::new(core, env!("CARGO_PKG_VERSION"))),
+        db,
+        guards,
+    ))
 }
 
 fn forward_events(app: tauri::AppHandle, api: Arc<Api>) {
@@ -116,8 +125,8 @@ fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             match tauri::async_runtime::block_on(build_api()) {
-                Ok((api, guards)) => {
-                    app.manage(AppState::new(Arc::clone(&api)));
+                Ok((api, db, guards)) => {
+                    app.manage(AppState::new(Arc::clone(&api), db));
                     app.manage(guards);
                     forward_events(handle.clone(), api);
                     tray::create(&handle)?;

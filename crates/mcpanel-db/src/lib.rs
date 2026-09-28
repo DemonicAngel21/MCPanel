@@ -55,8 +55,14 @@ impl Database {
             .await
             .map_err(db_err)?;
         let db = Self { pool };
-        let report = db.migrate(Some(path)).await?;
-        Ok((db, report))
+        match db.migrate(Some(path)).await {
+            Ok(report) => Ok((db, report)),
+            Err(e) => {
+                // Release the file before reporting, so it can be restored or replaced.
+                db.close().await;
+                Err(e)
+            }
+        }
     }
 
     /// In-memory database for tests.

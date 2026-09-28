@@ -45,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test tooling: `fake-mc` test double, end-to-end lifecycle tests, `mcpanel-seed` for
   isolated UI runs, opt-in real Minecraft server test (requires explicit EULA opt-in).
 
+### Fixed
+
+- The database is closed on quit (checkpointing the WAL) and when an open is refused
+  (for example a schema from a newer MCPanel), so the file is released.
+- Integration tests release their databases and verify their temporary directories
+  are deleted, instead of silently leaving them in `%TEMP%` on Windows.
+
 ### Security
 
 - No network listener, no telemetry, strict CSP, argv-only process spawning, redacted

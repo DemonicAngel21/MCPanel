@@ -77,6 +77,13 @@ result. If the finding contradicts the specification, the spec is updated in the
   terminated by walking the process tree (PID + start-time verified), not by re-opening
   its job.
 
+## 2026-09-28 — Real server end-to-end run
+
+- `real_server` test (Minecraft EULA accepted by the project owner for the test
+  environment): **Vanilla 26.3** on JDK 25.0.4 downloaded (SHA-1 verified), created,
+  started (ready in ~8 s), accepted a `list` command, stopped gracefully with exit code
+  0, and generated `server.properties`. No process, port or file left behind.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |

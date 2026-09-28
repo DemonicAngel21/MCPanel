@@ -55,6 +55,7 @@ pub async fn app_quit(app: AppHandle, s: State<'_, AppState>, mode: String) -> R
         _ => return Err(ApiError::invalid("Unknown quit mode")),
     }
     s.quitting.store(true, std::sync::atomic::Ordering::SeqCst);
+    s.db.close().await;
     app.exit(0);
     Ok(())
 }

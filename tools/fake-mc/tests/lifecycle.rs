@@ -2,6 +2,8 @@
 //! End-to-end lifecycle tests: real core + real Windows platform + real SQLite, with
 //! `fake-mc` standing in for `java.exe` running a Minecraft server.
 
+mod common;
+
 use async_trait::async_trait;
 use mcpanel_core::console::ConsoleStream;
 use mcpanel_core::error::{CoreResult, ErrorCode};
@@ -69,7 +71,7 @@ fn registry() -> ProviderRegistry {
 struct Harness {
     core: Arc<Core>,
     db: Database,
-    _data: tempfile::TempDir,
+    data: tempfile::TempDir,
     servers: tempfile::TempDir,
     java_id: mcpanel_core::ids::JavaRuntimeId,
 }
@@ -109,9 +111,24 @@ async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> Harn
     Harness {
         core,
         db,
-        _data: data,
+        data,
         servers,
         java_id: rt.id,
+    }
+}
+
+impl Harness {
+    /// Release the database and delete the test directories (checked).
+    async fn finish(self) {
+        let Harness {
+            core,
+            db,
+            data,
+            servers,
+            ..
+        } = self;
+        drop(core);
+        common::cleanup(&db, vec![data, servers]).await;
     }
 }
 
@@ -247,6 +264,7 @@ async fn start_ready_players_and_graceful_stop() {
         actions.contains(&"server.start") && actions.contains(&"server.stop"),
         "{actions:?}"
     );
+    h.finish().await;
 }
 
 /// Block on a future from a sync closure (tests only).
@@ -277,6 +295,7 @@ async fn crash_is_detected() {
     wait_state(&h, id, LifecycleState::Running, T).await;
     h.core.servers.stop(id, true, "test").await.unwrap();
     wait_state(&h, id, LifecycleState::Stopped, T).await;
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -297,6 +316,7 @@ async fn out_of_memory_is_a_crash_with_diagnosis() {
         .diagnosis
         .unwrap();
     assert_eq!(d.kind, "out_of_memory");
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -318,6 +338,7 @@ async fn unresponsive_server_is_terminated_after_grace_period() {
             .iter()
             .any(|l| l.text.contains("did not stop within 5s"))
     );
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -336,6 +357,7 @@ async fn port_bind_failure_is_an_error_with_diagnosis() {
         .diagnosis
         .unwrap();
     assert_eq!(d.kind, "port_in_use");
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -354,6 +376,7 @@ async fn preflight_rejects_missing_eula_and_busy_port() {
         h.core.servers.view(id2).await.unwrap().runtime.state,
         LifecycleState::Stopped
     );
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -410,6 +433,7 @@ async fn console_flood_does_not_block_or_lose_the_tail() {
     );
     h.core.servers.stop(id, false, "test").await.unwrap();
     wait_state(&h, id, LifecycleState::Stopped, T).await;
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -431,6 +455,7 @@ async fn restart_brings_the_server_back() {
     );
     h.core.servers.stop(id, false, "test").await.unwrap();
     wait_state(&h, id, LifecycleState::Stopped, T).await;
+    h.finish().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -487,4 +512,7 @@ async fn orphaned_server_is_detected_by_a_new_session_and_can_be_force_stopped()
             .iter()
             .any(|l| l.stream == ConsoleStream::System && l.text.contains("kept running"))
     );
+    drop((core2, core2b));
+    db2.close().await;
+    h1.finish().await;
 }

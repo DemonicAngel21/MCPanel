@@ -238,6 +238,8 @@ async fn file_database_migrates_and_refuses_newer_schema() {
     db.close().await;
     let err = Database::open(&path).await.err().unwrap();
     assert_eq!(err.code, ErrorCode::SchemaTooNew);
+    // A refused open releases the file.
+    dir.close().unwrap();
 }
 
 #[tokio::test]
@@ -246,6 +248,8 @@ async fn reopening_applies_nothing() {
     let path = dir.path().join("mcpanel.db");
     let (db, _) = Database::open(&path).await.unwrap();
     db.close().await;
-    let (_db, report) = Database::open(&path).await.unwrap();
+    let (db, report) = Database::open(&path).await.unwrap();
     assert!(report.applied.is_empty());
+    db.close().await;
+    dir.close().unwrap();
 }

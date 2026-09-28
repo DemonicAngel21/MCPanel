@@ -11,6 +11,8 @@
 //!   cargo test -p fake-mc --test real_server -- --nocapture
 #![allow(clippy::unwrap_used)]
 
+mod common;
+
 use mcpanel_core::ids::JobId;
 use mcpanel_core::jobs::JobStatus;
 use mcpanel_core::lifecycle::LifecycleState;
@@ -152,4 +154,6 @@ async fn create_start_and_stop_a_real_server() {
         props.file_exists && props.properties.len() > 20,
         "server generated server.properties"
     );
+    drop(core);
+    common::cleanup(&db, vec![data, servers]).await;
 }
