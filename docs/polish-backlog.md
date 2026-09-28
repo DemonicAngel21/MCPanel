@@ -23,3 +23,5 @@ Functional bugs are fixed immediately and do not belong here.
 | Plugins | The plugin folder path in the Plugins header wraps; consider a shortened path with a tooltip. | v0.2 plugins |
 | Plugins | Search results lack a loading shimmer while typing; results jump when they arrive. | v0.2 plugins |
 | Templates | Template cards have no preview of the resolved values for the newest version. | v0.2 templates |
+| Fabric | The software line shows the loader as "build #0.19.5"; label it "Loader 0.19.5" for Fabric. | v0.2 fabric |
+| Create wizard | The download line shows the weakest hash of a multi-file install (Fabric: SHA-1 of the Mojang jar) without saying the libraries are SHA-512. | v0.2 fabric |

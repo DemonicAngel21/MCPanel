@@ -78,10 +78,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backup schedule, restart policy and chosen suggested plugins.
 - Servers that fail because Java rejects a JVM argument ("Unrecognized VM option") get
   a clear diagnosis and are not restarted in a loop.
+- Fabric support (v0.2): create Fabric servers (Fabric Loader from the Fabric meta API).
+  MCPanel installs Fabric itself so every file is verified — the Mojang server jar by
+  SHA-1 and each Fabric library by SHA-512 (Fabric's own installer does not verify
+  libraries) — and launches Fabric Loader with the libraries on the class path. Mods
+  from Modrinth on a Mods tab: client-only mods are hidden and refused.
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed
 
+- The console no longer says "Automatic restart is not enabled" after every crash.
 - An automatic restart no longer gives up when a backup or queued plugin changes hold
   the server at that moment; it waits for them.
 - Minecraft 26.x player joins and leaves (logged as `System chat: …`) are detected.

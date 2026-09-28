@@ -274,12 +274,19 @@ impl ContentProvider for Modrinth {
             .iter()
             .map(|l| format!("categories:{l}"))
             .collect();
-        let facets = serde_json::json!([
-            [project_type],
-            cats,
-            [format!("versions:{}", q.target.game_version)]
-        ])
-        .to_string();
+        let mut facets = vec![
+            serde_json::json!([project_type]),
+            serde_json::json!(cats),
+            serde_json::json!([format!("versions:{}", q.target.game_version)]),
+        ];
+        if q.target.kind == ContentKind::Mod {
+            // Hide client-only mods (e.g. Sodium) from server searches.
+            facets.push(serde_json::json!([
+                "server_side:required",
+                "server_side:optional"
+            ]));
+        }
+        let facets = serde_json::Value::Array(facets).to_string();
         let index = match q.sort {
             SearchSort::Relevance => "relevance",
             SearchSort::Downloads => "downloads",

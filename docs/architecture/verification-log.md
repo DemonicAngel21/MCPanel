@@ -157,12 +157,34 @@ result. If the finding contradicts the specification, the spec is updated in the
   (gamemode, difficulty, level-type, spawn-monsters, allow-flight, pvp) were written and
   the backup schedule and restart policy were applied.
 
+## 2026-09-28 — Fabric
+
+- **Fabric meta API v2** (live): `/v2/versions/game` (`{version, stable}`),
+  `/v2/versions/loader/{game}` (`[{loader{version,stable}, …}]`),
+  `/v2/versions/loader/{game}/{loader}/server/json` (profile: `mainClass`
+  `net.fabricmc.loader.impl.launch.knot.KnotServer`, `libraries[{name, url, sha512?,
+  size?}]`; the loader — and intermediary for obfuscated versions — have no hash in the
+  profile, but `maven.fabricmc.net` publishes `<jar>.sha512`). 26.x profiles have no
+  intermediary.
+- The official installer verifies the vanilla jar's SHA-1 but downloads libraries
+  without any hash check (fabric-installer `ServerInstaller`), and the meta
+  "server launcher" jar has no published hash — so MCPanel installs Fabric natively with
+  every file verified.
+- Launch: Knot builds its class path from `java.class.path` only, so a `-jar` launch
+  jar with a manifest `Class-Path` fails ("couldn't locate the game", then "trying to
+  load FabricLoaderImpl from target class loader"). MCPanel passes the libraries with
+  `-cp`, the game jar with `-Dfabric.gameJarPath=server.jar` (what
+  `FabricServerLauncher` sets) and starts the profile's main class. Verified on real
+  servers: Fabric 26.3 (unobfuscated) and 1.21.4 (intermediary, bundler).
+- Modrinth mod search uses the `server_side:required|optional` facet (Sodium is
+  excluded); a jar whose `fabric.mod.json` says `"environment": "client"` is refused
+  (verified with Sodium for 26.3). Fabric API and Lithium installed and loaded.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
 | Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
-| Fabric meta server launcher endpoint | v0.2 |
 | Forge / NeoForge installer & argfile layout per version | v0.3 |
 | CurseForge API key terms and distribution flags | v0.3+ |
 | Playit agent interfaces / supported tunnel management | v0.3 spike |

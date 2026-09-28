@@ -136,6 +136,23 @@ impl MojangClient {
         })
     }
 
+    /// The vanilla server download of a version: (url, sha1, size, Java major).
+    pub async fn server_download(&self, id: &str) -> CoreResult<(String, String, u64, u32)> {
+        let v = self.version_json(id).await?;
+        let java = v
+            .java_version
+            .as_ref()
+            .map(|j| j.major_version)
+            .unwrap_or(8);
+        let server = v.downloads.and_then(|d| d.server).ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                format!("Mojang does not provide a server download for {id}"),
+            )
+        })?;
+        Ok((server.url, server.sha1, server.size, java))
+    }
+
     /// Java major version Mojang declares for a game version (defaults to 8 for old
     /// versions without the field).
     pub async fn java_major(&self, id: &str) -> CoreResult<u32> {

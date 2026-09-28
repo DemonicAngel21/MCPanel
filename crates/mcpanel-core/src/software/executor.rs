@@ -50,6 +50,15 @@ impl PlanExecutor {
                     }
                     crate::files::safepath::parse_relative(dest)?;
                 }
+                InstallStep::WriteFile { dest, contents, .. } => {
+                    crate::files::safepath::parse_relative(dest)?;
+                    if contents.len() > 1024 * 1024 {
+                        return Err(CoreError::new(
+                            ErrorCode::ProviderError,
+                            "Generated file is too large",
+                        ));
+                    }
+                }
             }
         }
         crate::files::safepath::parse_relative(&plan.jar)?;
@@ -73,6 +82,14 @@ impl PlanExecutor {
         for (i, step) in plan.steps.iter().enumerate() {
             ctx.check_cancelled()?;
             match step {
+                InstallStep::WriteFile {
+                    dest,
+                    contents,
+                    description,
+                } => {
+                    ctx.progress(None, description.clone());
+                    write_generated(root, dest, contents).await?;
+                }
                 InstallStep::Download {
                     url,
                     dest,
@@ -127,6 +144,22 @@ impl PlanExecutor {
         let _ = tokio::fs::remove_dir_all(staging).await;
         Ok(())
     }
+}
+
+/// Write a provider-generated file inside the server root (no links followed).
+async fn write_generated(root: &SafeRoot, dest: &str, contents: &[u8]) -> CoreResult<()> {
+    let target = root.resolve(dest)?;
+    target.ensure_no_reparse_points()?;
+    if let Some(parent) = target.absolute().parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| CoreError::io("Cannot create directory", &e))?;
+    }
+    let path = target.absolute();
+    let bytes = contents.to_vec();
+    tokio::task::spawn_blocking(move || crate::files::fsx::atomic_write(&path, &bytes))
+        .await
+        .map_err(|e| CoreError::internal(e.to_string()))?
 }
 
 #[cfg(test)]
