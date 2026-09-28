@@ -48,6 +48,35 @@ result. If the finding contradicts the specification, the spec is updated in the
   integrity (corruption detection) over HTTPS, and labels Purpur downloads' hash
   strength as "MD5 (integrity only)" rather than "verified".
 
+## 2026-09-28 — Platform and tooling findings during MVP implementation
+
+- **Mojang download hosts:** version JSONs use `piston-data.mojang.com`; very old
+  versions (e.g. 1.2.5) still use `launcher.mojang.com`. Both are allow-listed for the
+  Vanilla provider. Beta/alpha versions have no server download.
+- **Java requirements (Mojang metadata):** 1.12.2 → 8, 1.16.5 → 8, 1.20.1 → 17,
+  1.21.4 → 21, 26.3 → 25 (live contract tests).
+- **Paper single build endpoint** `…/versions/{v}/builds/{id}` exists; unknown versions
+  return 404 `{"ok":false,"error":"version_not_found"}`. Paper 26.x currently only has
+  `ALPHA` builds; MCPanel selects the newest experimental build and says so.
+- **Job objects:** processes started from some shells/dev tools run inside a
+  kill-on-close Job Object that forbids breakaway, so child servers die with MCPanel.
+  MCPanel requests `CREATE_BREAKAWAY_FROM_JOB` and falls back when refused. Verified:
+  launched normally (outside such a job), a server keeps running after MCPanel is
+  killed and is shown as *Detached* on the next launch.
+- **Tauri `freezePrototype`:** incompatible with Monaco (it assigns to built-in
+  prototypes → "Cannot assign to read only property 'toString'"). Disabled; the strict
+  CSP, no remote content and no Node/FS/shell plugins in the webview remain.
+- **Monaco 0.57 exports map:** worker entry points are `monaco-editor/editor/editor.worker`
+  and `monaco-editor/language/json/json.worker` (no `esm/vs/` prefix).
+- **SQLx 0.9** rejects non-`'static` SQL strings at compile time (injection guard); all
+  queries are static.
+- **Tauri CLI 2.12 NSIS toolchain:** pinned to NSIS 3.11 zip (SHA-1 EF7FF767…) and
+  `nsis_tauri_utils.dll` v0.5.3 (SHA-1 75197FEE…); see `docs/development.md` for the
+  slow-network workaround.
+- **Named job objects** do not survive the last handle closing, so an orphaned server is
+  terminated by walking the process tree (PID + start-time verified), not by re-opening
+  its job.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |

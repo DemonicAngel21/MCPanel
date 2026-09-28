@@ -1,0 +1,10 @@
+{
+  "$comment": "Files classified HighlySensitive. Patterns are relative to the server root, '/'-separated, case-insensitive. '*' matches within one component, '**' matches any number of components. Highly sensitive files are included in LOCAL backups only, are always excluded from cloud backups, and are never shown, previewed, searched, exported or logged without an explicit, audited reveal.",
+  "version": 1,
+  "patterns": [
+    { "pattern": "**/floodgate/key.pem", "reason": "Floodgate encryption key" },
+    { "pattern": "**/floodgate/*.pem", "reason": "Floodgate key material" },
+    { "pattern": "**/saved-refresh-tokens.json", "reason": "Geyser saved Microsoft refresh tokens" },
+    { "pattern": "**/saved-auth-chains.json", "reason": "Geyser saved authentication chains" }
+  ]
+}

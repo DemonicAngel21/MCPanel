@@ -1,0 +1,5 @@
+[env]
+# ts-rs writes generated TypeScript bindings for API DTOs here (see ADR-0006).
+TS_RS_EXPORT_DIR = { value = "apps/desktop/src/bindings", relative = true }
+# JSON numbers, not BigInt: all 64-bit values crossing the API fit in 2^53.
+TS_RS_LARGE_INT = "number"

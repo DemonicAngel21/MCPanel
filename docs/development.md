@@ -1,0 +1,79 @@
+# Development guide
+
+## Prerequisites (Windows 10/11 x64)
+
+| Tool | Version used | Notes |
+|---|---|---|
+| Rust | 1.98.1 (pinned in `rust-toolchain.toml`) | MSVC toolchain |
+| Visual Studio Build Tools | 2026, C++ workload + Windows SDK | required by Rust/Tauri |
+| Node.js | ≥ 24 (26.7 used during development) | |
+| pnpm | 12.6.0 (pinned via `packageManager`) | |
+| WebView2 Runtime | preinstalled on Windows 11 | |
+| Java | any 64-bit runtime | only needed to run real servers |
+
+TypeScript is pinned to 6.0.x because `typescript-eslint` does not yet support
+TypeScript 7.
+
+## Everyday commands
+
+```powershell
+pnpm install
+pnpm dev                     # Tauri dev (Vite on 127.0.0.1:1420 + Rust host)
+cargo test --workspace       # all Rust tests incl. fake-mc lifecycle tests
+pnpm check                   # lint + typecheck + Vitest
+pnpm --filter @mcpanel/desktop format    # Prettier
+pnpm gen:bindings            # regenerate TS bindings after changing API DTOs
+pnpm build                   # production build + per-user NSIS installer
+cargo deny check             # advisories / licenses / sources
+```
+
+## Isolated data directories
+
+`MCPANEL_DATA_DIR` and `MCPANEL_SERVERS_DIR` override `%LOCALAPPDATA%\MCPanel` and
+`%USERPROFILE%\MCPanel\Servers`. Use them so development never touches your real data.
+
+## UI end-to-end runs with fake-mc
+
+`tools/fake-mc` impersonates `java.exe` running a Minecraft server (no downloads, no
+EULA). `mcpanel-seed` prepares an isolated data directory with one fake server:
+
+```powershell
+cargo build -p fake-mc
+$e2e = "$env:TEMP\mcpanel-e2e"
+.\target\debug\mcpanel-seed.exe "$e2e\data" "$e2e\servers" .\target\debug\fake-mc.exe
+$env:MCPANEL_DATA_DIR = "$e2e\data"; $env:MCPANEL_SERVERS_DIR = "$e2e\servers"
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+pnpm dev
+# In another terminal: drive the WebView over CDP (Playwright)
+node apps/desktop/scripts/cdp.mjs my-flow.mjs
+```
+
+Note: `pnpm dev` runs MCPanel inside the dev tool's process tree. Some launchers put
+children in a kill-on-close Job Object that forbids breakaway; in that case servers
+cannot outlive MCPanel. A normally launched MCPanel (Explorer/Start menu) is not
+affected.
+
+## Real Minecraft server test
+
+Running Minecraft requires accepting the [Minecraft EULA](https://aka.ms/MinecraftEULA).
+The real-server test runs only when **you** accept it explicitly:
+
+```powershell
+$env:MCPANEL_E2E_ACCEPT_MINECRAFT_EULA = "yes"
+$env:MCPANEL_E2E_SOFTWARE = "paper"      # optional: vanilla (default) | paper | purpur
+cargo test -p fake-mc --test real_server -- --nocapture
+```
+
+## Live provider tests
+
+```powershell
+cargo test -p mcpanel-providers --features live-tests
+```
+
+## Installer build behind slow networks
+
+The Tauri bundler downloads NSIS into `%LOCALAPPDATA%\tauri\NSIS` with a short timeout.
+If it fails with `timeout: global`, download the files it pins (NSIS 3.11 zip, SHA-1
+`EF7FF767E5CBD9EDD22ADD3A32C9B8F4500BB10D`, and `nsis_tauri_utils.dll` v0.5.3, SHA-1
+`75197FEE3C6A814FE035788D1C34EAD39349B860`), verify the hashes, and extract them there
+(zip contents into `NSIS\`, the DLL into `NSIS\Plugins\x86-unicode\additional\`).

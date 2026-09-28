@@ -1,0 +1,158 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* ── Design tokens ───────────────────────────────────────────────────────
+   Neutral slate surfaces, one restrained green accent, semantic states.
+   Dark is the default; light is opt-in (Settings → Appearance).        */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0b0f14;
+  --surface: #11161d;
+  --surface-2: #161c24;
+  --surface-3: #1c2430;
+  --border: #222b37;
+  --border-strong: #2f3b4c;
+  --fg: #e6edf3;
+  --muted: #95a1b1;
+  --faint: #5f6b7a;
+  --accent: #4ade80;
+  --accent-strong: #22c55e;
+  --accent-fg: #052e14;
+  --accent-soft: rgb(74 222 128 / 0.12);
+  --danger: #f87171;
+  --danger-soft: rgb(248 113 113 / 0.12);
+  --warning: #fbbf24;
+  --warning-soft: rgb(251 191 36 / 0.12);
+  --info: #60a5fa;
+  --info-soft: rgb(96 165 250 / 0.12);
+  --console-bg: #080b0f;
+  --ring: rgb(74 222 128 / 0.45);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #f1f4f8;
+  --surface-3: #e7ebf1;
+  --border: #dde3ea;
+  --border-strong: #c9d1dc;
+  --fg: #0f1720;
+  --muted: #566271;
+  --faint: #8a95a3;
+  --accent: #16a34a;
+  --accent-strong: #15803d;
+  --accent-fg: #ffffff;
+  --accent-soft: rgb(22 163 74 / 0.1);
+  --danger: #dc2626;
+  --danger-soft: rgb(220 38 38 / 0.08);
+  --warning: #b45309;
+  --warning-soft: rgb(217 119 6 / 0.1);
+  --info: #2563eb;
+  --info-soft: rgb(37 99 235 / 0.08);
+  --console-bg: #fbfcfd;
+  --ring: rgb(22 163 74 / 0.4);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-console: var(--console-bg);
+  --color-ring: var(--ring);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --animate-fade-in: fade-in 140ms ease-out;
+  --animate-slide-up: slide-up 160ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+input,
+textarea,
+[contenteditable],
+.selectable {
+  user-select: text;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}

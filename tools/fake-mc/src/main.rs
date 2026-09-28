@@ -1,0 +1,120 @@
+//! `fake-mc`: a test double for "java running a Minecraft server".
+//!
+//! - Invoked with `-XshowSettings:properties -version` it prints Java-like properties
+//!   to stderr (so MCPanel's Java validation accepts it as Java 21, 64-bit).
+//! - Otherwise it behaves like a Minecraft server: prints vanilla-style log lines,
+//!   reports "Done", and reacts to stdin commands. Behaviour is configured by an
+//!   optional `fake-mc.json` in the working directory (the environment is cleared by
+//!   MCPanel, so files are the only channel).
+//!
+//! Commands: `stop`, `crash`, `flood <n>`, `join <name>`, `leave <name>`, `say <text>`,
+//! `oom`, `hang` (stop reading stdin).
+
+use serde::Deserialize;
+use std::io::{BufRead, Write};
+use std::time::Duration;
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct Config {
+    startup_ms: u64,
+    ignore_stop: bool,
+    fail_bind: bool,
+    exit_immediately_code: Option<i32>,
+    java_major: Option<u32>,
+}
+
+fn log(level: &str, msg: &str) {
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(out, "[12:00:00] [Server thread/{level}]: {msg}");
+    let _ = out.flush();
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let cfg: Config = std::fs::read_to_string("fake-mc.json")
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    if args.iter().any(|a| a == "-version") {
+        let major = cfg.java_major.unwrap_or(21);
+        eprintln!("Property settings:");
+        eprintln!("    java.specification.version = {major}");
+        eprintln!("    java.vendor = MCPanel Test Double");
+        eprintln!("    java.version = {major}.0.0");
+        eprintln!("    os.arch = amd64");
+        eprintln!("    sun.arch.data.model = 64");
+        eprintln!();
+        eprintln!("openjdk version \"{major}.0.0\"");
+        return;
+    }
+
+    if let Some(code) = cfg.exit_immediately_code {
+        eprintln!("Error: Unable to access jarfile server.jar");
+        std::process::exit(code);
+    }
+
+    log("INFO", "Starting minecraft server version fake");
+    log("INFO", "Loading properties");
+    if cfg.fail_bind {
+        log("WARN", "**** FAILED TO BIND TO PORT!");
+        log(
+            "WARN",
+            "The exception was: java.net.BindException: Address already in use: bind",
+        );
+        std::process::exit(1);
+    }
+    std::thread::sleep(Duration::from_millis(cfg.startup_ms));
+    log("INFO", "Done (1.234s)! For help, type \"help\"");
+
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        let line = line.trim().to_string();
+        let (cmd, rest) = line.split_once(' ').unwrap_or((line.as_str(), ""));
+        match cmd {
+            "stop" => {
+                if cfg.ignore_stop {
+                    log("INFO", "Ignoring stop (test mode)");
+                    continue;
+                }
+                log("INFO", "Stopping the server");
+                log("INFO", "Saving worlds");
+                std::process::exit(0);
+            }
+            "crash" => {
+                eprintln!(
+                    "Exception in thread \"Server thread\" java.lang.IllegalStateException: boom"
+                );
+                eprintln!("\tat net.minecraft.Fake.tick(Fake.java:1)");
+                std::process::exit(1);
+            }
+            "oom" => {
+                log("ERROR", "java.lang.OutOfMemoryError: Java heap space");
+                std::process::exit(3);
+            }
+            "flood" => {
+                let n: usize = rest.parse().unwrap_or(1000);
+                let mut out = std::io::stdout().lock();
+                for i in 0..n {
+                    let _ = writeln!(out, "[12:00:00] [Server thread/INFO]: flood line {i}");
+                }
+                let _ = writeln!(out, "[12:00:00] [Server thread/INFO]: flood done");
+                let _ = out.flush();
+            }
+            "join" => log("INFO", &format!("{rest} joined the game")),
+            "leave" => log("INFO", &format!("{rest} left the game")),
+            "say" => log("INFO", &format!("[Server] {rest}")),
+            "hang" => loop {
+                std::thread::sleep(Duration::from_secs(3600));
+            },
+            "" => {}
+            other => log("INFO", &format!("Unknown command: {other}")),
+        }
+    }
+    // stdin closed: a real server keeps running; emulate by idling until killed.
+    loop {
+        std::thread::sleep(Duration::from_secs(3600));
+    }
+}

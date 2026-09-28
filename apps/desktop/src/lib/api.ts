@@ -1,0 +1,164 @@
+/**
+ * Typed client for the MCPanel Application API (Tauri IPC transport).
+ * This is the ONLY module allowed to call `invoke` (enforced by ESLint).
+ * Types come from Rust DTOs via ts-rs (`src/bindings`).
+ */
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type { ApiError as ApiErrorDto } from "@/bindings/ApiError";
+import type { AppInfoDto } from "@/bindings/AppInfoDto";
+import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
+import type { ConsoleBatchDto } from "@/bindings/ConsoleBatchDto";
+import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
+import type { CreateServerDto } from "@/bindings/CreateServerDto";
+import type { FileEntryDto } from "@/bindings/FileEntryDto";
+import type { FileOpResultDto } from "@/bindings/FileOpResultDto";
+import type { GameVersionDto } from "@/bindings/GameVersionDto";
+import type { GrantDto } from "@/bindings/GrantDto";
+import type { ImportDetectionDto } from "@/bindings/ImportDetectionDto";
+import type { ImportServerDto } from "@/bindings/ImportServerDto";
+import type { InstallPreviewDto } from "@/bindings/InstallPreviewDto";
+import type { JavaRuntimeDto } from "@/bindings/JavaRuntimeDto";
+import type { JobDto } from "@/bindings/JobDto";
+import type { LocationCheckDto } from "@/bindings/LocationCheckDto";
+import type { PropertyChangeDto } from "@/bindings/PropertyChangeDto";
+import type { PropertyDto } from "@/bindings/PropertyDto";
+import type { ServerDto } from "@/bindings/ServerDto";
+import type { ServerMetricsDto } from "@/bindings/ServerMetricsDto";
+import type { ServerPropertiesDto } from "@/bindings/ServerPropertiesDto";
+import type { SettingsDto } from "@/bindings/SettingsDto";
+import type { SettingsPatchDto } from "@/bindings/SettingsPatchDto";
+import type { SoftwareBuildDto } from "@/bindings/SoftwareBuildDto";
+import type { SoftwareDto } from "@/bindings/SoftwareDto";
+import type { SystemMetricsDto } from "@/bindings/SystemMetricsDto";
+import type { TextDocumentDto } from "@/bindings/TextDocumentDto";
+import type { UpdateServerDto } from "@/bindings/UpdateServerDto";
+import type { WriteTextDto } from "@/bindings/WriteTextDto";
+
+export class ApiError extends Error {
+  readonly code: string;
+  readonly details: unknown;
+  readonly retryable: boolean;
+
+  constructor(dto: ApiErrorDto) {
+    super(dto.message);
+    this.name = "ApiError";
+    this.code = dto.code;
+    this.details = dto.details;
+    this.retryable = dto.retryable;
+  }
+}
+
+function toApiError(e: unknown): ApiError {
+  if (e instanceof ApiError) return e;
+  if (e && typeof e === "object" && "code" in e && "message" in e) {
+    const o = e as ApiErrorDto;
+    return new ApiError({ code: String(o.code), message: String(o.message), details: o.details ?? null, retryable: Boolean(o.retryable) });
+  }
+  return new ApiError({ code: "INTERNAL", message: typeof e === "string" ? e : "Unexpected error", details: null, retryable: false });
+}
+
+async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await invoke<T>(command, args);
+  } catch (e) {
+    throw toApiError(e);
+  }
+}
+
+export const api = {
+  app: {
+    info: () => call<AppInfoDto>("app_info"),
+    quit: (mode: "stop" | "leave") => call<void>("app_quit", { mode }),
+    openLogsFolder: () => call<void>("open_logs_folder"),
+    openExternal: (url: string) => call<void>("open_external", { url }),
+  },
+  system: {
+    metrics: () => call<SystemMetricsDto>("system_metrics"),
+  },
+  settings: {
+    get: () => call<SettingsDto>("settings_get"),
+    update: (patch: SettingsPatchDto) => call<SettingsDto>("settings_update", { patch }),
+  },
+  dialog: {
+    pickFolder: (title: string) => call<GrantDto | null>("dialog_pick_folder", { title }),
+    pickJava: () => call<GrantDto | null>("dialog_pick_java"),
+    pickImport: (folder: boolean) => call<GrantDto[]>("dialog_pick_import", { folder }),
+    saveFile: (defaultName: string) => call<GrantDto | null>("dialog_save_file", { defaultName }),
+  },
+  java: {
+    list: () => call<JavaRuntimeDto[]>("java_list"),
+    detect: () => call<JavaRuntimeDto[]>("java_detect"),
+    add: (grant: string) => call<JavaRuntimeDto>("java_add", { grant }),
+    revalidate: (id: string) => call<JavaRuntimeDto>("java_revalidate", { id }),
+    remove: (id: string) => call<void>("java_remove", { id }),
+  },
+  software: {
+    list: () => call<SoftwareDto[]>("software_list"),
+    versions: (softwareId: string, includeSnapshots: boolean) => call<GameVersionDto[]>("software_versions", { softwareId, includeSnapshots }),
+    builds: (softwareId: string, gameVersion: string) => call<SoftwareBuildDto[]>("software_builds", { softwareId, gameVersion }),
+    preview: (softwareId: string, gameVersion: string, build: string | null) =>
+      call<InstallPreviewDto>("software_preview", { softwareId, gameVersion, build }),
+    propertySchema: (gameVersion: string) => call<PropertyDto[]>("software_property_schema", { gameVersion }),
+  },
+  servers: {
+    list: () => call<ServerDto[]>("servers_list"),
+    get: (id: string) => call<ServerDto>("servers_get", { id }),
+    checkLocation: (name: string, parentGrant: string | null) => call<LocationCheckDto>("servers_check_location", { name, parentGrant }),
+    create: (request: CreateServerDto) => call<string>("servers_create", { request }),
+    detectImport: (grant: string) => call<ImportDetectionDto>("servers_detect_import", { grant }),
+    import: (request: ImportServerDto) => call<ServerDto>("servers_import", { request }),
+    update: (id: string, request: UpdateServerDto) => call<ServerDto>("servers_update", { id, request }),
+    delete: (id: string, deleteFiles: boolean) => call<void>("servers_delete", { id, deleteFiles }),
+    acceptEula: (id: string) => call<void>("servers_accept_eula", { id }),
+    start: (id: string) => call<void>("servers_start", { id }),
+    stop: (id: string, force = false) => call<void>("servers_stop", { id, force }),
+    restart: (id: string) => call<void>("servers_restart", { id }),
+    command: (id: string, command: string) => call<void>("servers_command", { id, command }),
+    metrics: (id: string) => call<ServerMetricsDto>("servers_metrics", { id }),
+    runningCount: () => call<number>("servers_running_count"),
+    properties: (id: string) => call<ServerPropertiesDto>("servers_properties", { id }),
+    updateProperties: (id: string, changes: PropertyChangeDto[]) => call<ServerPropertiesDto>("servers_properties_update", { id, changes }),
+    openFolder: (id: string) => call<void>("servers_open_folder", { id }),
+  },
+  console: {
+    history: (id: string, fromSeq: number | null, limit: number) => call<ConsoleLineDto[]>("console_history", { id, fromSeq, limit }),
+    search: (id: string, query: string, limit: number) => call<ConsoleLineDto[]>("console_search", { id, query, limit }),
+    export: (id: string, grant: string) => call<number>("console_export", { id, grant }),
+    /** Subscribe to live console batches. Returns an unsubscribe function. */
+    subscribe: async (id: string, afterSeq: number | null, backlog: number, onBatch: (b: ConsoleBatchDto) => void) => {
+      const channel = new Channel<ConsoleBatchDto>();
+      channel.onmessage = onBatch;
+      const subscription = await call<string>("console_subscribe", { id, afterSeq, backlog, onBatch: channel });
+      return () => {
+        void call<void>("console_unsubscribe", { subscription }).catch(() => undefined);
+      };
+    },
+  },
+  files: {
+    list: (id: string, path: string) => call<FileEntryDto[]>("files_list", { id, path }),
+    read: (id: string, path: string) => call<TextDocumentDto>("files_read", { id, path }),
+    write: (id: string, path: string, document: WriteTextDto) => call<TextDocumentDto>("files_write", { id, path, document }),
+    mkdir: (id: string, path: string) => call<FileEntryDto>("files_mkdir", { id, path }),
+    create: (id: string, path: string) => call<FileEntryDto>("files_create", { id, path }),
+    rename: (id: string, path: string, newName: string) => call<FileEntryDto>("files_rename", { id, path, newName }),
+    move: (id: string, paths: string[], destination: string) => call<void>("files_move", { id, paths, destination }),
+    copy: (id: string, paths: string[], destination: string) => call<FileOpResultDto>("files_copy", { id, paths, destination }),
+    delete: (id: string, paths: string[], permanent: boolean) => call<void>("files_delete", { id, paths, permanent }),
+    zip: (id: string, paths: string[], archiveName: string) => call<FileOpResultDto>("files_zip", { id, paths, archiveName }),
+    unzip: (id: string, archive: string, destination: string, overwrite: boolean) =>
+      call<FileOpResultDto>("files_unzip", { id, archive, destination, overwrite }),
+    import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
+    export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
+    search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+  },
+  jobs: {
+    list: (limit: number) => call<JobDto[]>("jobs_list", { limit }),
+    get: (id: string) => call<JobDto>("jobs_get", { id }),
+    cancel: (id: string) => call<boolean>("jobs_cancel", { id }),
+  },
+  audit: {
+    query: (serverId: string | null, before: number | null, limit: number) => call<AuditEntryDto[]>("audit_query", { serverId, before, limit }),
+  },
+};
+
+export type Api = typeof api;

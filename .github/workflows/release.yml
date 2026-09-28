@@ -1,0 +1,47 @@
+name: Release
+
+# Builds the Windows installer for a version tag and creates a DRAFT GitHub release.
+# A maintainer tests the installer and publishes the draft manually.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tests
+        run: |
+          cargo test --workspace --locked
+          pnpm test
+      - name: Build installer
+        run: pnpm build
+      - name: Sign installer
+        id: sign
+        shell: pwsh
+        env:
+          MCPANEL_SIGN_MODE: ${{ secrets.MCPANEL_SIGN_MODE }}
+          MCPANEL_SIGN_CERT_THUMBPRINT: ${{ secrets.MCPANEL_SIGN_CERT_THUMBPRINT }}
+          MCPANEL_SIGN_TIMESTAMP_URL: ${{ secrets.MCPANEL_SIGN_TIMESTAMP_URL }}
+        run: ./scripts/sign.ps1 -Path (Get-ChildItem target/release/bundle/nsis/*.exe).FullName
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: MCPanel ${{ github.ref_name }}${{ steps.sign.outputs.signed != 'true' && ' (UNSIGNED — do not publish as stable)' || '' }}
+          files: target/release/bundle/nsis/*.exe
+          generate_release_notes: false
+          body: |
+            See CHANGELOG.md for details.
+            Signed: ${{ steps.sign.outputs.signed }}

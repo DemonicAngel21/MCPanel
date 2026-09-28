@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Permissions for the MCPanel main window. MCPanel's own commands are exposed through the Application API; no filesystem, shell or HTTP plugin permissions are granted to the webview.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}

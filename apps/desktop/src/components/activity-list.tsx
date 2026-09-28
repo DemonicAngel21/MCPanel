@@ -1,0 +1,74 @@
+import { CheckCircle2, XCircle } from "lucide-react";
+import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
+import { formatDateTime, formatRelative } from "@/lib/format";
+import { EmptyState, Tooltip } from "./ui/primitives";
+
+const ACTIONS: Record<string, string> = {
+  "server.create": "Created server",
+  "server.import": "Imported server",
+  "server.update": "Changed server settings",
+  "server.delete": "Removed server",
+  "server.start": "Started server",
+  "server.stop": "Stopped server",
+  "server.force_stop": "Force-stopped server",
+  "server.restart": "Restarted server",
+  "server.crashed": "Server crashed",
+  "server.failed": "Server failed to run",
+  "server.eula_accepted": "Accepted the Minecraft EULA",
+  "server.properties.update": "Changed server.properties",
+  "file.write": "Edited file",
+  "file.create": "Created file",
+  "file.create_dir": "Created folder",
+  "file.rename": "Renamed",
+  "file.move": "Moved files",
+  "file.copy": "Copied files",
+  "file.delete": "Deleted files",
+  "file.zip": "Created archive",
+  "file.unzip": "Extracted archive",
+  "file.import": "Uploaded",
+  "file.export": "Downloaded file",
+};
+
+function detail(e: AuditEntryDto): string | null {
+  const m = e.metadata as Record<string, unknown> | null;
+  if (!m || typeof m !== "object") return e.target;
+  if (typeof m.path === "string") return m.path;
+  if (Array.isArray(m.paths)) return (m.paths as string[]).join(", ");
+  if (Array.isArray(m.keys)) return (m.keys as string[]).join(", ");
+  if (typeof m.name === "string") return m.name;
+  if (typeof m.error === "string") return `Error: ${m.error}`;
+  if (typeof m.diagnosis === "string") return m.diagnosis;
+  return e.target;
+}
+
+export function ActivityList({ entries, serverNames }: { entries: AuditEntryDto[] | undefined; serverNames?: Record<string, string> }) {
+  if (!entries) return null;
+  if (entries.length === 0)
+    return <EmptyState title="No activity yet" description="Actions such as starting servers or editing files appear here." />;
+  return (
+    <ul className="divide-y divide-border">
+      {entries.map((e) => {
+        const d = detail(e);
+        return (
+          <li key={e.id} className="flex items-start gap-3 px-4 py-2.5">
+            {e.result === "success" ? (
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-accent" />
+            ) : (
+              <XCircle className="mt-0.5 size-4 shrink-0 text-danger" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] text-fg">
+                {ACTIONS[e.action] ?? e.action}
+                {serverNames && e.serverId && serverNames[e.serverId] && <span className="text-muted"> · {serverNames[e.serverId]}</span>}
+              </p>
+              {d && <p className="selectable truncate font-mono text-[11px] text-muted">{d}</p>}
+            </div>
+            <Tooltip content={formatDateTime(e.occurredAt)}>
+              <span className="shrink-0 text-[11px] text-faint">{formatRelative(e.occurredAt)}</span>
+            </Tooltip>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

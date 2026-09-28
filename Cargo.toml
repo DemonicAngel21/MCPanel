@@ -1,0 +1,81 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/mcpanel-core",
+    "crates/mcpanel-api",
+    "crates/mcpanel-db",
+    "crates/mcpanel-providers",
+    "crates/mcpanel-platform",
+    "apps/desktop/src-tauri",
+    "tools/fake-mc",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT OR Apache-2.0"
+authors = ["The MCPanel Contributors"]
+repository = "https://github.com/mcpanel/mcpanel"
+publish = false
+
+[workspace.dependencies]
+# internal
+mcpanel-core = { path = "crates/mcpanel-core" }
+mcpanel-api = { path = "crates/mcpanel-api" }
+mcpanel-db = { path = "crates/mcpanel-db" }
+mcpanel-providers = { path = "crates/mcpanel-providers" }
+mcpanel-platform = { path = "crates/mcpanel-platform" }
+
+# async / runtime
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# serialization / errors / diagnostics
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+tracing-appender = "0.2"
+
+# utilities
+uuid = { version = "1.26", features = ["v4", "v7", "serde"] }
+regex = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+md-5 = "0.10"
+hex = "0.4"
+bytes = "1"
+encoding_rs = "0.8"
+chardetng = "1"
+secrecy = "0.10"
+
+# adapters
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "derive"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "json", "stream", "system-proxy", "charset"] }
+sysinfo = "0.39"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+ts-rs = "12"
+
+# testing
+tempfile = "3"
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"
+panic = "unwind"

@@ -1,0 +1,12 @@
+# gitleaks configuration: default rules plus MCPanel-specific secret shapes.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "age-secret-key"
+description = "age secret key"
+regex = '''AGE-SECRET-KEY-1[0-9A-Z]{58}'''
+
+[allowlist]
+description = "Test fixtures with fake values"
+paths = ['''tools/fake-mc/src/bin/seed\.rs''']

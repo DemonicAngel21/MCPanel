@@ -1,0 +1,22 @@
+{
+  "$comment": "Console log dialects. Patterns are matched against the MESSAGE part of a log line (after the timestamp/thread/level prefix and ANSI codes are stripped). Anchor patterns so chat messages cannot spoof events.",
+  "version": 1,
+  "dialects": {
+    "minecraft": {
+      "ready": ["^Done \\((?P<secs>\\d+(?:[.,]\\d+)?)s\\)! For help, type"],
+      "stopping": ["^Stopping (?:the )?server$", "^Stopping server$"],
+      "save_complete": ["^Saved the game$", "^Saved the world$"],
+      "player_joined": ["^(?P<name>[A-Za-z0-9_.*]{1,32}) joined the game$"],
+      "player_left": ["^(?P<name>[A-Za-z0-9_.*]{1,32}) left the game$"],
+      "fatal": [
+        { "pattern": "FAILED TO BIND TO PORT", "kind": "port_in_use", "message": "The server port is already in use by another program." },
+        { "pattern": "You need to agree to the EULA", "kind": "eula", "message": "The Minecraft EULA has not been accepted for this server." },
+        { "pattern": "UnsupportedClassVersionError", "kind": "java_too_old", "message": "The selected Java runtime is too old for this server version." },
+        { "pattern": "Unable to access jarfile", "kind": "jar_missing", "message": "The server jar file is missing." },
+        { "pattern": "Could not reserve enough space for object heap", "kind": "memory", "message": "Java could not reserve the requested memory. Lower the maximum memory." },
+        { "pattern": "Invalid maximum heap size", "kind": "memory", "message": "The maximum memory setting is invalid for this Java runtime." },
+        { "pattern": "java.lang.OutOfMemoryError", "kind": "out_of_memory", "message": "The server ran out of memory. Consider increasing the maximum memory." }
+      ]
+    }
+  }
+}
