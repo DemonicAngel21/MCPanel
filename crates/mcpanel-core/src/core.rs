@@ -2,6 +2,7 @@
 
 use crate::audit::AuditLog;
 use crate::backup::{BackupService, BackupServiceDeps};
+use crate::content::{ContentService, ContentServiceDeps};
 use crate::error::CoreResult;
 use crate::events::EventBus;
 use crate::java::JavaManager;
@@ -10,8 +11,8 @@ use crate::monitoring::Monitor;
 use crate::paths::AppPaths;
 use crate::players::PlayerService;
 use crate::ports::{
-    AuditRepository, BackupRepository, Downloader, JavaRuntimeRepository, JobRepository, Platform,
-    PlayerRepository, ProfileLookup, ServerRepository, SettingsRepository,
+    AuditRepository, BackupRepository, ContentRepository, Downloader, JavaRuntimeRepository,
+    JobRepository, Platform, PlayerRepository, ProfileLookup, ServerRepository, SettingsRepository,
 };
 use crate::server::{ServerManager, ServerManagerDeps};
 use crate::server_files::ServerFiles;
@@ -28,6 +29,7 @@ pub struct Repositories {
     pub settings: Arc<dyn SettingsRepository>,
     pub backups: Arc<dyn BackupRepository>,
     pub players: Arc<dyn PlayerRepository>,
+    pub content: Arc<dyn ContentRepository>,
 }
 
 pub struct CoreDeps {
@@ -53,6 +55,7 @@ pub struct Core {
     pub monitor: Arc<Monitor>,
     pub backups: Arc<BackupService>,
     pub players: Arc<PlayerService>,
+    pub content: Arc<ContentService>,
 }
 
 impl Core {
@@ -85,7 +88,7 @@ impl Core {
             events: events.clone(),
             audit: Arc::clone(&audit),
             paths: deps.paths.clone(),
-            executor: PlanExecutor::new(deps.downloader),
+            executor: PlanExecutor::new(Arc::clone(&deps.downloader)),
             console_capacity: app_settings.console_buffer_lines as usize,
         });
         servers.initialize().await?;
@@ -115,6 +118,16 @@ impl Core {
             events.clone(),
         );
         players.spawn_session_tracker();
+        let content = ContentService::new(ContentServiceDeps {
+            servers: Arc::clone(&servers),
+            repo: deps.repos.content,
+            downloader: deps.downloader,
+            jobs: Arc::clone(&jobs),
+            audit: Arc::clone(&audit),
+            events: events.clone(),
+        });
+        servers.set_launch_hook(Arc::clone(&content) as Arc<dyn crate::server::LaunchHook>);
+        content.spawn_pending_applier();
 
         Ok(Arc::new(Core {
             paths: deps.paths,
@@ -130,6 +143,7 @@ impl Core {
             monitor,
             backups,
             players,
+            content,
         }))
     }
 }

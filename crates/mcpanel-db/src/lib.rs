@@ -5,6 +5,7 @@
 //! of the `mcpanel-core` ports.
 
 mod backup_repo;
+mod content_repo;
 mod player_repo;
 mod repos;
 
@@ -190,7 +191,8 @@ impl Database {
             jobs: r.clone(),
             settings: r.clone(),
             backups: r.clone(),
-            players: r,
+            players: r.clone(),
+            content: r,
         }
     }
 

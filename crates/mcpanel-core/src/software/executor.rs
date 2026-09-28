@@ -12,7 +12,7 @@ pub struct PlanExecutor {
     downloader: Arc<dyn Downloader>,
 }
 
-fn host_of(url: &str) -> Option<&str> {
+pub(crate) fn host_of(url: &str) -> Option<&str> {
     let rest = url.strip_prefix("https://")?;
     let host = rest.split(['/', '?', '#']).next()?;
     // Reject userinfo and explicit ports to keep the allowlist meaningful.

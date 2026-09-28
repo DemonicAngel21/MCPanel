@@ -54,6 +54,13 @@ pub struct ServerManager {
     pub(crate) executor: PlanExecutor,
     runtimes: Mutex<HashMap<ServerId, Arc<ServerRuntime>>>,
     console_capacity: usize,
+    launch_hook: std::sync::OnceLock<Arc<dyn LaunchHook>>,
+}
+
+/// Runs right before a server process is spawned (after preflight checks).
+#[async_trait::async_trait]
+pub trait LaunchHook: Send + Sync {
+    async fn before_launch(&self, server: &Server, runtime: &ServerRuntime) -> CoreResult<()>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,7 +91,13 @@ impl ServerManager {
             executor: deps.executor,
             runtimes: Mutex::new(HashMap::new()),
             console_capacity: deps.console_capacity,
+            launch_hook: std::sync::OnceLock::new(),
         })
+    }
+
+    /// Install the pre-launch hook (once, by the composition root).
+    pub fn set_launch_hook(&self, hook: Arc<dyn LaunchHook>) {
+        let _ = self.launch_hook.set(hook);
     }
 
     pub fn registry(&self) -> &ProviderRegistry {
@@ -507,6 +520,12 @@ impl ServerManager {
         args.push(launch_args.jar);
         args.extend(launch_args.server_args);
         args.extend(server.launch.server_args.iter().cloned());
+
+        // Pending content changes (queued while the server ran) are applied now, while
+        // no process holds the files.
+        if let Some(hook) = self.launch_hook.get() {
+            hook.before_launch(server, rt).await?;
+        }
 
         let spec = ProcessSpec {
             program: java.path.clone(),

@@ -1155,14 +1155,17 @@ name = "fake-mc"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hex",
  "mcpanel-core",
  "mcpanel-db",
  "mcpanel-platform",
  "mcpanel-providers",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "tokio",
+ "tokio-util",
  "uuid",
  "zip",
 ]

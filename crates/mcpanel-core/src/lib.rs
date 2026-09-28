@@ -9,6 +9,7 @@ pub mod audit;
 pub mod backup;
 pub mod config;
 pub mod console;
+pub mod content;
 pub mod core;
 pub mod error;
 pub mod events;

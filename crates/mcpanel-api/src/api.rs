@@ -9,6 +9,7 @@ use crate::principal::{Permission, Principal};
 use mcpanel_core::Core;
 use mcpanel_core::backup::{BackupPolicy, CreateBackupRequest, Retention};
 use mcpanel_core::console::ConsoleSubscription;
+use mcpanel_core::content::{InstallRequest, SearchSort};
 use mcpanel_core::events::EventEnvelope;
 use mcpanel_core::files::service::WriteText;
 use mcpanel_core::files::text::TextEncoding;
@@ -32,6 +33,15 @@ pub struct Api {
 
 fn server_id(s: &str) -> ApiResult<ServerId> {
     ServerId::from_str(s).map_err(|_| ApiError::invalid("Invalid server id"))
+}
+
+fn install_request(r: InstallRequestDto) -> InstallRequest {
+    InstallRequest {
+        provider: r.provider,
+        project_id: r.project_id,
+        version_id: r.version_id,
+        with_dependencies: r.with_dependencies,
+    }
 }
 
 fn backup_id(s: &str) -> ApiResult<BackupId> {
@@ -916,6 +926,183 @@ impl Api {
             .await?
             .into_iter()
             .map(Into::into)
+            .collect())
+    }
+
+    // ───────────────────────────── content ─────────────────────────────
+
+    pub async fn content_list(&self, p: &Principal, server: &str) -> ApiResult<ContentListDto> {
+        p.authorize(Permission::ServersRead)?;
+        let id = server_id(server)?;
+        let list = self.core.content.list(id).await?;
+        let pending = self.core.content.pending(id).await?;
+        let s = self.core.servers.get(id).await?;
+        let target = self.core.content.target(&s)?;
+        let providers = self
+            .core
+            .content
+            .providers(&target)
+            .iter()
+            .map(|p| p.info().clone())
+            .collect();
+        Ok(ContentListDto::new(list, pending, providers))
+    }
+
+    pub async fn content_search(
+        &self,
+        p: &Principal,
+        server: &str,
+        q: SearchRequestDto,
+    ) -> ApiResult<SearchPageDto> {
+        p.authorize(Permission::ServersRead)?;
+        let sort = match q.sort.as_str() {
+            "downloads" => SearchSort::Downloads,
+            "updated" => SearchSort::Updated,
+            _ => SearchSort::Relevance,
+        };
+        let page = self
+            .core
+            .content
+            .search(
+                server_id(server)?,
+                &q.provider,
+                &q.text,
+                sort,
+                q.offset,
+                q.limit,
+            )
+            .await?;
+        Ok(SearchPageDto {
+            total: page.total,
+            hits: page.hits.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    pub async fn content_versions(
+        &self,
+        p: &Principal,
+        server: &str,
+        provider: &str,
+        project_id: &str,
+    ) -> ApiResult<Vec<ContentVersionDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .content
+            .versions(server_id(server)?, provider, project_id)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn content_plan(
+        &self,
+        p: &Principal,
+        server: &str,
+        req: InstallRequestDto,
+    ) -> ApiResult<InstallPlanDto> {
+        p.authorize(Permission::ContentManage)?;
+        let plan = self
+            .core
+            .content
+            .plan(server_id(server)?, &install_request(req))
+            .await?;
+        Ok(InstallPlanDto {
+            items: plan
+                .items
+                .into_iter()
+                .map(|i| PlannedInstallDto {
+                    project: i.project.into(),
+                    version: i.version.into(),
+                    replaces: i.replaces,
+                    required_by: i.required_by,
+                })
+                .collect(),
+            unresolved: plan.unresolved,
+            warnings: plan.warnings,
+            deferred: plan.deferred,
+        })
+    }
+
+    /// Returns the id of the install job.
+    pub async fn content_install(
+        &self,
+        p: &Principal,
+        server: &str,
+        req: InstallRequestDto,
+    ) -> ApiResult<String> {
+        p.authorize(Permission::ContentManage)?;
+        Ok(self
+            .core
+            .content
+            .install(server_id(server)?, install_request(req), p.actor())
+            .await?
+            .to_string())
+    }
+
+    /// Returns whether the change was queued until the server stops.
+    pub async fn content_remove(
+        &self,
+        p: &Principal,
+        server: &str,
+        file_name: &str,
+    ) -> ApiResult<bool> {
+        p.authorize(Permission::ContentManage)?;
+        Ok(self
+            .core
+            .content
+            .remove(server_id(server)?, file_name, p.actor())
+            .await?)
+    }
+
+    pub async fn content_set_enabled(
+        &self,
+        p: &Principal,
+        server: &str,
+        file_name: &str,
+        enabled: bool,
+    ) -> ApiResult<bool> {
+        p.authorize(Permission::ContentManage)?;
+        Ok(self
+            .core
+            .content
+            .set_enabled(server_id(server)?, file_name, enabled, p.actor())
+            .await?)
+    }
+
+    pub async fn content_discard_pending(
+        &self,
+        p: &Principal,
+        server: &str,
+        id: &str,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::ContentManage)?;
+        Ok(self
+            .core
+            .content
+            .discard_pending(server_id(server)?, id, p.actor())
+            .await?)
+    }
+
+    pub async fn content_check_updates(
+        &self,
+        p: &Principal,
+        server: &str,
+    ) -> ApiResult<Vec<UpdateInfoDto>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self
+            .core
+            .content
+            .check_updates(server_id(server)?)
+            .await?
+            .into_iter()
+            .map(|u| UpdateInfoDto {
+                file_name: u.file_name,
+                name: u.name,
+                current_version: u.current_version,
+                latest: u.latest.into(),
+            })
             .collect())
     }
 

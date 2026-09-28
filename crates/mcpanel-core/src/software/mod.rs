@@ -188,6 +188,7 @@ pub struct ProviderRegistry {
     software: Vec<SoftwareProvider>,
     /// Catalog used as the authoritative Minecraft version list (Mojang).
     reference_catalog: Option<Arc<dyn SoftwareCatalog>>,
+    content: Vec<Arc<dyn crate::content::ContentProvider>>,
 }
 
 impl ProviderRegistry {
@@ -199,6 +200,24 @@ impl ProviderRegistry {
         self.software
             .retain(|p| p.descriptor.id != provider.descriptor.id);
         self.software.push(provider);
+    }
+
+    pub fn register_content(&mut self, provider: Arc<dyn crate::content::ContentProvider>) {
+        let id = provider.info().id.clone();
+        self.content.retain(|p| p.info().id != id);
+        self.content.push(provider);
+    }
+
+    pub fn content_providers(&self) -> &[Arc<dyn crate::content::ContentProvider>] {
+        &self.content
+    }
+
+    pub fn get_content(&self, id: &str) -> CoreResult<Arc<dyn crate::content::ContentProvider>> {
+        self.content
+            .iter()
+            .find(|p| p.info().id == id)
+            .cloned()
+            .ok_or_else(|| CoreError::not_found(format!("Unknown content provider '{id}'")))
     }
 
     pub fn set_reference_catalog(&mut self, catalog: Arc<dyn SoftwareCatalog>) {

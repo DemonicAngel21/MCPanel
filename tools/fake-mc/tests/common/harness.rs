@@ -1,6 +1,7 @@
 //! Test harness: real core + real Windows platform + real SQLite, with `fake-mc`
 //! standing in for `java.exe`.
 
+use super::content_fixture::{MemDownloader, Store, TestHub};
 use async_trait::async_trait;
 use mcpanel_core::error::{CoreResult, ErrorCode};
 use mcpanel_core::ids::ServerId;
@@ -62,7 +63,10 @@ pub fn registry() -> ProviderRegistry {
             display_name: "Fake".into(),
             description: "test".into(),
             caps: SoftwareCaps {
-                content: vec![],
+                content: vec![
+                    mcpanel_core::software::ContentEcosystem::BukkitPlugins,
+                    mcpanel_core::software::ContentEcosystem::PaperPlugins,
+                ],
                 is_proxy: false,
                 log_dialect: "minecraft".into(),
                 stop_command: "stop".into(),
@@ -80,12 +84,21 @@ pub fn registry() -> ProviderRegistry {
     r
 }
 
+/// The registry plus the TestHub content provider backed by `store`.
+pub fn registry_with_content(store: &Arc<std::sync::Mutex<Store>>) -> ProviderRegistry {
+    let mut r = registry();
+    r.register_content(Arc::new(TestHub::new(Arc::clone(store))));
+    r
+}
+
 pub struct Harness {
     pub core: Arc<Core>,
     pub db: Database,
     pub data: tempfile::TempDir,
     pub servers: tempfile::TempDir,
     pub java_id: mcpanel_core::ids::JavaRuntimeId,
+    /// Files served by the TestHub content provider (and download count).
+    pub content: Arc<std::sync::Mutex<Store>>,
 }
 
 pub fn free_port() -> u16 {
@@ -100,12 +113,12 @@ pub async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> 
     let (db, _) = Database::open(&data.path().join("mcpanel.db"))
         .await
         .unwrap();
-    let http = mcpanel_providers::http_client().unwrap();
+    let content = Arc::new(std::sync::Mutex::new(Store::default()));
     let core = Core::start(CoreDeps {
         paths: AppPaths::new(data.path().to_path_buf(), servers.path().to_path_buf()),
         platform: Arc::new(mcpanel_platform::NativePlatform::new()),
-        downloader: Arc::new(mcpanel_providers::HttpDownloader::new(http)),
-        registry: registry(),
+        downloader: Arc::new(MemDownloader(Arc::clone(&content))),
+        registry: registry_with_content(&content),
         profiles: Arc::new(TestProfiles),
         repos: db.repositories(),
     })
@@ -127,6 +140,7 @@ pub async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> 
         data,
         servers,
         java_id: rt.id,
+        content,
     }
 }
 

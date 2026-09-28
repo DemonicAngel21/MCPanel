@@ -12,6 +12,8 @@ pub enum Permission {
     FilesRead,
     FilesWrite,
     JavaManage,
+    /// Install, update, disable and remove plugins/mods.
+    ContentManage,
     /// Operators, whitelist, bans and kicks.
     PlayersManage,
     BackupsRead,

@@ -5,7 +5,9 @@
 //! `docs/architecture/verification-log.md`.
 
 mod detect;
+pub mod hangar;
 pub mod http;
+pub mod modrinth;
 pub mod mojang;
 pub mod paper;
 pub mod profiles;
@@ -18,7 +20,8 @@ use std::sync::Arc;
 pub use http::{HttpClient, HttpDownloader};
 pub use profiles::MojangProfiles;
 
-/// Build the registry of built-in providers (MVP: Vanilla, Paper, Purpur).
+/// Build the registry of built-in providers: server software (Vanilla, Paper, Purpur)
+/// and content (Modrinth, Hangar).
 pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     let mojang = mojang::MojangClient::new(http.clone());
     let mut r = ProviderRegistry::new();
@@ -29,6 +32,8 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
         Arc::clone(&mojang),
     ));
     r.register_software(mojang::VanillaProvider::provider(mojang));
+    r.register_content(Arc::new(modrinth::Modrinth::new(http.clone())));
+    r.register_content(Arc::new(hangar::Hangar::new(http.clone())));
     r
 }
 
