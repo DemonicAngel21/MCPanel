@@ -8,6 +8,7 @@ mod detect;
 pub mod http;
 pub mod mojang;
 pub mod paper;
+pub mod profiles;
 pub mod purpur;
 
 use mcpanel_core::error::CoreResult;
@@ -15,6 +16,7 @@ use mcpanel_core::software::ProviderRegistry;
 use std::sync::Arc;
 
 pub use http::{HttpClient, HttpDownloader};
+pub use profiles::MojangProfiles;
 
 /// Build the registry of built-in providers (MVP: Vanilla, Paper, Purpur).
 pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {

@@ -11,7 +11,7 @@ pub struct ApiError {
     /// Stable code, e.g. `SERVER_NOT_FOUND` (see `mcpanel_core::ErrorCode`).
     pub code: String,
     pub message: String,
-    pub details: Option<serde_json::Value>,
+    pub details: Option<Box<serde_json::Value>>,
     pub retryable: bool,
 }
 
@@ -24,7 +24,7 @@ impl From<CoreError> for ApiError {
         Self {
             code,
             message: e.message,
-            details: e.details,
+            details: e.details.map(Box::new),
             retryable: e.retryable,
         }
     }

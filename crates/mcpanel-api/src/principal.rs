@@ -12,6 +12,8 @@ pub enum Permission {
     FilesRead,
     FilesWrite,
     JavaManage,
+    /// Operators, whitelist, bans and kicks.
+    PlayersManage,
     BackupsRead,
     BackupsManage,
     /// Replaces a server's files with a backup.

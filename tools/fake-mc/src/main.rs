@@ -8,7 +8,8 @@
 //!   MCPanel, so files are the only channel).
 //!
 //! Commands: `stop`, `crash`, `flood <n>`, `join <name>`, `leave <name>`, `say <text>`,
-//! `oom`, `hang` (stop reading stdin), `save-off`, `save-all [flush]`, `save-on`.
+//! `oom`, `hang` (stop reading stdin), `save-off`, `save-all [flush]`, `save-on`, and
+//! replies (only) to `op`, `deop`, `whitelist`, `ban`, `pardon`, `kick`.
 //!
 //! With `"world": true` it keeps `world/session.lock` locked like a real server, and
 //! `save-all` writes a save counter to `world/level.dat`.
@@ -27,6 +28,8 @@ struct Config {
     java_major: Option<u32>,
     world: bool,
     save_delay_ms: u64,
+    /// Log command feedback and join/leave as "System chat: …" like Minecraft 26.x.
+    system_chat: bool,
 }
 
 fn log(level: &str, msg: &str) {
@@ -77,6 +80,13 @@ fn main() {
         Some(f)
     });
     let mut saves = 0u32;
+    let chat = |msg: &str| {
+        if cfg.system_chat {
+            log("INFO", &format!("System chat: {msg}"));
+        } else {
+            log("INFO", msg);
+        }
+    };
     std::thread::sleep(Duration::from_millis(cfg.startup_ms));
     log("INFO", "Done (1.234s)! For help, type \"help\"");
 
@@ -115,8 +125,20 @@ fn main() {
                 let _ = writeln!(out, "[12:00:00] [Server thread/INFO]: flood done");
                 let _ = out.flush();
             }
-            "join" => log("INFO", &format!("{rest} joined the game")),
-            "leave" => log("INFO", &format!("{rest} left the game")),
+            "join" => chat(&format!("{rest} joined the game")),
+            "leave" => chat(&format!("{rest} left the game")),
+            "op" => chat(&format!("Made {rest} a server operator")),
+            "deop" => chat(&format!("Made {rest} no longer a server operator")),
+            "whitelist" => chat(&format!("Whitelist: {rest}")),
+            "ban" => chat(&format!("Banned {rest}")),
+            "pardon" => chat(&format!("Unbanned {rest}")),
+            "kick" => {
+                let (who, why) = rest
+                    .split_once(' ')
+                    .unwrap_or((rest, "Kicked by an operator"));
+                chat(&format!("Kicked {who}: {why}"));
+                chat(&format!("{who} left the game"));
+            }
             "say" => log("INFO", &format!("[Server] {rest}")),
             "save-off" => log("INFO", "Automatic saving is now disabled"),
             "save-on" => log("INFO", "Automatic saving is now enabled"),

@@ -51,6 +51,10 @@ pub enum DomainEvent {
         server_id: ServerId,
         player_name: String,
     },
+    /// Operators, whitelist or bans changed through MCPanel.
+    PlayersChanged {
+        server_id: ServerId,
+    },
     JobUpdated {
         job_id: JobId,
         /// e.g. `server.create`, `backup.create`.

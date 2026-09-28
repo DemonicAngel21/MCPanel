@@ -8,9 +8,10 @@ use crate::java::JavaManager;
 use crate::jobs::JobManager;
 use crate::monitoring::Monitor;
 use crate::paths::AppPaths;
+use crate::players::PlayerService;
 use crate::ports::{
     AuditRepository, BackupRepository, Downloader, JavaRuntimeRepository, JobRepository, Platform,
-    ServerRepository, SettingsRepository,
+    PlayerRepository, ProfileLookup, ServerRepository, SettingsRepository,
 };
 use crate::server::{ServerManager, ServerManagerDeps};
 use crate::server_files::ServerFiles;
@@ -26,6 +27,7 @@ pub struct Repositories {
     pub jobs: Arc<dyn JobRepository>,
     pub settings: Arc<dyn SettingsRepository>,
     pub backups: Arc<dyn BackupRepository>,
+    pub players: Arc<dyn PlayerRepository>,
 }
 
 pub struct CoreDeps {
@@ -33,6 +35,7 @@ pub struct CoreDeps {
     pub platform: Arc<dyn Platform>,
     pub downloader: Arc<dyn Downloader>,
     pub registry: ProviderRegistry,
+    pub profiles: Arc<dyn ProfileLookup>,
     pub repos: Repositories,
 }
 
@@ -49,6 +52,7 @@ pub struct Core {
     pub settings: Arc<SettingsService>,
     pub monitor: Arc<Monitor>,
     pub backups: Arc<BackupService>,
+    pub players: Arc<PlayerService>,
 }
 
 impl Core {
@@ -103,6 +107,14 @@ impl Core {
             tracing::warn!(target: "mcpanel::backup", interrupted, "backups were interrupted by the previous shutdown");
         }
         backups.spawn_scheduler();
+        let players = PlayerService::new(
+            Arc::clone(&servers),
+            deps.repos.players,
+            deps.profiles,
+            Arc::clone(&audit),
+            events.clone(),
+        );
+        players.spawn_session_tracker();
 
         Ok(Arc::new(Core {
             paths: deps.paths,
@@ -117,6 +129,7 @@ impl Core {
             settings,
             monitor,
             backups,
+            players,
         }))
     }
 }

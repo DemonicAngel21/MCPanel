@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 
 pub mod harness;
+pub mod mc_client;
+pub mod real;
 
 use std::time::{Duration, Instant};
 

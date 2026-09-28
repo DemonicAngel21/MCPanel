@@ -80,6 +80,44 @@ pub trait BackupRepository: Send + Sync {
     async fn save_policy(&self, policy: &BackupPolicy) -> CoreResult<()>;
 }
 
+/// Aggregated play history of one player on one server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayerStats {
+    pub name: String,
+    pub first_seen: Timestamp,
+    pub last_seen: Timestamp,
+    /// Completed sessions only.
+    pub total_play_ms: i64,
+    pub sessions: u32,
+}
+
+#[async_trait]
+pub trait PlayerRepository: Send + Sync {
+    async fn session_started(
+        &self,
+        server_id: ServerId,
+        name: &str,
+        at: Timestamp,
+    ) -> CoreResult<()>;
+    async fn session_ended(&self, server_id: ServerId, name: &str, at: Timestamp)
+    -> CoreResult<()>;
+    /// End every open session of a server (it stopped). Returns how many were open.
+    async fn end_open_sessions(&self, server_id: ServerId, at: Timestamp) -> CoreResult<u64>;
+    /// Sessions left open by a previous MCPanel run: their end is unknown, so they are
+    /// closed as interrupted and not counted as play time.
+    async fn interrupt_open_sessions(&self) -> CoreResult<u64>;
+    async fn stats(&self, server_id: ServerId) -> CoreResult<Vec<PlayerStats>>;
+}
+
+// ──────────────────────────── Player profiles ───────────────────────────
+
+/// Resolves Minecraft (Java Edition) account names to UUIDs.
+#[async_trait]
+pub trait ProfileLookup: Send + Sync {
+    /// `Ok(None)` when no account has this name.
+    async fn uuid_for_name(&self, name: &str) -> CoreResult<Option<(uuid::Uuid, String)>>;
+}
+
 // ─────────────────────────────── Platform ───────────────────────────────
 
 /// A process to launch. Arguments are passed as argv entries — never through a shell.

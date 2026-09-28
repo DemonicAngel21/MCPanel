@@ -37,6 +37,23 @@ impl SoftwareInstaller for NoCatalog {
     }
 }
 
+/// Deterministic profile lookup (no network): only "Notch" exists.
+pub struct TestProfiles;
+
+pub const NOTCH_UUID: &str = "069a79f4-44e9-4726-a5be-fca90e38aaf5";
+
+#[async_trait]
+impl mcpanel_core::ports::ProfileLookup for TestProfiles {
+    async fn uuid_for_name(&self, name: &str) -> CoreResult<Option<(uuid::Uuid, String)>> {
+        Ok(name.eq_ignore_ascii_case("notch").then(|| {
+            (
+                uuid::Uuid::parse_str(NOTCH_UUID).unwrap(),
+                "Notch".to_string(),
+            )
+        }))
+    }
+}
+
 pub fn registry() -> ProviderRegistry {
     let mut r = ProviderRegistry::new();
     r.register_software(SoftwareProvider {
@@ -89,6 +106,7 @@ pub async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> 
         platform: Arc::new(mcpanel_platform::NativePlatform::new()),
         downloader: Arc::new(mcpanel_providers::HttpDownloader::new(http)),
         registry: registry(),
+        profiles: Arc::new(TestProfiles),
         repos: db.repositories(),
     })
     .await
