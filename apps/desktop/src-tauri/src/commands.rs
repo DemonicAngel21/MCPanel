@@ -324,6 +324,101 @@ pub async fn servers_open_folder(s: State<'_, AppState>, id: String) -> R<()> {
         .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
 }
 
+// ───────────────────────────── backups ────────────────────────────
+
+#[tauri::command]
+pub async fn backups_list(s: State<'_, AppState>, server_id: Option<String>) -> R<Vec<BackupDto>> {
+    s.api
+        .backups_list(&s.principal(), server_id.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn backups_create(
+    s: State<'_, AppState>,
+    server_id: String,
+    note: Option<String>,
+) -> R<String> {
+    s.api.backups_create(&s.principal(), &server_id, note).await
+}
+
+#[tauri::command]
+pub async fn backups_delete(s: State<'_, AppState>, id: String) -> R<()> {
+    s.api.backups_delete(&s.principal(), &id).await
+}
+
+#[tauri::command]
+pub async fn backups_verify(s: State<'_, AppState>, id: String) -> R<String> {
+    s.api.backups_verify(&s.principal(), &id).await
+}
+
+#[tauri::command]
+pub async fn backups_restore_preview(s: State<'_, AppState>, id: String) -> R<RestorePreviewDto> {
+    s.api.backups_restore_preview(&s.principal(), &id).await
+}
+
+#[tauri::command]
+pub async fn backups_restore(s: State<'_, AppState>, id: String) -> R<String> {
+    s.api.backups_restore(&s.principal(), &id).await
+}
+
+#[tauri::command]
+pub async fn backups_policy(s: State<'_, AppState>, server_id: String) -> R<BackupPolicyDto> {
+    s.api.backups_policy(&s.principal(), &server_id).await
+}
+
+#[tauri::command]
+pub async fn backups_policy_update(
+    s: State<'_, AppState>,
+    server_id: String,
+    policy: BackupPolicyUpdateDto,
+) -> R<BackupPolicyDto> {
+    s.api
+        .backups_policy_update(&s.principal(), &server_id, policy)
+        .await
+}
+
+#[tauri::command]
+pub async fn backups_location(s: State<'_, AppState>) -> R<BackupLocationDto> {
+    s.api.backups_location(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn backups_set_location(
+    s: State<'_, AppState>,
+    grant: Option<String>,
+) -> R<BackupLocationDto> {
+    s.api
+        .backups_set_location(&s.principal(), grant.as_deref())
+        .await
+}
+
+/// Show a backup archive in Explorer. The path comes from the backup record.
+#[tauri::command]
+pub async fn backups_reveal(s: State<'_, AppState>, id: String) -> R<()> {
+    let path = s.api.backups_path(&s.principal(), &id).await?;
+    let mut arg = std::ffi::OsString::from("/select,");
+    arg.push(&path);
+    std::process::Command::new("explorer.exe")
+        .arg(arg)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
+}
+
+/// Open the backups folder in Explorer.
+#[tauri::command]
+pub async fn backups_open_folder(s: State<'_, AppState>) -> R<()> {
+    let loc = s.api.backups_location(&s.principal()).await?;
+    std::fs::create_dir_all(&loc.directory)
+        .map_err(|e| ApiError::new("IO", format!("Cannot create folder: {e}")))?;
+    std::process::Command::new("explorer.exe")
+        .arg(&loc.directory)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
+}
+
 // ───────────────────────────── console ────────────────────────────
 
 #[tauri::command]

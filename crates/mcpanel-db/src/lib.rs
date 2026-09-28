@@ -4,6 +4,7 @@
 //! forward-only migrations with a pre-migration backup, and repository implementations
 //! of the `mcpanel-core` ports.
 
+mod backup_repo;
 mod repos;
 
 use mcpanel_core::Repositories;
@@ -186,7 +187,8 @@ impl Database {
             java: r.clone(),
             audit: r.clone(),
             jobs: r.clone(),
-            settings: r,
+            settings: r.clone(),
+            backups: r,
         }
     }
 

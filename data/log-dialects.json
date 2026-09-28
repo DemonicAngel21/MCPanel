@@ -5,7 +5,7 @@
     "minecraft": {
       "ready": ["^Done \\((?P<secs>\\d+(?:[.,]\\d+)?)s\\)! For help, type"],
       "stopping": ["^Stopping (?:the )?server$", "^Stopping server$"],
-      "save_complete": ["^Saved the game$", "^Saved the world$"],
+      "save_complete": ["^(?:System chat: )?Saved the (?:game|world)$"],
       "player_joined": ["^(?P<name>[A-Za-z0-9_.*]{1,32}) joined the game$"],
       "player_left": ["^(?P<name>[A-Za-z0-9_.*]{1,32}) left the game$"],
       "fatal": [

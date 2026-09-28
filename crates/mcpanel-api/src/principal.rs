@@ -12,6 +12,10 @@ pub enum Permission {
     FilesRead,
     FilesWrite,
     JavaManage,
+    BackupsRead,
+    BackupsManage,
+    /// Replaces a server's files with a backup.
+    BackupsRestore,
     SettingsWrite,
     ActivityRead,
     SystemRead,

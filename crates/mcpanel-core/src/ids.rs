@@ -61,3 +61,7 @@ id_type!(
     /// Identifies a domain event.
     EventId
 );
+id_type!(
+    /// Identifies a backup archive.
+    BackupId
+);

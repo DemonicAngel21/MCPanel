@@ -24,6 +24,7 @@ hex.workspace = true
 encoding_rs.workspace = true
 chardetng.workspace = true
 zip.workspace = true
+jiff.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

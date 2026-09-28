@@ -7,11 +7,12 @@ use crate::error::{ApiError, ApiResult};
 use crate::grants::{GrantKind, GrantRegistry};
 use crate::principal::{Permission, Principal};
 use mcpanel_core::Core;
+use mcpanel_core::backup::{BackupPolicy, CreateBackupRequest, Retention};
 use mcpanel_core::console::ConsoleSubscription;
 use mcpanel_core::events::EventEnvelope;
 use mcpanel_core::files::service::WriteText;
 use mcpanel_core::files::text::TextEncoding;
-use mcpanel_core::ids::{JavaRuntimeId, JobId, ServerId};
+use mcpanel_core::ids::{BackupId, JavaRuntimeId, JobId, ServerId};
 use mcpanel_core::model::{AuditQuery, LaunchConfig};
 use mcpanel_core::server::{
     CreateServerRequest, ImportServerRequest, PropertyChange, UpdateServerRequest,
@@ -31,6 +32,10 @@ pub struct Api {
 
 fn server_id(s: &str) -> ApiResult<ServerId> {
     ServerId::from_str(s).map_err(|_| ApiError::invalid("Invalid server id"))
+}
+
+fn backup_id(s: &str) -> ApiResult<BackupId> {
+    BackupId::from_str(s).map_err(|_| ApiError::invalid("Invalid backup id"))
 }
 
 fn java_id(s: &str) -> ApiResult<JavaRuntimeId> {
@@ -116,6 +121,7 @@ impl Api {
                 tray_notice_shown: patch.tray_notice_shown,
                 console_buffer_lines: patch.console_buffer_lines,
                 quit_stop_timeout_secs: patch.quit_stop_timeout_secs,
+                backups_dir: None,
             })
             .await?
             .into())
@@ -911,6 +917,164 @@ impl Api {
             .into_iter()
             .map(Into::into)
             .collect())
+    }
+
+    // ───────────────────────────── backups ─────────────────────────────
+
+    pub async fn backups_list(
+        &self,
+        p: &Principal,
+        server: Option<&str>,
+    ) -> ApiResult<Vec<BackupDto>> {
+        p.authorize(Permission::BackupsRead)?;
+        let server = server.map(server_id).transpose()?;
+        Ok(self
+            .core
+            .backups
+            .list(server)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    /// Returns the id of the backup job.
+    pub async fn backups_create(
+        &self,
+        p: &Principal,
+        server: &str,
+        note: Option<String>,
+    ) -> ApiResult<String> {
+        p.authorize(Permission::BackupsManage)?;
+        let job = self
+            .core
+            .backups
+            .create(
+                CreateBackupRequest {
+                    server_id: server_id(server)?,
+                    note,
+                },
+                p.actor(),
+            )
+            .await?;
+        Ok(job.to_string())
+    }
+
+    pub async fn backups_delete(&self, p: &Principal, id: &str) -> ApiResult<()> {
+        p.authorize(Permission::BackupsManage)?;
+        Ok(self.core.backups.delete(backup_id(id)?, p.actor()).await?)
+    }
+
+    /// Returns the id of the verification job (its result is a verify report).
+    pub async fn backups_verify(&self, p: &Principal, id: &str) -> ApiResult<String> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self
+            .core
+            .backups
+            .verify(backup_id(id)?, p.actor())
+            .await?
+            .to_string())
+    }
+
+    pub async fn backups_restore_preview(
+        &self,
+        p: &Principal,
+        id: &str,
+    ) -> ApiResult<RestorePreviewDto> {
+        p.authorize(Permission::BackupsRestore)?;
+        Ok(self
+            .core
+            .backups
+            .restore_preview(backup_id(id)?)
+            .await?
+            .into())
+    }
+
+    /// Returns the id of the restore job.
+    pub async fn backups_restore(&self, p: &Principal, id: &str) -> ApiResult<String> {
+        p.authorize(Permission::BackupsRestore)?;
+        Ok(self
+            .core
+            .backups
+            .restore(backup_id(id)?, p.actor())
+            .await?
+            .to_string())
+    }
+
+    pub async fn backups_policy(&self, p: &Principal, server: &str) -> ApiResult<BackupPolicyDto> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self.core.backups.policy(server_id(server)?).await?.into())
+    }
+
+    pub async fn backups_policy_update(
+        &self,
+        p: &Principal,
+        server: &str,
+        u: BackupPolicyUpdateDto,
+    ) -> ApiResult<BackupPolicyDto> {
+        p.authorize(Permission::BackupsManage)?;
+        let server_id = server_id(server)?;
+        let current = self.core.backups.policy(server_id).await?;
+        Ok(self
+            .core
+            .backups
+            .set_policy(
+                BackupPolicy {
+                    server_id,
+                    enabled: u.enabled,
+                    interval_minutes: u.interval_minutes,
+                    skip_if_idle: u.skip_if_idle,
+                    retention: Retention {
+                        keep_last: u.keep_last,
+                        keep_daily: u.keep_daily,
+                        keep_weekly: u.keep_weekly,
+                        keep_monthly: u.keep_monthly,
+                    },
+                    last_run_at: current.last_run_at,
+                },
+                p.actor(),
+            )
+            .await?
+            .into())
+    }
+
+    pub async fn backups_location(&self, p: &Principal) -> ApiResult<BackupLocationDto> {
+        p.authorize(Permission::BackupsRead)?;
+        let dir = self.core.backups.backups_dir().await?;
+        let default = &self.core.paths.default_backups_dir;
+        Ok(BackupLocationDto {
+            is_default: mcpanel_core::files::fsx::path_starts_with_ci(&dir, default)
+                && mcpanel_core::files::fsx::path_starts_with_ci(default, &dir),
+            available_bytes: self
+                .core
+                .platform
+                .disk_space(&dir)
+                .ok()
+                .map(|d| d.available_bytes),
+            warnings: warnings(&self.core.platform.location_warnings(&dir)),
+            directory: dir.to_string_lossy().into(),
+            default_directory: default.to_string_lossy().into(),
+        })
+    }
+
+    /// Use the folder the user picked (`None` = back to the default).
+    pub async fn backups_set_location(
+        &self,
+        p: &Principal,
+        grant: Option<&str>,
+    ) -> ApiResult<BackupLocationDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let dir = grant
+            .map(|g| self.grants.take(g, GrantKind::Directory))
+            .transpose()?;
+        self.core.backups.set_backups_dir(dir, p.actor()).await?;
+        self.backups_location(p).await
+    }
+
+    /// The archive path of a backup (for revealing it in Explorer).
+    pub async fn backups_path(&self, p: &Principal, id: &str) -> ApiResult<std::path::PathBuf> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self.core.backups.get(backup_id(id)?).await?.path)
     }
 
     // ───────────────────────────── jobs / audit ───────────────────────

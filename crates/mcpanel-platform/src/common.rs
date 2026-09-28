@@ -23,7 +23,11 @@ pub fn default_paths() -> CoreResult<AppPaths> {
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .unwrap_or(base.default_servers_dir);
-    Ok(AppPaths::new(data, servers))
+    let backups = std::env::var_os("MCPANEL_BACKUPS_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or(base.default_backups_dir);
+    Ok(AppPaths::new(data, servers).with_backups_dir(backups))
 }
 
 fn platform_default_paths() -> CoreResult<AppPaths> {
@@ -38,7 +42,8 @@ fn platform_default_paths() -> CoreResult<AppPaths> {
         Ok(AppPaths::new(
             local.join("MCPanel"),
             profile.join("MCPanel").join("Servers"),
-        ))
+        )
+        .with_backups_dir(profile.join("MCPanel").join("Backups")))
     }
     #[cfg(not(windows))]
     {

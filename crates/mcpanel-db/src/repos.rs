@@ -27,6 +27,10 @@ impl SqliteRepos {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+
+    pub(crate) fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
 }
 
 fn parse_id<T: FromStr<Err = CoreError>>(s: &str) -> CoreResult<T> {

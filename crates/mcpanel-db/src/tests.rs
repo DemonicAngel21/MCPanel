@@ -253,3 +253,72 @@ async fn reopening_applies_nothing() {
     db.close().await;
     dir.close().unwrap();
 }
+
+#[tokio::test]
+async fn backups_roundtrip_and_outlive_their_server() {
+    use mcpanel_core::backup::{BackupKind, BackupPolicy, BackupRecord, BackupStatus, SkippedFile};
+    use mcpanel_core::ids::BackupId;
+    let db = Database::open_in_memory().await.unwrap();
+    let r = db.repositories();
+    let s = server("C:/b", None);
+    r.servers.insert(&s).await.unwrap();
+    let mut b = BackupRecord {
+        id: BackupId::new(),
+        server_id: Some(s.id),
+        server_name: s.name.clone(),
+        kind: BackupKind::Scheduled,
+        status: BackupStatus::Creating,
+        path: PathBuf::from("C:/backups/x.zip"),
+        created_at: Timestamp(10),
+        finished_at: None,
+        size_bytes: 0,
+        content_bytes: 0,
+        file_count: 0,
+        sha256: None,
+        live: true,
+        contains_sensitive: false,
+        software_id: "paper".into(),
+        game_version: "1.21.11".into(),
+        note: Some("before update".into()),
+        protected: false,
+        skipped: vec![],
+        error_message: None,
+    };
+    r.backups.insert(&b).await.unwrap();
+    b.status = BackupStatus::Ready;
+    b.finished_at = Some(Timestamp(20));
+    b.size_bytes = 123;
+    b.content_bytes = 456;
+    b.file_count = 7;
+    b.sha256 = Some("ab".into());
+    b.contains_sensitive = true;
+    b.skipped = vec![SkippedFile {
+        path: "logs/latest.log".into(),
+        reason: "locked".into(),
+    }];
+    r.backups.update(&b).await.unwrap();
+    let got = r.backups.get(b.id).await.unwrap().unwrap();
+    assert_eq!(
+        serde_json::to_value(&got).unwrap(),
+        serde_json::to_value(&b).unwrap()
+    );
+    assert_eq!(r.backups.list(Some(s.id)).await.unwrap().len(), 1);
+
+    let mut p = BackupPolicy::default_for(s.id);
+    p.enabled = true;
+    p.last_run_at = Some(Timestamp(5));
+    r.backups.save_policy(&p).await.unwrap();
+    p.interval_minutes = 60;
+    r.backups.save_policy(&p).await.unwrap();
+    assert_eq!(r.backups.policy(s.id).await.unwrap(), Some(p.clone()));
+    assert_eq!(r.backups.policies().await.unwrap(), vec![p]);
+
+    // Removing the server keeps the backup record but drops the policy.
+    r.servers.delete(s.id).await.unwrap();
+    let orphan = r.backups.get(b.id).await.unwrap().unwrap();
+    assert_eq!(orphan.server_id, None);
+    assert_eq!(r.backups.list(None).await.unwrap().len(), 1);
+    assert!(r.backups.policies().await.unwrap().is_empty());
+    r.backups.delete(b.id).await.unwrap();
+    assert!(r.backups.get(b.id).await.unwrap().is_none());
+}

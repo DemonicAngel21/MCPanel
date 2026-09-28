@@ -24,6 +24,9 @@ pub struct AppSettings {
     pub console_buffer_lines: u32,
     /// Graceful-stop timeout used when quitting MCPanel.
     pub quit_stop_timeout_secs: u32,
+    /// Where new backups are written; `None` = the default backups directory. Only set
+    /// through [`SettingsService::set_backups_dir`] (from a folder the user picked).
+    pub backups_dir: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -33,6 +36,7 @@ impl Default for AppSettings {
             tray_notice_shown: false,
             console_buffer_lines: 20_000,
             quit_stop_timeout_secs: 90,
+            backups_dir: None,
         }
     }
 }
@@ -43,6 +47,9 @@ pub struct AppSettingsPatch {
     pub tray_notice_shown: Option<bool>,
     pub console_buffer_lines: Option<u32>,
     pub quit_stop_timeout_secs: Option<u32>,
+    /// Persisted form only; ignored by [`SettingsService::update`].
+    #[serde(default)]
+    pub backups_dir: Option<String>,
 }
 
 pub struct SettingsService {
@@ -85,7 +92,27 @@ impl SettingsService {
             ));
         }
         let mut s = self.get().await?;
-        apply(&mut s, patch);
+        apply(
+            &mut s,
+            AppSettingsPatch {
+                backups_dir: None,
+                ..patch
+            },
+        );
+        self.save(s).await
+    }
+
+    /// Choose the backups directory (`None` restores the default).
+    pub async fn set_backups_dir(
+        &self,
+        dir: Option<std::path::PathBuf>,
+    ) -> CoreResult<AppSettings> {
+        let mut s = self.get().await?;
+        s.backups_dir = dir.map(|d| d.to_string_lossy().to_string());
+        self.save(s).await
+    }
+
+    async fn save(&self, s: AppSettings) -> CoreResult<AppSettings> {
         let value = serde_json::to_value(&s).map_err(|e| CoreError::internal(e.to_string()))?;
         self.repo.set(KEY, &value).await?;
         self.events
@@ -106,5 +133,8 @@ fn apply(s: &mut AppSettings, p: AppSettingsPatch) {
     }
     if let Some(v) = p.quit_stop_timeout_secs {
         s.quit_stop_timeout_secs = v;
+    }
+    if p.backups_dir.is_some() {
+        s.backups_dir = p.backups_dir;
     }
 }

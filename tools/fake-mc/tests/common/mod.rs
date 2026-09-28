@@ -1,4 +1,7 @@
-//! Helpers shared by the integration tests.
+//! Helpers shared by the integration tests (each test crate uses a subset).
+#![allow(dead_code)]
+
+pub mod harness;
 
 use std::time::{Duration, Instant};
 

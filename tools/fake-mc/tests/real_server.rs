@@ -13,7 +13,8 @@
 
 mod common;
 
-use mcpanel_core::ids::JobId;
+use mcpanel_core::backup::CreateBackupRequest;
+use mcpanel_core::ids::{BackupId, JobId, ServerId};
 use mcpanel_core::jobs::JobStatus;
 use mcpanel_core::lifecycle::LifecycleState;
 use mcpanel_core::paths::AppPaths;
@@ -21,6 +22,26 @@ use mcpanel_core::server::CreateServerRequest;
 use mcpanel_core::{Core, CoreDeps};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+/// A failed assertion must not leave a real server running (it would also keep the
+/// test process alive, since the runtime waits for the console readers).
+struct KillOnPanic(Arc<Core>, ServerId);
+
+impl Drop for KillOnPanic {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let (core, id) = (Arc::clone(&self.0), self.1);
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let _ = core.servers.stop(id, true, "e2e").await;
+                    core.servers
+                        .wait_for_exit(id, Duration::from_secs(30))
+                        .await;
+                })
+            });
+        }
+    }
+}
 
 async fn wait_job(core: &Core, id: JobId) -> serde_json::Value {
     let start = Instant::now();
@@ -113,6 +134,7 @@ async fn create_start_and_stop_a_real_server() {
     let result = wait_job(&core, job).await;
     let id = result["serverId"].as_str().unwrap().parse().unwrap();
 
+    let _kill_on_panic = KillOnPanic(Arc::clone(&core), id);
     core.servers.start(id, "e2e").await.unwrap();
     let start = Instant::now();
     loop {
@@ -140,6 +162,35 @@ async fn create_start_and_stop_a_real_server() {
     eprintln!("ready after {:?}", start.elapsed());
     core.servers.send_command(id, "list").await.unwrap();
     tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // Live backup: save-off / save-all flush (confirmed by the real server) / save-on.
+    let job = core
+        .backups
+        .create(
+            CreateBackupRequest {
+                server_id: id,
+                note: None,
+            },
+            "e2e",
+        )
+        .await
+        .unwrap();
+    let backup_id: BackupId = wait_job(&core, job).await["backupId"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let backup = core.backups.get(backup_id).await.unwrap();
+    eprintln!(
+        "live backup: {} files, {} bytes, skipped {:?}",
+        backup.file_count, backup.size_bytes, backup.skipped
+    );
+    assert!(backup.live);
+    assert_eq!(
+        core.servers.view(id).await.unwrap().runtime.state,
+        LifecycleState::Running
+    );
+
     core.servers.stop(id, false, "e2e").await.unwrap();
     assert!(
         core.servers
@@ -153,6 +204,31 @@ async fn create_start_and_stop_a_real_server() {
     assert!(
         props.file_exists && props.properties.len() > 20,
         "server generated server.properties"
+    );
+
+    // Verify, restore, and boot the restored server.
+    let report = wait_job(&core, core.backups.verify(backup_id, "e2e").await.unwrap()).await;
+    assert_eq!(report["ok"], true, "{report}");
+    wait_job(&core, core.backups.restore(backup_id, "e2e").await.unwrap()).await;
+    core.servers.start(id, "e2e").await.unwrap();
+    let start = Instant::now();
+    while core.servers.view(id).await.unwrap().runtime.state != LifecycleState::Running {
+        assert!(
+            start.elapsed() < Duration::from_secs(600),
+            "restored server did not start"
+        );
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    eprintln!("restored server ready after {:?}", start.elapsed());
+    core.servers.stop(id, false, "e2e").await.unwrap();
+    assert!(
+        core.servers
+            .wait_for_exit(id, Duration::from_secs(120))
+            .await
+    );
+    assert_eq!(
+        core.servers.view(id).await.unwrap().runtime.last_exit_code,
+        Some(0)
     );
     drop(core);
     common::cleanup(&db, vec![data, servers]).await;

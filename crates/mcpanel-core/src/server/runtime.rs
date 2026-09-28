@@ -18,17 +18,33 @@ pub enum Operation {
     Importing,
     Deleting,
     EditingConfig,
+    BackingUp,
+    Restoring,
 }
 
 impl Operation {
-    /// Whether the server may be started while this operation is active.
+    /// Whether the server must have no process for this operation to begin.
+    pub fn requires_stopped(self) -> bool {
+        matches!(
+            self,
+            Self::Installing | Self::Importing | Self::Deleting | Self::Restoring
+        )
+    }
+
+    /// Whether the server may be started while this operation is active. A backup blocks
+    /// starts: a process started mid-backup would write files without `save-off`.
     pub fn blocks_start(self) -> bool {
-        matches!(self, Self::Installing | Self::Importing | Self::Deleting)
+        self.requires_stopped() || self == Self::BackingUp
     }
 
     /// Whether two operations may run concurrently on the same server.
     pub fn compatible_with(self, other: Operation) -> bool {
-        matches!((self, other), (Self::EditingConfig, Self::EditingConfig))
+        matches!(
+            (self, other),
+            (Self::EditingConfig, Self::EditingConfig)
+                | (Self::EditingConfig, Self::BackingUp)
+                | (Self::BackingUp, Self::EditingConfig)
+        )
     }
 }
 
@@ -58,6 +74,8 @@ pub(crate) struct Inner {
     pub start_pending: bool,
     /// Incremented for every spawned process so stale tasks can detect replacement.
     pub generation: u64,
+    /// When the last process of this session exited (drives "skip idle" backups).
+    pub last_exit_at: Option<Timestamp>,
 }
 
 pub struct ServerRuntime {
@@ -105,6 +123,7 @@ impl ServerRuntime {
                 operations: BTreeSet::new(),
                 start_pending: false,
                 generation: 0,
+                last_exit_at: None,
             }),
             exited: Notify::new(),
         })
@@ -142,7 +161,7 @@ impl ServerRuntime {
                 format!("Another operation is in progress ({conflict:?})"),
             ));
         }
-        if op.blocks_start() && i.state.has_process() {
+        if op.requires_stopped() && (i.state.has_process() || i.start_pending) {
             return Err(crate::error::CoreError::new(
                 crate::error::ErrorCode::ServerBusy,
                 "Stop the server first",
