@@ -1,7 +1,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
-import { Activity, Archive, Coffee, FolderInput, LayoutDashboard, Moon, Play, Plus, Server, Settings, Square, Sun } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  Coffee,
+  LayoutTemplate,
+  FolderInput,
+  LayoutDashboard,
+  Moon,
+  Play,
+  Plus,
+  Server,
+  Settings,
+  Square,
+  Sun,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -151,6 +165,9 @@ export function CommandPalette() {
                 </Item>
                 <Item value="backups" icon={<Archive />} onSelect={() => run(() => navigate({ to: "/backups" }))}>
                   Backups
+                </Item>
+                <Item value="templates" icon={<LayoutTemplate />} onSelect={() => run(() => navigate({ to: "/templates" }))}>
+                  Templates
                 </Item>
                 <Item value="java runtimes" icon={<Coffee />} onSelect={() => run(() => navigate({ to: "/java" }))}>
                   Java runtimes

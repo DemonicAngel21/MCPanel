@@ -18,6 +18,7 @@ export const qk = {
   files: (id: string, path: string) => ["servers", id, "files", path] as const,
   audit: (serverId: string | null) => ["audit", serverId] as const,
   jobs: ["jobs"] as const,
+  templates: ["templates"] as const,
   restartPolicy: (serverId: string) => ["servers", serverId, "restart-policy"] as const,
   crashes: (serverId: string) => ["servers", serverId, "crashes"] as const,
   content: (serverId: string) => ["servers", serverId, "content"] as const,
@@ -61,3 +62,4 @@ export const usePlayers = (serverId: string) => useQuery({ queryKey: qk.players(
 export const useContent = (serverId: string) => useQuery({ queryKey: qk.content(serverId), queryFn: () => api.content.list(serverId) });
 export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.restartPolicy(serverId), queryFn: () => api.crashes.policy(serverId) });
 export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });
+export const useTemplates = () => useQuery({ queryKey: qk.templates, queryFn: api.templates.list, staleTime: Infinity });

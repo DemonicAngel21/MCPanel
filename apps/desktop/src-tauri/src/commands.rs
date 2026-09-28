@@ -324,6 +324,37 @@ pub async fn servers_open_folder(s: State<'_, AppState>, id: String) -> R<()> {
         .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
 }
 
+// ──────────────────────────── templates ───────────────────────────
+
+#[tauri::command]
+pub fn templates_list(s: State<'_, AppState>) -> R<Vec<TemplateDto>> {
+    s.api.templates_list(&s.principal())
+}
+
+#[tauri::command]
+pub async fn templates_resolve(
+    s: State<'_, AppState>,
+    id: String,
+    software_id: String,
+    game_version: String,
+) -> R<ResolvedTemplateDto> {
+    s.api
+        .templates_resolve(&s.principal(), &id, &software_id, &game_version)
+        .await
+}
+
+#[tauri::command]
+pub async fn templates_apply(
+    s: State<'_, AppState>,
+    server_id: String,
+    id: String,
+    plugins: Vec<String>,
+) -> R<Vec<String>> {
+    s.api
+        .templates_apply(&s.principal(), &server_id, &id, plugins)
+        .await
+}
+
 // ───────────────────────────── crashes ────────────────────────────
 
 #[tauri::command]
