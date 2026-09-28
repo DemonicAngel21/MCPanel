@@ -417,7 +417,10 @@ export function ServerContent() {
           }
         />
         {list.entries.length === 0 && list.pending.length === 0 ? (
-          <EmptyState title={`No ${label.toLowerCase()} installed`} description={`Browse Modrinth and Hangar to add ${label.toLowerCase()}.`} />
+          <EmptyState
+            title={`No ${label.toLowerCase()} installed`}
+            description={`Browse ${list.providers.map((p) => p.displayName).join(" and ") || "a provider"} to add ${label.toLowerCase()}.`}
+          />
         ) : (
           <table className="w-full text-[13px]">
             <thead className="border-b border-border text-left text-xs text-muted">

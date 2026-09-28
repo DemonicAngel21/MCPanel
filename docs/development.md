@@ -81,6 +81,10 @@ cargo test -p fake-mc --test real_players -- --nocapture
 `real_content` installs plugins from Modrinth and Hangar onto a real Paper 1.21.11
 server and checks that Paper loads them (network access required).
 
+`real_fabric` creates Fabric servers for 26.3 and 1.21.4, installs mods from
+Modrinth and checks they load (`--test-threads 1` keeps the downloads sequential).
+`real_crash` kills a real server externally and checks that it is restarted.
+
 The player test client supports only protocol versions whose packet ids were verified (currently
 26.3 / protocol 777). Online-mode logins need a Minecraft account and are not automated.
 
