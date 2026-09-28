@@ -21,6 +21,7 @@ const TERMINAL_DIAGNOSES: &[&str] = &[
     "java_too_old",
     "jar_missing",
     "memory",
+    "jvm_option",
 ];
 
 /// Read one line, bounded to `max` bytes (longer output is split). Returns Ok(false) at EOF.

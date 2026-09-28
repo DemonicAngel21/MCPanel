@@ -1,0 +1,100 @@
+{
+  "$comment": "Built-in server templates. 'software' lists preferred server software in order (the first one the user can install is used). Property entries use the same 'since'/'until' version ranges as server-properties.json; entries that do not apply to the chosen Minecraft version are skipped. 'plugins' are suggestions the user can deselect; they are only offered for software that supports plugins. Templates never contain JVM flags: the provider's recommended flags are used.",
+  "version": 1,
+  "templates": [
+    {
+      "id": "survival",
+      "name": "Survival",
+      "description": "Classic survival on normal difficulty, backed up every 6 hours and restarted automatically after a crash.",
+      "icon": "trees",
+      "software": ["paper", "purpur", "vanilla"],
+      "memory_mb": { "min": 1024, "max": 4096 },
+      "properties": [
+        { "key": "difficulty", "value": "normal", "since": "1.14" },
+        { "key": "difficulty", "value": "2", "until": "1.14" },
+        { "key": "pvp", "value": "true" }
+      ],
+      "backups": { "interval_minutes": 360 },
+      "auto_restart": true,
+      "plugins": []
+    },
+    {
+      "id": "friends",
+      "name": "Friends only",
+      "description": "A private server: only players on the whitelist can join. Add your friends on the Players tab after creating it.",
+      "icon": "users",
+      "software": ["paper", "purpur", "vanilla"],
+      "memory_mb": { "min": 1024, "max": 4096 },
+      "properties": [
+        { "key": "white-list", "value": "true" },
+        { "key": "enforce-whitelist", "value": "true" },
+        { "key": "online-mode", "value": "true" },
+        { "key": "max-players", "value": "10" },
+        { "key": "spawn-protection", "value": "0" },
+        { "key": "difficulty", "value": "normal", "since": "1.14" },
+        { "key": "difficulty", "value": "2", "until": "1.14" }
+      ],
+      "backups": { "interval_minutes": 360 },
+      "auto_restart": true,
+      "plugins": []
+    },
+    {
+      "id": "creative",
+      "name": "Creative build world",
+      "description": "A flat creative world without monsters or PvP — for building together.",
+      "icon": "blocks",
+      "software": ["paper", "purpur", "vanilla"],
+      "memory_mb": { "min": 1024, "max": 3072 },
+      "properties": [
+        { "key": "gamemode", "value": "creative", "since": "1.14" },
+        { "key": "gamemode", "value": "1", "until": "1.14" },
+        { "key": "difficulty", "value": "peaceful", "since": "1.14" },
+        { "key": "difficulty", "value": "0", "until": "1.14" },
+        { "key": "level-type", "value": "minecraft:flat", "since": "1.19" },
+        { "key": "level-type", "value": "flat", "until": "1.19" },
+        { "key": "generate-structures", "value": "false" },
+        { "key": "spawn-monsters", "value": "false" },
+        { "key": "pvp", "value": "false" },
+        { "key": "allow-flight", "value": "true" }
+      ],
+      "backups": { "interval_minutes": 720 },
+      "auto_restart": true,
+      "plugins": []
+    },
+    {
+      "id": "hardcore",
+      "name": "Hardcore",
+      "description": "One life on hard difficulty: players who die become spectators. Backed up every 3 hours.",
+      "icon": "skull",
+      "software": ["paper", "purpur", "vanilla"],
+      "memory_mb": { "min": 1024, "max": 4096 },
+      "properties": [
+        { "key": "hardcore", "value": "true" },
+        { "key": "difficulty", "value": "hard", "since": "1.14" },
+        { "key": "difficulty", "value": "3", "until": "1.14" }
+      ],
+      "backups": { "interval_minutes": 180 },
+      "auto_restart": true,
+      "plugins": []
+    },
+    {
+      "id": "performance",
+      "name": "Large world, tuned",
+      "description": "Paper with conservative view and simulation distances for many players or big worlds, plus Chunky to pre-generate terrain.",
+      "icon": "gauge",
+      "software": ["paper", "purpur"],
+      "memory_mb": { "min": 2048, "max": 6144 },
+      "properties": [
+        { "key": "view-distance", "value": "8" },
+        { "key": "simulation-distance", "value": "6", "since": "1.18" },
+        { "key": "difficulty", "value": "normal", "since": "1.14" },
+        { "key": "difficulty", "value": "2", "until": "1.14" }
+      ],
+      "backups": { "interval_minutes": 360 },
+      "auto_restart": true,
+      "plugins": [
+        { "provider": "modrinth", "project": "chunky", "name": "Chunky", "reason": "Pre-generate the world so exploring does not cause lag" }
+      ]
+    }
+  ]
+}

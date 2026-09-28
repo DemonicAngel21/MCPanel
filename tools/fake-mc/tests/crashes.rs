@@ -219,7 +219,9 @@ async fn restart_waits_for_an_operation_that_holds_the_server() {
     // A large file so the backup takes a moment.
     let world = h.servers.path().join("busy").join("world");
     std::fs::create_dir_all(&world).unwrap();
-    let data: Vec<u8> = (0..48 * 1024 * 1024u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect();
+    let data: Vec<u8> = (0..48 * 1024 * 1024u32)
+        .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+        .collect();
     std::fs::write(world.join("big.mca"), data).unwrap();
     policy(&h, id, |p| p.delay_secs = 1).await;
     h.core.servers.start(id, "test").await.unwrap();
@@ -242,7 +244,11 @@ async fn restart_waits_for_an_operation_that_holds_the_server() {
         .unwrap();
     wait_new_process(&h, id, before).await;
     let j = h.core.jobs.get(job).await.unwrap().unwrap();
-    assert_eq!(j.status, mcpanel_core::jobs::JobStatus::Succeeded, "backup finished first");
+    assert_eq!(
+        j.status,
+        mcpanel_core::jobs::JobStatus::Succeeded,
+        "backup finished first"
+    );
     h.core.servers.stop(id, false, "test").await.unwrap();
     wait_state(&h, id, LifecycleState::Stopped, T).await;
     h.finish().await;

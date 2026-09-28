@@ -21,6 +21,7 @@ use crate::server_files::ServerFiles;
 use crate::settings::SettingsService;
 use crate::software::executor::PlanExecutor;
 use crate::software::{ProviderRegistry, VersionCatalog};
+use crate::templates::TemplateService;
 use std::sync::Arc;
 
 pub struct Repositories {
@@ -60,6 +61,7 @@ pub struct Core {
     pub players: Arc<PlayerService>,
     pub content: Arc<ContentService>,
     pub crashes: Arc<CrashService>,
+    pub templates: Arc<TemplateService>,
 }
 
 impl Core {
@@ -140,6 +142,14 @@ impl Core {
             events.clone(),
         );
         crashes.spawn_listener();
+        let templates = TemplateService::new(
+            Arc::clone(&servers),
+            Arc::clone(&backups),
+            Arc::clone(&crashes),
+            Arc::clone(&content),
+            Arc::clone(&audit),
+            Arc::clone(&versions),
+        );
 
         Ok(Arc::new(Core {
             paths: deps.paths,
@@ -157,6 +167,7 @@ impl Core {
             players,
             content,
             crashes,
+            templates,
         }))
     }
 }

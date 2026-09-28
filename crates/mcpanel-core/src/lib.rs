@@ -28,6 +28,7 @@ pub mod server;
 pub mod server_files;
 pub mod settings;
 pub mod software;
+pub mod templates;
 pub mod time;
 
 pub use crate::core::{Core, CoreDeps, Repositories};
