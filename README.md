@@ -66,8 +66,26 @@ cargo test --workspace
 pnpm build        # production build + NSIS installer
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, commit conventions and
-branching model.
+See [docs/development.md](docs/development.md) for isolated data directories, UI
+end-to-end runs with the `fake-mc` test double and the opt-in real-server test, and
+[CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, commit conventions and branching
+model.
+
+## What works today (v0.1 development)
+
+- Create Vanilla, Paper and Purpur servers (verified downloads, explicit EULA consent)
+  or import existing server folders
+- Start, stop (graceful, then forced after a timeout), restart; crash and error
+  diagnosis; servers keep running when MCPanel closes and are re-detected
+- Live console that stays responsive under heavy output, with filters, history and
+  autocomplete
+- File explorer and Monaco editor with safe paths, trash, zip/unzip, uploads
+- Version-aware `server.properties` editor, launch settings (Java, memory, JVM flags)
+- Java runtime detection, system and process metrics, activity log, Ctrl+K palette
+
+Planned for later versions: backups, plugins/mods, players, Playit.gg, Bedrock
+(Geyser/Floodgate), cloud backups, notifications — see the roadmap in the
+[specification](docs/architecture/README.md#25-roadmap).
 
 ## Security
 
