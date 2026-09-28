@@ -3,6 +3,7 @@
 use crate::audit::AuditLog;
 use crate::backup::{BackupService, BackupServiceDeps};
 use crate::content::{ContentService, ContentServiceDeps};
+use crate::crash::CrashService;
 use crate::error::CoreResult;
 use crate::events::EventBus;
 use crate::java::JavaManager;
@@ -11,8 +12,9 @@ use crate::monitoring::Monitor;
 use crate::paths::AppPaths;
 use crate::players::PlayerService;
 use crate::ports::{
-    AuditRepository, BackupRepository, ContentRepository, Downloader, JavaRuntimeRepository,
-    JobRepository, Platform, PlayerRepository, ProfileLookup, ServerRepository, SettingsRepository,
+    AuditRepository, BackupRepository, ContentRepository, CrashRepository, Downloader,
+    JavaRuntimeRepository, JobRepository, Platform, PlayerRepository, ProfileLookup,
+    ServerRepository, SettingsRepository,
 };
 use crate::server::{ServerManager, ServerManagerDeps};
 use crate::server_files::ServerFiles;
@@ -30,6 +32,7 @@ pub struct Repositories {
     pub backups: Arc<dyn BackupRepository>,
     pub players: Arc<dyn PlayerRepository>,
     pub content: Arc<dyn ContentRepository>,
+    pub crashes: Arc<dyn CrashRepository>,
 }
 
 pub struct CoreDeps {
@@ -56,6 +59,7 @@ pub struct Core {
     pub backups: Arc<BackupService>,
     pub players: Arc<PlayerService>,
     pub content: Arc<ContentService>,
+    pub crashes: Arc<CrashService>,
 }
 
 impl Core {
@@ -128,6 +132,14 @@ impl Core {
         });
         servers.set_launch_hook(Arc::clone(&content) as Arc<dyn crate::server::LaunchHook>);
         content.spawn_pending_applier();
+        let crashes = CrashService::new(
+            Arc::clone(&servers),
+            deps.repos.crashes,
+            Arc::clone(&backups),
+            Arc::clone(&audit),
+            events.clone(),
+        );
+        crashes.spawn_listener();
 
         Ok(Arc::new(Core {
             paths: deps.paths,
@@ -144,6 +156,7 @@ impl Core {
             backups,
             players,
             content,
+            crashes,
         }))
     }
 }

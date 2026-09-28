@@ -9,7 +9,8 @@
 //!
 //! Commands: `stop`, `crash`, `flood <n>`, `join <name>`, `leave <name>`, `say <text>`,
 //! `oom`, `hang` (stop reading stdin), `save-off`, `save-all [flush]`, `save-on`, and
-//! replies (only) to `op`, `deop`, `whitelist`, `ban`, `pardon`, `kick`.
+//! replies (only) to `op`, `deop`, `whitelist`, `ban`, `pardon`, `kick`; `watchdog` exits
+//! like a hung server, and `crash` writes a crash report with `"crash_report": true`.
 //!
 //! With `"world": true` it keeps `world/session.lock` locked like a real server, and
 //! `save-all` writes a save counter to `world/level.dat`.
@@ -30,6 +31,8 @@ struct Config {
     save_delay_ms: u64,
     /// Log command feedback and join/leave as "System chat: …" like Minecraft 26.x.
     system_chat: bool,
+    /// `crash` also writes a vanilla-style `crash-reports/` file.
+    crash_report: bool,
 }
 
 fn log(level: &str, msg: &str) {
@@ -105,7 +108,32 @@ fn main() {
                 log("INFO", "Saving worlds");
                 std::process::exit(0);
             }
+            "watchdog" => {
+                log(
+                    "ERROR",
+                    "A single server tick took 60.00 seconds (should be max 0.05)",
+                );
+                log(
+                    "ERROR",
+                    "Considering it to be crashed, server will forcibly shutdown.",
+                );
+                std::process::exit(1);
+            }
             "crash" => {
+                if cfg.crash_report {
+                    let _ = std::fs::create_dir_all("crash-reports");
+                    let _ = std::fs::write(
+                        "crash-reports/crash-2026-09-28_12.00.00-server.txt",
+                        "---- Minecraft Crash Report ----
+// Why did you do that?
+
+Time: 2026-09-28 12:00:00
+Description: Exception in server tick loop
+
+java.lang.IllegalStateException: boom
+",
+                    );
+                }
                 eprintln!(
                     "Exception in thread \"Server thread\" java.lang.IllegalStateException: boom"
                 );

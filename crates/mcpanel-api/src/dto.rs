@@ -9,6 +9,7 @@ use mcpanel_core::config::schema::{Applicability, PropertySchema, PropertyView};
 use mcpanel_core::console::{ConsoleBatch, ConsoleLine};
 use mcpanel_core::content::service::{ContentList, PendingChange, PendingKind};
 use mcpanel_core::content::{ContentProviderInfo, ContentVersion, ProjectSummary};
+use mcpanel_core::crash::{CrashEvent, RestartPolicy};
 use mcpanel_core::events::{DomainEvent, EventEnvelope};
 use mcpanel_core::files::service::{FileEntry, TextDocument};
 use mcpanel_core::java::JavaCompatibility;
@@ -899,6 +900,10 @@ pub enum EventDto {
     ContentChanged {
         server_id: String,
     },
+    CrashRecorded {
+        server_id: String,
+        action: String,
+    },
     JobUpdated {
         job_id: String,
         kind: String,
@@ -982,6 +987,10 @@ impl From<&EventEnvelope> for EventDto {
             },
             D::ContentChanged { server_id } => Self::ContentChanged {
                 server_id: server_id.to_string(),
+            },
+            D::CrashRecorded { server_id, action } => Self::CrashRecorded {
+                server_id: server_id.to_string(),
+                action: action.clone(),
             },
             D::JobUpdated {
                 job_id,
@@ -1699,5 +1708,66 @@ fn other_file(k: &PendingKind) -> String {
         PendingKind::Remove { file_name }
         | PendingKind::Disable { file_name }
         | PendingKind::Enable { file_name } => file_name.clone(),
+    }
+}
+
+// ─────────────────────────────── crashes ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RestartPolicyDto {
+    pub enabled: bool,
+    pub max_attempts: u32,
+    pub window_secs: u32,
+    pub delay_secs: u32,
+    pub stable_secs: u32,
+    pub crash_backup: bool,
+}
+
+impl From<RestartPolicy> for RestartPolicyDto {
+    fn from(p: RestartPolicy) -> Self {
+        Self {
+            enabled: p.enabled,
+            max_attempts: p.max_attempts,
+            window_secs: p.window_secs,
+            delay_secs: p.delay_secs,
+            stable_secs: p.stable_secs,
+            crash_backup: p.crash_backup,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CrashEventDto {
+    pub id: String,
+    pub occurred_at: i64,
+    pub exit_code: Option<i32>,
+    pub kind: String,
+    pub message: String,
+    pub attempt: u32,
+    /// "restart" | "gave_up" | "not_restartable" | "disabled"
+    pub action: String,
+    pub restart_at: Option<i64>,
+    pub crash_report: Option<String>,
+    pub console_tail: Vec<String>,
+}
+
+impl From<CrashEvent> for CrashEventDto {
+    fn from(e: CrashEvent) -> Self {
+        Self {
+            id: e.id,
+            occurred_at: e.occurred_at.millis(),
+            exit_code: e.exit_code,
+            kind: e.kind,
+            message: e.message,
+            attempt: e.attempt,
+            action: e.action.as_str().into(),
+            restart_at: e.restart_at.map(|t| t.millis()),
+            crash_report: e.crash_report,
+            console_tail: e.console_tail,
+        }
     }
 }

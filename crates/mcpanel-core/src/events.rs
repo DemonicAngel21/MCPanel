@@ -55,6 +55,11 @@ pub enum DomainEvent {
     PlayersChanged {
         server_id: ServerId,
     },
+    /// A crash was recorded; `action` is what the restart policy decided.
+    CrashRecorded {
+        server_id: ServerId,
+        action: String,
+    },
     /// Installed plugins/mods or queued content changes changed.
     ContentChanged {
         server_id: ServerId,

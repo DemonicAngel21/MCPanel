@@ -3,6 +3,7 @@
 
 use crate::backup::{BackupPolicy, BackupRecord};
 use crate::content::{ContentKind, InstalledContent, PendingChange};
+use crate::crash::{CrashEvent, RestartPolicy};
 use crate::error::{CoreResult, ErrorCode};
 use crate::ids::{BackupId, JavaRuntimeId, JobId, ServerId};
 use crate::jobs::{JobRecord, JobStatus};
@@ -96,6 +97,15 @@ pub trait ContentRepository: Send + Sync {
     async fn add_pending(&self, change: &PendingChange) -> CoreResult<()>;
     async fn remove_pending(&self, id: &str) -> CoreResult<()>;
     async fn servers_with_pending(&self) -> CoreResult<Vec<ServerId>>;
+}
+
+#[async_trait]
+pub trait CrashRepository: Send + Sync {
+    async fn policy(&self, server_id: ServerId) -> CoreResult<Option<RestartPolicy>>;
+    async fn save_policy(&self, policy: &RestartPolicy) -> CoreResult<()>;
+    async fn insert(&self, event: &CrashEvent) -> CoreResult<()>;
+    /// Newest first.
+    async fn recent(&self, server_id: ServerId, limit: u32) -> CoreResult<Vec<CrashEvent>>;
 }
 
 /// Aggregated play history of one player on one server.

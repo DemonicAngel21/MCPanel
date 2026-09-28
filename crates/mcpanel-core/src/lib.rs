@@ -11,6 +11,7 @@ pub mod config;
 pub mod console;
 pub mod content;
 pub mod core;
+pub mod crash;
 pub mod error;
 pub mod events;
 pub mod files;
