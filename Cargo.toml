@@ -28,7 +28,7 @@ mcpanel-providers = { path = "crates/mcpanel-providers" }
 mcpanel-platform = { path = "crates/mcpanel-platform" }
 
 # async / runtime
-tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal", "net"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 futures = "0.3"
 async-trait = "0.1"

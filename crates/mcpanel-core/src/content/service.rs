@@ -634,6 +634,19 @@ impl ContentService {
             .await
     }
 
+    /// Run an install inside another job (e.g. Bedrock setup); same pipeline as
+    /// [`Self::install`] without a job of its own.
+    pub async fn install_in_job(
+        &self,
+        server_id: ServerId,
+        req: &InstallRequest,
+        ctx: &JobContext,
+    ) -> CoreResult<serde_json::Value> {
+        let r = self.run_install(server_id, req, ctx).await;
+        self.changed(server_id);
+        r
+    }
+
     async fn run_install(
         &self,
         server_id: ServerId,

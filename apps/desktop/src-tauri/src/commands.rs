@@ -382,6 +382,40 @@ pub async fn crash_history(
     s.api.crash_history(&s.principal(), &server_id, limit).await
 }
 
+// ───────────────────────────── bedrock ────────────────────────────
+
+#[tauri::command]
+pub async fn bedrock_status(s: State<'_, AppState>, server_id: String) -> R<BedrockStatusDto> {
+    s.api.bedrock_status(&s.principal(), &server_id).await
+}
+
+#[tauri::command]
+pub async fn bedrock_enable(
+    s: State<'_, AppState>,
+    server_id: String,
+    request: BedrockEnableDto,
+) -> R<String> {
+    s.api
+        .bedrock_enable(&s.principal(), &server_id, request)
+        .await
+}
+
+#[tauri::command]
+pub async fn bedrock_configure(
+    s: State<'_, AppState>,
+    server_id: String,
+    settings: BedrockSettingsDto,
+) -> R<BedrockStatusDto> {
+    s.api
+        .bedrock_configure(&s.principal(), &server_id, settings)
+        .await
+}
+
+#[tauri::command]
+pub async fn bedrock_ping(s: State<'_, AppState>, server_id: String) -> R<BedrockPongDto> {
+    s.api.bedrock_ping(&s.principal(), &server_id).await
+}
+
 // ───────────────────────────── content ────────────────────────────
 
 #[tauri::command]

@@ -64,6 +64,10 @@ pub enum DomainEvent {
     ContentChanged {
         server_id: ServerId,
     },
+    /// Bedrock crossplay (Geyser) was set up or its settings changed.
+    BedrockChanged {
+        server_id: ServerId,
+    },
     JobUpdated {
         job_id: JobId,
         /// e.g. `server.create`, `backup.create`.

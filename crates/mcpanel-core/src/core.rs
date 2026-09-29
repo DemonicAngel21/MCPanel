@@ -62,6 +62,7 @@ pub struct Core {
     pub content: Arc<ContentService>,
     pub crashes: Arc<CrashService>,
     pub templates: Arc<TemplateService>,
+    pub bedrock: Arc<crate::bedrock::BedrockService>,
 }
 
 impl Core {
@@ -133,7 +134,7 @@ impl Core {
             audit: Arc::clone(&audit),
             events: events.clone(),
         });
-        servers.set_launch_hook(Arc::clone(&content) as Arc<dyn crate::server::LaunchHook>);
+        servers.add_launch_hook(Arc::clone(&content) as Arc<dyn crate::server::LaunchHook>);
         content.spawn_pending_applier();
         let crashes = CrashService::new(
             Arc::clone(&servers),
@@ -143,6 +144,13 @@ impl Core {
             events.clone(),
         );
         crashes.spawn_listener();
+        let bedrock = crate::bedrock::BedrockService::new(
+            Arc::clone(&servers),
+            Arc::clone(&content),
+            Arc::clone(&audit),
+            events.clone(),
+        );
+        servers.add_launch_hook(Arc::clone(&bedrock) as Arc<dyn crate::server::LaunchHook>);
         let templates = TemplateService::new(
             Arc::clone(&servers),
             Arc::clone(&backups),
@@ -169,6 +177,7 @@ impl Core {
             content,
             crashes,
             templates,
+            bedrock,
         }))
     }
 }
