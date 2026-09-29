@@ -4,11 +4,14 @@
 
 MCPanel makes running Minecraft servers on your own PC easy — create a server in a
 minute, start it, watch the live console, edit files and `server.properties` safely —
-while keeping the depth power users expect: per-server Java runtimes, JVM tuning,
-multiple servers, and (on the roadmap) backups, plugin/mod management, Playit.gg tunnels
-and one-click Bedrock support via Geyser/Floodgate.
+while keeping the depth power users expect: Vanilla, Paper, Purpur, Fabric, Quilt,
+NeoForge and Forge; per-server Java runtimes and JVM tuning; plugins and mods from
+Modrinth, Hangar, GeyserMC and SpigotMC; live, scheduled and encrypted backups; crash
+auto-restart with crash analysis; TPS/MSPT; one-click Bedrock crossplay with
+Geyser/Floodgate; notifications; and playit.gg guidance for playing over the internet.
 
-> **Status:** early development (pre-`v0.1.0`). Not ready for production use.
+> **Status:** feature-complete for the planned roadmap, in final polish/QA. Not yet
+> released. User guide: [`docs/user`](docs/user/README.md).
 
 ## Principles
 
