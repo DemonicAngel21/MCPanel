@@ -256,11 +256,24 @@ result. If the finding contradicts the specification, the spec is updated in the
 - Tunnel creation exists only in the agent's internal API client (`api_client`, e.g.
   `v1_tunnels_create`); playit.gg documents no third-party API. Decision: ADR-0007.
 
+## 2026-09-29 — TPS / MSPT commands
+
+- `/tick` was added in Java Edition 1.20.3 (23w43a) (minecraft.wiki, Commands/tick).
+- Real output (MCPanel console, commands sent on stdin):
+  - Vanilla 26.3: "System chat: The game is running normally", "System chat: Target tick
+    rate: 20.0 per second.", unprefixed "Average time per tick: 0.3ms (Target: 50.0ms)",
+    "System chat: Percentiles: P50: 0.3ms P95: 0.4ms P99: 1.4ms. Sample: 100".
+  - Vanilla 1.21.4: same without "System chat: " and with ", sample: 100".
+  - Paper 1.21.11: `tick query` as vanilla 1.21.4; `tps` → "TPS from last 1m, 5m, 15m:
+    20.0, 20.0, 20.0"; `mspt` → "Server tick times (avg/min/max) from last 5s, 10s, 1m:"
+    and "◴ 0.4/0.3/4.8, 1.0/0.3/35.9, 1.0/0.3/35.9".
+  - Fabric 26.2: `tick query` as vanilla 26.3.
+- Sampling through MCPanel verified on those three servers (`real_performance`).
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
-| Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
 | CurseForge API key terms and distribution flags | v0.3+ |
 | OneDrive (Graph), Dropbox, Google Drive APIs + app verification | v0.4 |
 | Adoptium API (Java downloader) | later |

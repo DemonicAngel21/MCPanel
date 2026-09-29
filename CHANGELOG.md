@@ -97,6 +97,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- TPS and MSPT (v0.4): running servers are asked every 15 s with `tick query`
+  (Minecraft 1.20.3+, including Fabric/Quilt/NeoForge/Forge) or Paper/Purpur's `tps` and
+  `mspt`; the overview shows the values with 30-minute sparklines. Vanilla TPS is
+  labelled as calculated from MSPT. The replies are kept out of the console view; a
+  server that does not answer is not asked again until it restarts. Can be turned off
+  in Settings.
 - Notifications (v0.3): an inbox (bell in the rail, unread count, mark read, clear) and
   Windows desktop notifications for crashes (with what the restart policy did), failed
   backups, other failed tasks and — opt-in — player joins. Settings has a rule per
