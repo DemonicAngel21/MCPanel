@@ -81,7 +81,13 @@ function ProviderRow({ p }: { p: CloudStatusDto }) {
       <div className="min-w-0">
         <p className="flex items-center gap-2 text-[13px] text-fg">
           {p.displayName}
-          {!p.configured ? (
+          {!p.configured && p.connected ? (
+            <Tooltip
+              content={`This build of MCPanel has no ${p.displayName} app registration (${p.clientIdVariable}), so it cannot use the linked account. You can still disconnect it.`}
+            >
+              <Badge tone="warning">Not usable in this build</Badge>
+            </Tooltip>
+          ) : !p.configured ? (
             <Tooltip content={`This build of MCPanel has no ${p.displayName} app registration yet (${p.clientIdVariable}).`}>
               <Badge tone="neutral">Not configured</Badge>
             </Tooltip>
@@ -121,11 +127,13 @@ function ProviderRow({ p }: { p: CloudStatusDto }) {
           </>
         ) : p.connected ? (
           <>
-            <Tooltip content="Check the connection">
-              <Button size="icon-sm" variant="ghost" aria-label={`Check ${p.displayName} connection`} onClick={check} disabled={busy}>
-                {busy ? <Spinner /> : <RefreshCw />}
-              </Button>
-            </Tooltip>
+            {p.configured && (
+              <Tooltip content="Check the connection">
+                <Button size="icon-sm" variant="ghost" aria-label={`Check ${p.displayName} connection`} onClick={check} disabled={busy}>
+                  {busy ? <Spinner /> : <RefreshCw />}
+                </Button>
+              </Tooltip>
+            )}
             <Button size="sm" variant="ghost" onClick={() => setConfirm(true)}>
               <Unlink /> Disconnect
             </Button>
