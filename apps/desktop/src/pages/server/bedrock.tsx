@@ -52,7 +52,8 @@ function SetupCard({ serverId, status }: { serverId: string; status: BedrockStat
     setBusy(true);
     try {
       const job = await waitForJob(await api.bedrock.enable(serverId, { floodgate, viaVersion, port: Number(port) || null }));
-      if (job.status === "succeeded") toast.success(status.running ? "Geyser is ready — restart the server to activate it" : "Geyser is ready — start the server");
+      if (job.status === "succeeded")
+        toast.success(status.running ? "Geyser is ready — restart the server to activate it" : "Geyser is ready — start the server");
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -61,7 +62,10 @@ function SetupCard({ serverId, status }: { serverId: string; status: BedrockStat
   };
   return (
     <Card>
-      <CardHeader title="Set up Bedrock crossplay" description="Installs Geyser so phones, consoles and Windows Bedrock players can join this Java server." />
+      <CardHeader
+        title="Set up Bedrock crossplay"
+        description="Installs Geyser so phones, consoles and Windows Bedrock players can join this Java server."
+      />
       <div className="space-y-4 p-4">
         <label className="flex items-start gap-2 text-xs text-fg">
           <Checkbox checked={floodgate} onCheckedChange={(c) => setFloodgate(c === true)} className="mt-0.5" />
@@ -177,8 +181,8 @@ function ConnectionCard({ serverId, status }: { serverId: string; status: Bedroc
           <div className="flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-fg">
             <CheckCircle2 className="size-4 text-accent" />
             <span>
-              Bedrock listener answered in {pong.latencyMs} ms: <b>{pong.motd}</b> · Bedrock {pong.version} · {pong.players ?? 0}/{pong.maxPlayers ?? "?"}{" "}
-              players
+              Bedrock listener answered in {pong.latencyMs} ms: <b>{pong.motd}</b> · Bedrock {pong.version} · {pong.players ?? 0}/
+              {pong.maxPlayers ?? "?"} players
             </span>
           </div>
         )}
@@ -202,7 +206,11 @@ export function ServerBedrock() {
   if (!status.supported) {
     return (
       <PageBody className="max-w-3xl">
-        <EmptyState icon={<Smartphone />} title="Bedrock crossplay is not available for this server" description={status.unsupportedReason ?? undefined} />
+        <EmptyState
+          icon={<Smartphone />}
+          title="Bedrock crossplay is not available for this server"
+          description={status.unsupportedReason ?? undefined}
+        />
       </PageBody>
     );
   }

@@ -382,6 +382,41 @@ pub async fn crash_history(
     s.api.crash_history(&s.principal(), &server_id, limit).await
 }
 
+// ──────────────────────────── notifications ───────────────────────
+
+#[tauri::command]
+pub async fn notifications_list(s: State<'_, AppState>, limit: u32) -> R<Vec<NotificationDto>> {
+    s.api.notifications_list(&s.principal(), limit).await
+}
+
+#[tauri::command]
+pub async fn notifications_unread(s: State<'_, AppState>) -> R<u32> {
+    s.api.notifications_unread(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn notifications_mark_read(s: State<'_, AppState>, ids: Option<Vec<String>>) -> R<()> {
+    s.api.notifications_mark_read(&s.principal(), ids).await
+}
+
+#[tauri::command]
+pub async fn notifications_clear(s: State<'_, AppState>) -> R<()> {
+    s.api.notifications_clear(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn notification_prefs(s: State<'_, AppState>) -> R<NotificationPrefsDto> {
+    s.api.notification_prefs(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn notification_prefs_update(
+    s: State<'_, AppState>,
+    prefs: NotificationPrefsDto,
+) -> R<NotificationPrefsDto> {
+    s.api.notification_prefs_update(&s.principal(), prefs).await
+}
+
 // ───────────────────────────── tunnels ────────────────────────────
 
 #[tauri::command]

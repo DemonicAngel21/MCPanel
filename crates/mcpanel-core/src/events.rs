@@ -89,6 +89,18 @@ pub enum DomainEvent {
         backup_id: BackupId,
     },
     AuditRecorded,
+    /// A notification was produced; the host shows it on the desktop if `desktop`.
+    NotificationCreated {
+        id: String,
+        server_id: Option<ServerId>,
+        severity: String,
+        title: String,
+        body: String,
+        desktop: bool,
+        inbox: bool,
+    },
+    /// Inbox entries were read or cleared.
+    NotificationsChanged,
 }
 
 #[derive(Debug, Clone, Serialize)]

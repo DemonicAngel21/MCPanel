@@ -218,6 +218,10 @@ e.g. `plugins/floodgate/key.pem` and loader equivalents). Highly sensitive files
   If no supported tunnel-creation API exists, fall back to agent control + claim flow +
   dashboard deep-link. **No undocumented/private APIs; never claim automation that
   isn't there.** [VERIFY in a dedicated spike before v0.3]
+- Notifications (`notify`): a policy turns events (crash recorded, job failed, player
+  joined) into drafts; per-category rules (`inbox`, `desktop`) decide whether a draft
+  is stored in the `notifications` table (newest 500 kept) and/or announced to the host
+  as `NotificationCreated`, which shows the Windows notification.
 - Bedrock: `BedrockSetupPlanner` (data-driven table per software/topology), Geyser +
   Floodgate installation, targeted config patching, RakNet unconnected-ping probe.
 

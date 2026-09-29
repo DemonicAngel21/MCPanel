@@ -5,10 +5,61 @@ import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Card, CardHeader, Field, Input } from "@/components/ui/primitives";
+import { Card, CardHeader, Checkbox, Field, Input } from "@/components/ui/primitives";
+import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import { api } from "@/lib/api";
-import { qk, useAppInfo, useSettings } from "@/lib/queries";
+import { qk, useAppInfo, useNotificationPrefs, useSettings } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
+
+const RULES: { key: keyof NotificationPrefsDto; label: string; description: string }[] = [
+  { key: "crash", label: "A server crashes", description: "With what the restart policy did about it." },
+  { key: "backupFailed", label: "A backup fails", description: "Manual and scheduled backups." },
+  { key: "taskFailed", label: "Another task fails", description: "Installs, restores, server creation, Bedrock setup." },
+  { key: "playerJoined", label: "A player joins", description: "Any server managed by MCPanel." },
+];
+
+function NotificationRules() {
+  const qc = useQueryClient();
+  const { data: prefs } = useNotificationPrefs();
+  if (!prefs) return null;
+  const set = async (key: keyof NotificationPrefsDto, channel: "inbox" | "desktop", on: boolean) => {
+    try {
+      const next = await api.notifications.updatePrefs({ ...prefs, [key]: { ...prefs[key], [channel]: on } });
+      qc.setQueryData(qk.notificationPrefs, next);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+  return (
+    <Card>
+      <CardHeader title="Notifications" description="Choose what goes to the inbox (bell icon) and what Windows shows as a desktop notification." />
+      <table className="w-full text-[13px]">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-muted">
+            <th className="px-4 py-2 font-normal">When</th>
+            <th className="w-20 px-2 py-2 text-center font-normal">Inbox</th>
+            <th className="w-20 px-2 py-2 text-center font-normal">Desktop</th>
+          </tr>
+        </thead>
+        <tbody>
+          {RULES.map((r) => (
+            <tr key={r.key} className="border-b border-border last:border-b-0">
+              <td className="px-4 py-2.5">
+                <p className="text-fg">{r.label}</p>
+                <p className="text-xs text-muted">{r.description}</p>
+              </td>
+              {(["inbox", "desktop"] as const).map((c) => (
+                <td key={c} className="px-2 py-2.5 text-center">
+                  <Checkbox aria-label={`${r.label}: ${c}`} checked={prefs[r.key][c]} onCheckedChange={(v) => void set(r.key, c, v === true)} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
 
 function Row({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
   return (
@@ -105,13 +156,16 @@ export function SettingsPage() {
           </div>
         </Card>
 
+        <NotificationRules />
+
         <Card>
           <CardHeader title="Privacy" />
           <div className="flex items-start gap-3 px-4 py-3 text-xs text-muted">
             <Shield className="mt-0.5 size-4 shrink-0 text-accent" />
             <p>
-              MCPanel has <span className="text-fg">no telemetry</span>. It contacts the internet only to download server software and version
-              information from the official providers (Mojang, PaperMC, PurpurMC). It does not open any network port.
+              MCPanel has <span className="text-fg">no telemetry</span>. It contacts the internet only for what you ask it to do: server software and
+              version information from the official providers (Mojang, PaperMC, PurpurMC, FabricMC, QuiltMC, NeoForged, MinecraftForge), plugins and
+              mods from Modrinth, Hangar and GeyserMC, and player profiles from Mojang. It does not open any network port.
             </p>
           </div>
         </Card>

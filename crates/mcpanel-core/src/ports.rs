@@ -100,6 +100,19 @@ pub trait ContentRepository: Send + Sync {
 }
 
 #[async_trait]
+pub trait NotificationRepository: Send + Sync {
+    async fn insert(&self, n: &crate::notify::Notification) -> CoreResult<()>;
+    /// Newest first.
+    async fn list(&self, limit: u32) -> CoreResult<Vec<crate::notify::Notification>>;
+    async fn unread_count(&self) -> CoreResult<u32>;
+    /// `None` marks everything read.
+    async fn mark_read(&self, ids: Option<&[String]>) -> CoreResult<()>;
+    async fn clear(&self) -> CoreResult<()>;
+    /// Keep only the newest `keep` entries.
+    async fn prune(&self, keep: u32) -> CoreResult<()>;
+}
+
+#[async_trait]
 pub trait CrashRepository: Send + Sync {
     async fn policy(&self, server_id: ServerId) -> CoreResult<Option<RestartPolicy>>;
     async fn save_policy(&self, policy: &RestartPolicy) -> CoreResult<()>;

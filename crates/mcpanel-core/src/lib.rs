@@ -22,6 +22,7 @@ pub mod jobs;
 pub mod lifecycle;
 pub mod model;
 pub mod monitoring;
+pub mod notify;
 pub mod paths;
 pub mod players;
 pub mod ports;

@@ -24,6 +24,9 @@ export const qk = {
   content: (serverId: string) => ["servers", serverId, "content"] as const,
   bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   tunnel: ["tunnel"] as const,
+  notifications: ["notifications"] as const,
+  unreadNotifications: ["notifications", "unread"] as const,
+  notificationPrefs: ["notifications", "prefs"] as const,
   players: (serverId: string) => ["servers", serverId, "players"] as const,
   backups: (serverId: string | null) => ["backups", serverId] as const,
   backupPolicy: (serverId: string) => ["backups", "policy", serverId] as const,
@@ -63,6 +66,9 @@ export const useBackupLocation = () => useQuery({ queryKey: qk.backupLocation, q
 export const usePlayers = (serverId: string) => useQuery({ queryKey: qk.players(serverId), queryFn: () => api.players.get(serverId) });
 export const useContent = (serverId: string) => useQuery({ queryKey: qk.content(serverId), queryFn: () => api.content.list(serverId) });
 export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.restartPolicy(serverId), queryFn: () => api.crashes.policy(serverId) });
+export const useNotifications = (enabled: boolean) => useQuery({ queryKey: qk.notifications, queryFn: () => api.notifications.list(100), enabled });
+export const useUnreadNotifications = () => useQuery({ queryKey: qk.unreadNotifications, queryFn: api.notifications.unread });
+export const useNotificationPrefs = () => useQuery({ queryKey: qk.notificationPrefs, queryFn: api.notifications.prefs });
 export const useTunnel = () => useQuery({ queryKey: qk.tunnel, queryFn: api.tunnels.status, staleTime: 15_000 });
 export const useBedrock = (serverId: string) => useQuery({ queryKey: qk.bedrock(serverId), queryFn: () => api.bedrock.status(serverId) });
 export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });

@@ -49,6 +49,10 @@ function handle(qc: QueryClient, e: EventDto) {
       void qc.invalidateQueries({ queryKey: qk.content(e.serverId) });
       void qc.invalidateQueries({ queryKey: qk.bedrock(e.serverId) });
       break;
+    case "notificationCreated":
+    case "notificationsChanged":
+      void qc.invalidateQueries({ queryKey: qk.notifications });
+      break;
     case "bedrockChanged":
       void qc.invalidateQueries({ queryKey: qk.bedrock(e.serverId) });
       break;

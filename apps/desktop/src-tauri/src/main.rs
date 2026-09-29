@@ -74,13 +74,19 @@ fn forward_events(app: tauri::AppHandle, api: Arc<Api>) {
                             | EventDto::ServerDeleted { .. }
                             | EventDto::ServerUpdated { .. }
                     );
-                    if let EventDto::ServerCrashed {
-                        server_id,
-                        diagnosis,
+                    // Desktop notifications follow the user's notification rules.
+                    if let EventDto::NotificationCreated {
+                        title,
+                        body,
+                        desktop: true,
                         ..
                     } = &dto
                     {
-                        notify_crash(&app, &api, server_id, diagnosis.clone()).await;
+                        let mut n = app.notification().builder().title(title);
+                        if !body.is_empty() {
+                            n = n.body(body);
+                        }
+                        let _ = n.show();
                     }
                     let _ = app.emit("mcpanel://event", dto);
                     if refresh_tray {
@@ -94,25 +100,6 @@ fn forward_events(app: tauri::AppHandle, api: Arc<Api>) {
             }
         }
     });
-}
-
-async fn notify_crash(
-    app: &tauri::AppHandle,
-    api: &Api,
-    server_id: &str,
-    diagnosis: Option<String>,
-) {
-    let name = api
-        .servers_get(&mcpanel_api::Principal::LocalUser, server_id)
-        .await
-        .map(|s| s.name)
-        .unwrap_or_else(|_| "A server".into());
-    let _ = app
-        .notification()
-        .builder()
-        .title(format!("{name} stopped unexpectedly"))
-        .body(diagnosis.unwrap_or_else(|| "Open MCPanel to see the console output.".into()))
-        .show();
 }
 
 fn main() {
@@ -207,6 +194,12 @@ fn main() {
             commands::restart_policy_update,
             commands::crash_history,
             commands::tunnel_status,
+            commands::notifications_list,
+            commands::notifications_unread,
+            commands::notifications_mark_read,
+            commands::notifications_clear,
+            commands::notification_prefs,
+            commands::notification_prefs_update,
             commands::bedrock_status,
             commands::bedrock_enable,
             commands::bedrock_configure,

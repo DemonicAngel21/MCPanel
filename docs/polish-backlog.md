@@ -31,5 +31,7 @@ Functional bugs are fixed immediately and do not belong here.
 | Templates | Template cards have no preview of the resolved values for the newest version. | v0.2 templates |
 | Fabric | The software line shows the loader as "build #0.19.5"; label it "Loader 0.19.5" for Fabric. | v0.2 fabric |
 | Create wizard | The download line shows the weakest hash of a multi-file install (Fabric: SHA-1 of the Mojang jar) without saying the libraries are SHA-512. | v0.2 fabric |
+| Notifications | The inbox popover fades in from transparent; a screenshot mid-animation looks washed out. Consider a shorter fade. | v0.3 notifications |
+| Settings | The Privacy card lists providers by hand; derive it from the registered providers. | v0.3 notifications |
 | Bedrock | Geyser passes the Java MOTD through with quotes (`"A Minecraft Server"`); the connection test shows them verbatim. | v0.3 bedrock |
 | Bedrock | The connection card could show this computer's LAN IP next to the Bedrock port (the Overview card already knows it). | v0.3 bedrock |
