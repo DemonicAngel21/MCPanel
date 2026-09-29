@@ -68,6 +68,7 @@ pub struct Core {
     pub tunnels: Arc<crate::tunnels::PlayitTunnel>,
     pub notifications: Arc<crate::notify::NotificationService>,
     pub encryption: Arc<crate::crypto::EncryptionService>,
+    pub cloud: Arc<crate::cloud::CloudService>,
 }
 
 impl Core {
@@ -113,7 +114,7 @@ impl Core {
         monitor.spawn(Arc::clone(&servers));
         monitor.spawn_tick_sampler(Arc::clone(&servers), Arc::clone(&settings));
         let encryption = crate::crypto::EncryptionService::new(
-            deps.secrets,
+            Arc::clone(&deps.secrets),
             Arc::clone(&deps.repos.settings),
             events.clone(),
         );
@@ -184,6 +185,12 @@ impl Core {
             Arc::clone(&versions),
         );
 
+        let cloud = crate::cloud::CloudService::new(
+            servers.registry().cloud_providers().to_vec(),
+            Arc::clone(&deps.secrets),
+            Arc::clone(&deps.repos.settings),
+            events.clone(),
+        );
         let tunnels = Arc::new(crate::tunnels::PlayitTunnel::new(Arc::clone(
             &deps.platform,
         )));
@@ -208,6 +215,7 @@ impl Core {
             tunnels,
             notifications,
             encryption,
+            cloud,
         }))
     }
 }

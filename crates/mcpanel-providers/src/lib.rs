@@ -4,6 +4,7 @@
 //! `mcpanel-core`. Every external API used here is recorded in
 //! `docs/architecture/verification-log.md`.
 
+pub mod cloud;
 mod detect;
 pub mod fabric;
 pub mod forge;
@@ -57,6 +58,19 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     r.register_content(Arc::new(hangar::Hangar::new(http.clone())));
     r.register_content(Arc::new(geysermc::GeyserMc::new(http.clone())));
     r.register_content(Arc::new(spiget::Spiget::new(http.clone())));
+    let ids = cloud::CloudClientIds::from_env();
+    r.register_cloud(Arc::new(cloud::google_drive::GoogleDrive::new(
+        http.clone(),
+        ids.google,
+    )));
+    r.register_cloud(Arc::new(cloud::onedrive::OneDrive::new(
+        http.clone(),
+        ids.microsoft,
+    )));
+    r.register_cloud(Arc::new(cloud::dropbox::Dropbox::new(
+        http.clone(),
+        ids.dropbox,
+    )));
     r
 }
 

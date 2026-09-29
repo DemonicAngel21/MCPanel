@@ -402,6 +402,59 @@ pub async fn diagnostics_export(
         .await
 }
 
+// ─────────────────────────────── cloud ────────────────────────────
+
+#[tauri::command]
+pub async fn cloud_list(s: State<'_, AppState>) -> R<Vec<CloudStatusDto>> {
+    s.api.cloud_list(&s.principal()).await
+}
+
+/// Sign-in hosts the browser may be sent to (the providers' authorization endpoints).
+const CLOUD_AUTH_HOSTS: &[&str] = &[
+    "accounts.google.com",
+    "login.microsoftonline.com",
+    "www.dropbox.com",
+];
+
+/// Start a sign-in and open the provider's page in the system browser. Returns the flow id.
+#[tauri::command]
+pub async fn cloud_connect(app: AppHandle, s: State<'_, AppState>, provider: String) -> R<String> {
+    let (flow, url) = s.api.cloud_begin_connect(&s.principal(), &provider).await?;
+    let ok = tauri::Url::parse(&url).is_ok_and(|u| {
+        u.scheme() == "https" && u.host_str().is_some_and(|h| CLOUD_AUTH_HOSTS.contains(&h))
+    });
+    if !ok {
+        s.api.cloud_cancel(&s.principal(), &flow)?;
+        return Err(ApiError::invalid("Unexpected sign-in address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(e) = app.opener().open_url(url, None::<&str>) {
+        s.api.cloud_cancel(&s.principal(), &flow)?;
+        return Err(ApiError::new("IO", format!("Cannot open the browser: {e}")));
+    }
+    Ok(flow)
+}
+
+#[tauri::command]
+pub fn cloud_flow(s: State<'_, AppState>, flow_id: String) -> R<CloudFlowDto> {
+    s.api.cloud_flow(&s.principal(), &flow_id)
+}
+
+#[tauri::command]
+pub fn cloud_cancel(s: State<'_, AppState>, flow_id: String) -> R<()> {
+    s.api.cloud_cancel(&s.principal(), &flow_id)
+}
+
+#[tauri::command]
+pub async fn cloud_check(s: State<'_, AppState>, provider: String) -> R<CloudStatusDto> {
+    s.api.cloud_check(&s.principal(), &provider).await
+}
+
+#[tauri::command]
+pub async fn cloud_disconnect(s: State<'_, AppState>, provider: String) -> R<String> {
+    s.api.cloud_disconnect(&s.principal(), &provider).await
+}
+
 // ───────────────────────────── encryption ─────────────────────────
 
 #[tauri::command]
@@ -770,6 +823,9 @@ pub fn open_external(app: AppHandle, url: String) -> R<()> {
         "hangar.papermc.io",
         "geysermc.org",
         "www.spigotmc.org",
+        "myaccount.google.com",
+        "account.live.com",
+        "www.dropbox.com",
         "playit.gg",
     ];
     let host_ok = tauri::Url::parse(&url).is_ok_and(|u| {

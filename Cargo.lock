@@ -3069,6 +3069,7 @@ dependencies = [
  "mcpanel-core",
  "md-5 0.10.6",
  "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
  "sha1 0.10.7",

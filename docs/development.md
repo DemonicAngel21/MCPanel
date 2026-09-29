@@ -96,6 +96,25 @@ their official installers (several minutes; run with `--test-threads 1`).
 The player test client supports only protocol versions whose packet ids were verified (currently
 26.3 / protocol 777). Online-mode logins need a Minecraft account and are not automated.
 
+## Cloud storage app registrations
+
+Cloud sign-in needs MCPanel's own OAuth app registrations (public clients, no secret).
+Their client IDs are **not** stored in the repository. MCPanel reads, in this order:
+
+1. the runtime environment variable, then
+2. the value compiled into the build from the same variable.
+
+| Provider | Variable |
+|---|---|
+| Google Drive | `MCPANEL_GOOGLE_CLIENT_ID` |
+| OneDrive | `MCPANEL_MICROSOFT_CLIENT_ID` |
+| Dropbox | `MCPANEL_DROPBOX_CLIENT_ID` |
+
+Development: set them in the shell before `pnpm dev`. Release: set them in the build
+environment (CI secrets) before `pnpm build`; they end up in the binary, which is fine for
+public client IDs. Providers without an ID show "Not configured". Registration details:
+docs/architecture/verification-log.md ("Cloud storage OAuth").
+
 ## Accessibility check
 
 With `pnpm dev` running for CDP (see above): `node apps/desktop/scripts/cdp.mjs

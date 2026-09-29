@@ -1182,6 +1182,68 @@ impl Api {
         Ok(n as u32)
     }
 
+    // ─────────────────────────────── cloud ────────────────────────────────
+
+    pub async fn cloud_list(&self, p: &Principal) -> ApiResult<Vec<CloudStatusDto>> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self
+            .core
+            .cloud
+            .list()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    /// Start a sign-in; returns (flow id, authorization URL for the system browser).
+    pub async fn cloud_begin_connect(
+        &self,
+        p: &Principal,
+        provider: &str,
+    ) -> ApiResult<(String, String)> {
+        p.authorize(Permission::BackupsManage)?;
+        let s = self.core.cloud.begin_connect(provider).await?;
+        Ok((s.flow_id, s.authorize_url))
+    }
+
+    pub fn cloud_flow(&self, p: &Principal, flow_id: &str) -> ApiResult<CloudFlowDto> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self.core.cloud.flow(flow_id)?.into())
+    }
+
+    pub fn cloud_cancel(&self, p: &Principal, flow_id: &str) -> ApiResult<()> {
+        p.authorize(Permission::BackupsManage)?;
+        self.core.cloud.cancel_connect(flow_id);
+        Ok(())
+    }
+
+    pub async fn cloud_check(&self, p: &Principal, provider: &str) -> ApiResult<CloudStatusDto> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self.core.cloud.check(provider).await?.into())
+    }
+
+    /// Returns "revoked" or "not_supported" (remove access in the provider's settings).
+    pub async fn cloud_disconnect(&self, p: &Principal, provider: &str) -> ApiResult<String> {
+        p.authorize(Permission::BackupsManage)?;
+        let outcome = self.core.cloud.disconnect(provider).await?;
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                "cloud.disconnect",
+                None,
+                Some(provider.to_string()),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({}),
+            )
+            .await;
+        Ok(match outcome {
+            mcpanel_core::cloud::RevokeOutcome::Revoked => "revoked".into(),
+            mcpanel_core::cloud::RevokeOutcome::NotSupported => "not_supported".into(),
+        })
+    }
+
     // ───────────────────────────── encryption ─────────────────────────────
 
     pub async fn encryption_status(&self, p: &Principal) -> ApiResult<EncryptionStatusDto> {

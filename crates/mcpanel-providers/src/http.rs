@@ -171,6 +171,33 @@ impl HttpClient {
         read_capped(resp, max).await
     }
 
+    /// Send a request and return the status and (size-capped) body without judging the
+    /// status — OAuth and cloud APIs put error details in error responses.
+    pub async fn send_raw(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        bearer: Option<&str>,
+        body: Option<(&str, String)>,
+    ) -> CoreResult<(u16, Vec<u8>)> {
+        let mut req = self
+            .client
+            .request(method, url)
+            .timeout(Duration::from_secs(30));
+        if let Some(t) = bearer {
+            req = req.bearer_auth(t);
+        }
+        if let Some((content_type, b)) = body {
+            req = req
+                .header(reqwest::header::CONTENT_TYPE, content_type)
+                .body(b);
+        }
+        let resp = req.send().await.map_err(|e| net_err("Request failed", e))?;
+        let status = resp.status().as_u16();
+        let bytes = read_capped(resp, 4 * 1024 * 1024).await?;
+        Ok((status, bytes))
+    }
+
     pub fn inner(&self) -> &reqwest::Client {
         &self.client
     }

@@ -215,6 +215,15 @@ e.g. `plugins/floodgate/key.pem` and loader equivalents). Highly sensitive files
   `CloudStorageProvider`; OAuth 2 PKCE + loopback redirect using **MCPanel's own app
   registrations** (public clients, no secrets). App-verification requirements per
   provider are [VERIFY] before v0.4.
+- Implemented (connection foundation): `cloud::CloudStorageProvider` (exchange, refresh,
+  account, revoke) with Google Drive / OneDrive / Dropbox adapters; `CloudService` binds
+  the loopback listener, builds the PKCE authorization URL, checks `state`, stores the
+  refresh token in the `SecretStore` and the account name in settings; access tokens are
+  cached in memory and refreshed a minute before expiry. Client IDs come from
+  `MCPANEL_GOOGLE_CLIENT_ID`, `MCPANEL_MICROSOFT_CLIENT_ID`, `MCPANEL_DROPBOX_CLIENT_ID`
+  (runtime environment, else baked in at build time); a provider without one shows as
+  "not configured". Uploading backups is the next step. Verified requirements:
+  verification-log.md, "Cloud storage OAuth".
 
 ## 10. Networking
 

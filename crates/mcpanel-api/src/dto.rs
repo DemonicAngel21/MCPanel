@@ -972,6 +972,9 @@ pub enum EventDto {
         inbox: bool,
     },
     NotificationsChanged,
+    CloudChanged {
+        provider: String,
+    },
     BackupsChanged {
         server_id: Option<String>,
         backup_id: String,
@@ -1088,6 +1091,9 @@ impl From<&EventEnvelope> for EventDto {
                 inbox: *inbox,
             },
             D::NotificationsChanged => Self::NotificationsChanged,
+            D::CloudChanged { provider } => Self::CloudChanged {
+                provider: provider.clone(),
+            },
             D::BackupsChanged {
                 server_id,
                 backup_id,
@@ -1822,6 +1828,80 @@ pub struct DiskUsageDto {
     #[ts(type = "number | null")]
     pub drive_total_bytes: Option<u64>,
     pub truncated: bool,
+}
+
+// ─────────────────────────────── cloud ────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CloudStatusDto {
+    /// "google_drive" | "onedrive" | "dropbox"
+    pub id: String,
+    pub display_name: String,
+    pub configured: bool,
+    pub client_id_variable: String,
+    pub connected: bool,
+    pub needs_reconnect: bool,
+    pub account_name: Option<String>,
+    pub account_email: Option<String>,
+    #[ts(type = "number | null")]
+    pub connected_at: Option<i64>,
+    pub scopes: Vec<String>,
+    pub redirect_uris: Vec<String>,
+    pub manage_access_url: String,
+}
+
+impl From<mcpanel_core::cloud::CloudStatus> for CloudStatusDto {
+    fn from(s: mcpanel_core::cloud::CloudStatus) -> Self {
+        Self {
+            id: s.id,
+            display_name: s.display_name,
+            configured: s.configured,
+            client_id_variable: s.client_id_variable,
+            connected: s.connected,
+            needs_reconnect: s.needs_reconnect,
+            account_name: s.account.as_ref().and_then(|a| a.display_name.clone()),
+            account_email: s.account.as_ref().and_then(|a| a.email.clone()),
+            connected_at: s.connected_at.map(|t| t.millis()),
+            scopes: s.scopes,
+            redirect_uris: s.redirect_uris,
+            manage_access_url: s.manage_access_url,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CloudFlowDto {
+    /// "waiting" | "connected" | "failed" | "cancelled"
+    pub state: String,
+    pub message: Option<String>,
+}
+
+impl From<mcpanel_core::cloud::FlowState> for CloudFlowDto {
+    fn from(f: mcpanel_core::cloud::FlowState) -> Self {
+        use mcpanel_core::cloud::FlowState as F;
+        match f {
+            F::Waiting => Self {
+                state: "waiting".into(),
+                message: None,
+            },
+            F::Connected => Self {
+                state: "connected".into(),
+                message: None,
+            },
+            F::Failed { message } => Self {
+                state: "failed".into(),
+                message: Some(message),
+            },
+            F::Cancelled => Self {
+                state: "cancelled".into(),
+                message: None,
+            },
+        }
+    }
 }
 
 // ───────────────────────────── encryption ─────────────────────────────

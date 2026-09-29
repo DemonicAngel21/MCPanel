@@ -231,3 +231,44 @@ async fn spiget_search_latest_version_and_cdn_download() {
         .unwrap();
     assert!(none.hits.is_empty());
 }
+
+/// Without credentials: each provider's real token endpoint answers a code exchange with an
+/// invalid client ID with an OAuth error that MCPanel reports clearly (endpoints and
+/// error mapping are right; no account or app registration involved).
+#[tokio::test]
+async fn cloud_token_endpoints_reject_an_unknown_client_clearly() {
+    use mcpanel_core::cloud::CloudStorageProvider;
+    let http = crate::http_client().unwrap();
+    let bogus = Some("mcpanel-live-test-invalid-client".to_string());
+    let providers: Vec<Box<dyn CloudStorageProvider>> = vec![
+        Box::new(crate::cloud::google_drive::GoogleDrive::new(
+            http.clone(),
+            bogus.clone(),
+        )),
+        Box::new(crate::cloud::onedrive::OneDrive::new(
+            http.clone(),
+            bogus.clone(),
+        )),
+        Box::new(crate::cloud::dropbox::Dropbox::new(http.clone(), bogus)),
+    ];
+    for p in providers {
+        let redirect = p.info().redirect.uri(43917);
+        let e = p
+            .exchange_code("invalid-code", "a".repeat(43).as_str(), &redirect)
+            .await
+            .err()
+            .expect("rejected");
+        eprintln!("{}: {}", p.info().display_name, e.message);
+        assert_eq!(e.code, mcpanel_core::error::ErrorCode::ProviderError);
+        assert!(
+            e.message.starts_with(p.info().display_name),
+            "{}",
+            e.message
+        );
+        assert!(
+            !e.message.contains("HTTP 404"),
+            "endpoint exists: {}",
+            e.message
+        );
+    }
+}
