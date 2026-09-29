@@ -54,7 +54,7 @@ pub struct ServerManager {
     pub(crate) executor: PlanExecutor,
     runtimes: Mutex<HashMap<ServerId, Arc<ServerRuntime>>>,
     console_capacity: usize,
-    launch_hook: std::sync::OnceLock<Arc<dyn LaunchHook>>,
+    launch_hooks: Mutex<Vec<Arc<dyn LaunchHook>>>,
 }
 
 /// Runs right before a server process is spawned (after preflight checks).
@@ -91,13 +91,16 @@ impl ServerManager {
             executor: deps.executor,
             runtimes: Mutex::new(HashMap::new()),
             console_capacity: deps.console_capacity,
-            launch_hook: std::sync::OnceLock::new(),
+            launch_hooks: Mutex::new(Vec::new()),
         })
     }
 
-    /// Install the pre-launch hook (once, by the composition root).
-    pub fn set_launch_hook(&self, hook: Arc<dyn LaunchHook>) {
-        let _ = self.launch_hook.set(hook);
+    /// Add a pre-launch hook (by the composition root); hooks run in order.
+    pub fn add_launch_hook(&self, hook: Arc<dyn LaunchHook>) {
+        self.launch_hooks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(hook);
     }
 
     pub fn registry(&self) -> &ProviderRegistry {
@@ -551,7 +554,12 @@ impl ServerManager {
 
         // Pending content changes (queued while the server ran) are applied now, while
         // no process holds the files.
-        if let Some(hook) = self.launch_hook.get() {
+        let hooks = self
+            .launch_hooks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        for hook in hooks {
             hook.before_launch(server, rt).await?;
         }
 

@@ -278,6 +278,9 @@ pub trait Platform: Send + Sync {
     /// Whether a TCP port is already being listened on (without binding it ourselves,
     /// which would trigger a firewall prompt for MCPanel).
     fn tcp_port_status(&self, port: u16) -> PortStatus;
+
+    /// Whether a UDP port is bound by some process (e.g. Geyser's Bedrock port).
+    fn udp_port_status(&self, port: u16) -> PortStatus;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
