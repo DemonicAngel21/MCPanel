@@ -26,6 +26,14 @@ jobs:
           cargo test --workspace --locked
           pnpm test
       - name: Build installer
+        # Cloud OAuth app registrations are compiled in from repository secrets (never
+        # committed). Google's Desktop client secret is required by Google's token
+        # endpoint and is not confidential (docs/architecture/verification-log.md).
+        env:
+          MCPANEL_GOOGLE_CLIENT_ID: ${{ secrets.MCPANEL_GOOGLE_CLIENT_ID }}
+          MCPANEL_GOOGLE_CLIENT_SECRET: ${{ secrets.MCPANEL_GOOGLE_CLIENT_SECRET }}
+          MCPANEL_MICROSOFT_CLIENT_ID: ${{ secrets.MCPANEL_MICROSOFT_CLIENT_ID }}
+          MCPANEL_DROPBOX_CLIENT_ID: ${{ secrets.MCPANEL_DROPBOX_CLIENT_ID }}
         run: pnpm build
       - name: Sign installer
         id: sign

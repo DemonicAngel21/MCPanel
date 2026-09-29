@@ -17,16 +17,36 @@ use serde::Deserialize;
 /// OAuth client IDs of MCPanel's app registrations. Public client IDs are not secrets,
 /// but they are kept out of the repository: a release build bakes them in from its build
 /// environment, and the same variables can be set at runtime (development).
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct CloudClientIds {
     pub google: Option<String>,
+    /// Google's "Desktop app" client secret. Google's token endpoint requires it for this
+    /// client type even with PKCE, and Google documents that for installed apps it is
+    /// embedded in the application and "obviously not treated as a secret". It is still
+    /// kept out of Git, logs, diagnostics and the UI.
+    pub google_secret: Option<SecretString>,
     pub microsoft: Option<String>,
     pub dropbox: Option<String>,
+}
+
+impl std::fmt::Debug for CloudClientIds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudClientIds")
+            .field("google", &self.google)
+            .field(
+                "google_secret",
+                &self.google_secret.as_ref().map(|_| "[set]"),
+            )
+            .field("microsoft", &self.microsoft)
+            .field("dropbox", &self.dropbox)
+            .finish()
+    }
 }
 
 pub const GOOGLE_CLIENT_ID_VAR: &str = "MCPANEL_GOOGLE_CLIENT_ID";
 pub const MICROSOFT_CLIENT_ID_VAR: &str = "MCPANEL_MICROSOFT_CLIENT_ID";
 pub const DROPBOX_CLIENT_ID_VAR: &str = "MCPANEL_DROPBOX_CLIENT_ID";
+pub const GOOGLE_CLIENT_SECRET_VAR: &str = "MCPANEL_GOOGLE_CLIENT_SECRET";
 
 fn pick(runtime: Option<String>, build: Option<&'static str>) -> Option<String> {
     runtime
@@ -48,6 +68,11 @@ impl CloudClientIds {
                 std::env::var(GOOGLE_CLIENT_ID_VAR).ok(),
                 option_env!("MCPANEL_GOOGLE_CLIENT_ID"),
             ),
+            google_secret: pick(
+                std::env::var(GOOGLE_CLIENT_SECRET_VAR).ok(),
+                option_env!("MCPANEL_GOOGLE_CLIENT_SECRET"),
+            )
+            .map(SecretString::from),
             microsoft: pick(
                 std::env::var(MICROSOFT_CLIENT_ID_VAR).ok(),
                 option_env!("MCPANEL_MICROSOFT_CLIENT_ID"),
@@ -110,7 +135,7 @@ fn token_error(
             "{provider}'s token server no longer accepts MCPanel's authorization — it expired or was revoked. Connect again.{raw}"
         ),
         Some("invalid_client") | Some("unauthorized_client") => format!(
-            "{provider}'s token server rejected {step}: the OAuth client (client ID) is not valid for this sign-in.{raw}"
+            "{provider}'s token server rejected {step}: MCPanel's OAuth client credentials (client ID or client secret) were not accepted.{raw}"
         ),
         Some(_) => format!("{provider}'s token server rejected {step}.{raw}"),
         None => format!("{provider}'s token server failed during {step}.{raw}"),
@@ -242,11 +267,7 @@ mod tests {
         )
         .err()
         .unwrap();
-        assert!(
-            e.message.contains("client ID) is not valid"),
-            "{}",
-            e.message
-        );
+        assert!(e.message.contains("client credentials"), "{}", e.message);
     }
 
     #[test]

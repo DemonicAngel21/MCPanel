@@ -222,7 +222,15 @@ e.g. `plugins/floodgate/key.pem` and loader equivalents). Highly sensitive files
   cached in memory and refreshed a minute before expiry. Client IDs come from
   `MCPANEL_GOOGLE_CLIENT_ID`, `MCPANEL_MICROSOFT_CLIENT_ID`, `MCPANEL_DROPBOX_CLIENT_ID`
   (runtime environment, else baked in at build time); a provider without one shows as
-  "not configured". Uploading backups is the next step. Verified requirements:
+  "not configured".
+- **Exception (decided 2026-09-30): Google's Desktop client secret.** Google's token
+  endpoint requires `client_secret` for "Desktop app" clients even with PKCE; Google
+  documents it as embedded in installed apps and "obviously not treated as a secret".
+  Releases embed it from `MCPANEL_GOOGLE_CLIENT_SECRET` (a CI secret, never in Git); it
+  is held in memory by the Google adapter, sent only on the code exchange and refresh,
+  redacted from logs and absent from errors, diagnostics and the UI. It is treated as
+  non-confidential configuration, not as a credential MCPanel protects. PKCE S256 is
+  unchanged; OneDrive and Dropbox remain secret-less public clients. Uploading backups is the next step. Verified requirements:
   verification-log.md, "Cloud storage OAuth".
 
 ## 10. Networking

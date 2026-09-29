@@ -338,9 +338,14 @@ workspace/drive/api/guides/api-specific-auth; support.google.com/cloud/answer/15
   client secret is invalid." Google's OAuth overview says of installed apps: "a client
   secret, which you embed in the source code of your application. (In this context, the
   client secret is obviously not treated as a secret.)" MCPanel currently sends none; a
-  Google sign-in with a "Desktop app" client therefore fails at the code exchange with
-  that message (shown as Google's answer). How to supply Google's non-confidential
-  desktop secret is an open decision.
+  Google sign-in with a "Desktop app" client therefore failed at the code exchange with
+  that message (shown as Google's answer).
+- Decision (2026-09-30): releases embed the Desktop client secret
+  (`MCPANEL_GOOGLE_CLIENT_SECRET` at build time) and send it on the code exchange and
+  refresh, next to PKCE. Checked against the real endpoint with a placeholder secret:
+  both requests then answer `invalid_client` "The provided client secret is invalid."
+  (the secret is transmitted and validated; the placeholder never appears in MCPanel's
+  messages).
 - Scope `https://www.googleapis.com/auth/drive.file` — **non-sensitive** (files the app
   creates or the user opens with it); `about.get` accepts it (`fields` required).
 - Publishing status "Testing": at most 100 test users and authorizations **expire after 7

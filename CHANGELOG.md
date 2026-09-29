@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- Google Drive sign-in sends Google's Desktop client secret (embedded in release builds
+  from `MCPANEL_GOOGLE_CLIENT_SECRET`), because Google's token endpoint requires it for
+  Desktop clients even with PKCE. Google treats this value as non-confidential; MCPanel
+  keeps it out of Git, logs, diagnostics, errors and the UI.
 - Cloud storage connections (v0.4 foundation): Settings can connect and disconnect
   Google Drive, OneDrive and Dropbox with OAuth 2.0 + PKCE through the browser and a
   loopback redirect (no client secret). Refresh tokens are kept in the Windows Credential

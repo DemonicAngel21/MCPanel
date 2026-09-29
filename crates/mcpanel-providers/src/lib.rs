@@ -59,9 +59,10 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     r.register_content(Arc::new(geysermc::GeyserMc::new(http.clone())));
     r.register_content(Arc::new(spiget::Spiget::new(http.clone())));
     let ids = cloud::CloudClientIds::from_env();
-    r.register_cloud(Arc::new(cloud::google_drive::GoogleDrive::new(
+    r.register_cloud(Arc::new(cloud::google_drive::GoogleDrive::with_secret(
         http.clone(),
         ids.google,
+        ids.google_secret,
     )));
     r.register_cloud(Arc::new(cloud::onedrive::OneDrive::new(
         http.clone(),
