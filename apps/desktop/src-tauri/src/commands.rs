@@ -544,6 +544,57 @@ pub async fn tunnel_status(s: State<'_, AppState>) -> R<TunnelStatusDto> {
     s.api.tunnel_status(&s.principal()).await
 }
 
+#[tauri::command]
+pub async fn tunnel_start_agent(s: State<'_, AppState>) -> R<TunnelStatusDto> {
+    s.api.tunnel_start_agent(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn tunnel_stop_agent(s: State<'_, AppState>) -> R<TunnelStatusDto> {
+    s.api.tunnel_stop_agent(&s.principal()).await
+}
+
+/// Start linking the playit agent and open the approval page on playit.gg.
+#[tauri::command]
+pub async fn tunnel_link(app: AppHandle, s: State<'_, AppState>) -> R<String> {
+    let url = s.api.tunnel_begin_link(&s.principal()).await?;
+    let ok = tauri::Url::parse(&url).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.host_str() == Some("playit.gg")
+            && u.path().starts_with("/claim/")
+    });
+    if !ok {
+        s.api.tunnel_cancel_link(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected playit address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(e) = app.opener().open_url(url.clone(), None::<&str>) {
+        return Err(ApiError::new("IO", format!("Cannot open the browser: {e}")));
+    }
+    Ok(url)
+}
+
+#[tauri::command]
+pub fn tunnel_cancel_link(s: State<'_, AppState>) -> R<()> {
+    s.api.tunnel_cancel_link(&s.principal())
+}
+
+#[tauri::command]
+pub async fn tunnel_server_address(s: State<'_, AppState>, id: String) -> R<Option<String>> {
+    s.api.tunnel_server_address(&s.principal(), &id).await
+}
+
+#[tauri::command]
+pub async fn tunnel_set_server_address(
+    s: State<'_, AppState>,
+    id: String,
+    address: String,
+) -> R<Option<String>> {
+    s.api
+        .tunnel_set_server_address(&s.principal(), &id, &address)
+        .await
+}
+
 // ───────────────────────────── bedrock ────────────────────────────
 
 #[tauri::command]

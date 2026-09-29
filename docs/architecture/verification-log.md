@@ -256,6 +256,20 @@ result. If the finding contradicts the specification, the spec is updated in the
 - Tunnel creation exists only in the agent's internal API client (`api_client`, e.g.
   `v1_tunnels_create`); playit.gg documents no third-party API. Decision: ADR-0007.
 
+## 2026-09-30 — Playit.gg re-check
+
+- playit 1.0.10 local CLI: no tunnel subcommands; `claim url <CODE> [--name] [--type]`,
+  `claim exchange <CODE> [--wait]` (prints the secret key — not used by MCPanel),
+  `setup` (prints "Open this link to finish setting up playit:" and
+  `https://playit.gg/claim/<10 hex>`, then waits; verified against a separate
+  `playitd.exe --secret-path <tmp> --socket-path \.\pipe\<test>`), `account login-url`
+  (guest accounts only: "Fail(AccountIsNotGuest)" for a verified account).
+- `playit start` / `stop` on the installed service as a normal user: "The playit service
+  started." / "The playit service stopped."; status phases observed: starting → running.
+- `playit status` for a non-default socket starts with "playitd daemon status for socket".
+- Private API and IPC: see ADR-0007 amendment (source `packages/api_client/src/api.rs`,
+  `playit-ipc`; playit-minecraft-plugin `PlayitManager.java`; terms updated 2026-02-20).
+
 ## 2026-09-29 — TPS / MSPT commands
 
 - `/tick` was added in Java Edition 1.20.3 (23w43a) (minecraft.wiki, Commands/tick).

@@ -22,6 +22,28 @@ start, stop, claim or reset the agent: those change what is published from the u
 account and are left to the user (or a later, explicitly authorised and tested
 feature).
 
+## Amendment (2026-09-30)
+
+Re-investigated against playit 1.0.10 and the playit-agent source (4c27794):
+
+- Still no public API: staff, 2026-05-04: "We have an API, just not public. Will release
+  when we decide to, no ETA" (playit-agent issue #150). The 1.0 CLI dropped the
+  `tunnels prepare/list` commands of 0.15 (issue #155 closed without restoring them).
+- Tunnel CRUD exists in playit's private HTTP API (`/v1/tunnels/create`, `/tunnels/list`,
+  `/tunnels/update`, `/tunnels/delete`, authenticated with the agent's secret key), which
+  playit's own Minecraft plugin uses. Tunnel addresses are also available from playitd's
+  internal named-pipe IPC (`get_state`). Neither is documented or offered to third parties;
+  the playit terms (§3.1) restrict API use, and using the private API would mean MCPanel
+  reading the agent secret from `%PROGRAMDATA%\playit_gg\playit.toml`.
+- The official CLI supports `start`/`stop` (the installer allows users to control the
+  service) and `setup` (claim flow; the secret goes directly to the service).
+
+Decision update: on the user's explicit request MCPanel now starts and stops the agent
+(`playit start|stop`) and links an unlinked agent (`playit setup`, discarding its output
+except the `https://playit.gg/claim/<hex>` URL). The user can save a tunnel's public
+address per server. Tunnel creation, listing and changes stay in the playit.gg dashboard
+(`TunnelCaps::can_manage_tunnels = false`) until playit publishes a supported API.
+
 ## Consequences
 
 Setting up internet access needs a few manual steps in the playit.gg dashboard. If

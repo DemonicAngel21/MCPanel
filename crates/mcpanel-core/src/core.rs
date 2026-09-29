@@ -191,9 +191,10 @@ impl Core {
             Arc::clone(&deps.repos.settings),
             events.clone(),
         );
-        let tunnels = Arc::new(crate::tunnels::PlayitTunnel::new(Arc::clone(
-            &deps.platform,
-        )));
+        let tunnels = Arc::new(crate::tunnels::PlayitTunnel::new(
+            Arc::clone(&deps.platform),
+            Arc::clone(&deps.repos.settings),
+        ));
         Ok(Arc::new(Core {
             paths: deps.paths,
             events,

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- playit.gg: start and stop the playit agent, link it to a playit.gg account through
+  the official `playit setup` flow, and save a tunnel's public address per server.
+  Tunnels are still created on playit.gg (no public API).
+
 ### Changed
 
 - OneDrive is no longer offered as cloud storage (postponed); Google Drive and Dropbox

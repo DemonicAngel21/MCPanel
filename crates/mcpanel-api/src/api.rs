@@ -1378,6 +1378,76 @@ impl Api {
         Ok(self.core.tunnels.status().await?.into())
     }
 
+    async fn audit_tunnel(
+        &self,
+        p: &Principal,
+        action: &str,
+        server: Option<mcpanel_core::ids::ServerId>,
+    ) {
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                action,
+                server,
+                Some("playit".to_string()),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({}),
+            )
+            .await;
+    }
+
+    /// Start the playit agent (publishes all of its tunnels).
+    pub async fn tunnel_start_agent(&self, p: &Principal) -> ApiResult<TunnelStatusDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let status = self.core.tunnels.start_agent().await?;
+        self.audit_tunnel(p, "tunnel.agent_start", None).await;
+        Ok(status.into())
+    }
+
+    pub async fn tunnel_stop_agent(&self, p: &Principal) -> ApiResult<TunnelStatusDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let status = self.core.tunnels.stop_agent().await?;
+        self.audit_tunnel(p, "tunnel.agent_stop", None).await;
+        Ok(status.into())
+    }
+
+    /// Begin linking the agent to a playit.gg account; returns the approval URL.
+    pub async fn tunnel_begin_link(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::SettingsWrite)?;
+        let url = self.core.tunnels.begin_link().await?;
+        self.audit_tunnel(p, "tunnel.link_start", None).await;
+        Ok(url)
+    }
+
+    pub fn tunnel_cancel_link(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.tunnels.cancel_link();
+        Ok(())
+    }
+
+    pub async fn tunnel_server_address(
+        &self,
+        p: &Principal,
+        server: &str,
+    ) -> ApiResult<Option<String>> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.tunnels.server_address(server_id(server)?).await?)
+    }
+
+    pub async fn tunnel_set_server_address(
+        &self,
+        p: &Principal,
+        server: &str,
+        address: &str,
+    ) -> ApiResult<Option<String>> {
+        p.authorize(Permission::ServersManage)?;
+        let id = server_id(server)?;
+        let saved = self.core.tunnels.set_server_address(id, address).await?;
+        self.audit_tunnel(p, "tunnel.address_set", Some(id)).await;
+        Ok(saved)
+    }
+
     // ───────────────────────────── bedrock ─────────────────────────────
 
     pub async fn bedrock_status(&self, p: &Principal, server: &str) -> ApiResult<BedrockStatusDto> {

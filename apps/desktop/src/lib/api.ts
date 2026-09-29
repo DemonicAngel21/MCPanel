@@ -227,6 +227,13 @@ export const api = {
   },
   tunnels: {
     status: () => call<TunnelStatusDto>("tunnel_status"),
+    startAgent: () => call<TunnelStatusDto>("tunnel_start_agent"),
+    stopAgent: () => call<TunnelStatusDto>("tunnel_stop_agent"),
+    /** Starts `playit setup` and opens the approval page; returns its URL. */
+    link: () => call<string>("tunnel_link"),
+    cancelLink: () => call<void>("tunnel_cancel_link"),
+    serverAddress: (id: string) => call<string | null>("tunnel_server_address", { id }),
+    setServerAddress: (id: string, address: string) => call<string | null>("tunnel_set_server_address", { id, address }),
   },
   bedrock: {
     status: (serverId: string) => call<BedrockStatusDto>("bedrock_status", { serverId }),

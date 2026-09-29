@@ -76,7 +76,16 @@ export const useDiskUsage = (serverId: string) =>
   useQuery({ queryKey: qk.diskUsage(serverId), queryFn: () => api.disk.usage(serverId), staleTime: 60_000 });
 export const useCloud = () => useQuery({ queryKey: qk.cloud, queryFn: api.cloud.list });
 export const useEncryption = () => useQuery({ queryKey: qk.encryption, queryFn: api.encryption.status });
-export const useTunnel = () => useQuery({ queryKey: qk.tunnel, queryFn: api.tunnels.status, staleTime: 15_000 });
+export const useTunnel = () =>
+  useQuery({
+    queryKey: qk.tunnel,
+    queryFn: api.tunnels.status,
+    staleTime: 15_000,
+    // Follow a pending account link or a starting/stopping agent closely.
+    refetchInterval: (q) => (q.state.data?.linkState === "waiting" || /^(starting|stopping)$/.test(q.state.data?.phase ?? "") ? 2_000 : false),
+  });
+export const useTunnelAddress = (serverId: string) =>
+  useQuery({ queryKey: [...qk.tunnel, "address", serverId], queryFn: () => api.tunnels.serverAddress(serverId) });
 export const useBedrock = (serverId: string) => useQuery({ queryKey: qk.bedrock(serverId), queryFn: () => api.bedrock.status(serverId) });
 export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });
 export const useTemplates = () => useQuery({ queryKey: qk.templates, queryFn: api.templates.list, staleTime: Infinity });

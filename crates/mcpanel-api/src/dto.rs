@@ -26,7 +26,7 @@ use mcpanel_core::server::ServerView;
 use mcpanel_core::settings::{AppSettings, ThemePreference};
 use mcpanel_core::software::{GameVersion, SoftwareBuild, SoftwareDescriptor};
 use mcpanel_core::templates::{ResolvedTemplate, Template, TemplatePlugin};
-use mcpanel_core::tunnels::TunnelStatus;
+use mcpanel_core::tunnels::{LinkProgress, TunnelStatus};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -2039,7 +2039,13 @@ pub struct TunnelStatusDto {
     pub agent_running: Option<bool>,
     pub phase: Option<String>,
     pub secret_configured: Option<bool>,
-    pub can_create_via_api: bool,
+    /// "waiting" | "linked" | "failed" while or after a link started in MCPanel.
+    pub link_state: Option<String>,
+    pub link_claim_url: Option<String>,
+    pub link_error: Option<String>,
+    pub can_control_agent: bool,
+    pub can_link: bool,
+    pub can_manage_tunnels: bool,
     pub links: Vec<TunnelLinkDto>,
 }
 
@@ -2053,7 +2059,25 @@ impl From<TunnelStatus> for TunnelStatusDto {
             agent_running: s.agent_running,
             phase: s.phase,
             secret_configured: s.secret_configured,
-            can_create_via_api: s.caps.can_create_via_api,
+            link_state: s.link.as_ref().map(|l| {
+                match l {
+                    LinkProgress::Waiting { .. } => "waiting",
+                    LinkProgress::Linked => "linked",
+                    LinkProgress::Failed { .. } => "failed",
+                }
+                .to_string()
+            }),
+            link_claim_url: match &s.link {
+                Some(LinkProgress::Waiting { claim_url }) => Some(claim_url.clone()),
+                _ => None,
+            },
+            link_error: match &s.link {
+                Some(LinkProgress::Failed { message }) => Some(message.clone()),
+                _ => None,
+            },
+            can_control_agent: s.caps.can_control_agent,
+            can_link: s.caps.can_link,
+            can_manage_tunnels: s.caps.can_manage_tunnels,
             links: s
                 .links
                 .into_iter()

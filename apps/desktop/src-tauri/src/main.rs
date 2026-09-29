@@ -122,10 +122,15 @@ fn forward_events(app: tauri::AppHandle, api: Arc<Api>) {
 }
 
 fn main() {
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    let mut builder = tauri::Builder::default();
+    // One window per installation. A development instance with its own data directory
+    // may run next to the installed app (it would otherwise just focus that app).
+    if std::env::var_os("MCPANEL_DATA_DIR").is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             commands::show_main(app);
-        }))
+        }));
+    }
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -213,6 +218,12 @@ fn main() {
             commands::restart_policy_update,
             commands::crash_history,
             commands::tunnel_status,
+            commands::tunnel_start_agent,
+            commands::tunnel_stop_agent,
+            commands::tunnel_link,
+            commands::tunnel_cancel_link,
+            commands::tunnel_server_address,
+            commands::tunnel_set_server_address,
             commands::server_disk_usage,
             commands::diagnostics_export,
             commands::cloud_list,
