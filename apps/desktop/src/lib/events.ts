@@ -37,13 +37,20 @@ function handle(qc: QueryClient, e: EventDto) {
       void qc.invalidateQueries({ queryKey: qk.server(e.serverId), exact: true });
       if (e.type === "serverUpdated") void qc.invalidateQueries({ queryKey: qk.serverProperties(e.serverId) });
       void qc.invalidateQueries({ queryKey: qk.players(e.serverId) });
-      if (e.type === "serverStateChanged") void qc.invalidateQueries({ queryKey: qk.content(e.serverId) });
+      if (e.type === "serverStateChanged") {
+        void qc.invalidateQueries({ queryKey: qk.content(e.serverId) });
+        void qc.invalidateQueries({ queryKey: qk.bedrock(e.serverId) });
+      }
       break;
     case "crashRecorded":
       void qc.invalidateQueries({ queryKey: qk.crashes(e.serverId) });
       break;
     case "contentChanged":
       void qc.invalidateQueries({ queryKey: qk.content(e.serverId) });
+      void qc.invalidateQueries({ queryKey: qk.bedrock(e.serverId) });
+      break;
+    case "bedrockChanged":
+      void qc.invalidateQueries({ queryKey: qk.bedrock(e.serverId) });
       break;
     case "playersChanged":
       void qc.invalidateQueries({ queryKey: qk.players(e.serverId) });

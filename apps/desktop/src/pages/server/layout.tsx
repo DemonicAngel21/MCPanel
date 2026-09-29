@@ -19,6 +19,7 @@ const TABS = [
   { to: "/files", label: "Files" },
   { to: "/players", label: "Players" },
   { to: "/content", label: "Plugins" },
+  { to: "/bedrock", label: "Bedrock" },
   { to: "/properties", label: "Properties" },
   { to: "/backups", label: "Backups" },
   { to: "/settings", label: "Settings" },
@@ -117,7 +118,7 @@ export function ServerLayout() {
   const content = software?.find((sw) => sw.id === server.software.softwareId)?.content ?? [];
   const contentLabel = content.some((c) => c.endsWith("_plugins")) ? "Plugins" : content.some((c) => c.endsWith("_mods")) ? "Mods" : null;
   const tabs: { to: string; label: string }[] = TABS.flatMap((t): { to: string; label: string }[] =>
-    t.to === "/content" ? (contentLabel ? [{ to: t.to, label: contentLabel }] : []) : [t],
+    t.to === "/content" ? (contentLabel ? [{ to: t.to, label: contentLabel }] : []) : t.to === "/bedrock" ? (contentLabel ? [t] : []) : [t],
   );
 
   return (

@@ -22,6 +22,7 @@ export const qk = {
   restartPolicy: (serverId: string) => ["servers", serverId, "restart-policy"] as const,
   crashes: (serverId: string) => ["servers", serverId, "crashes"] as const,
   content: (serverId: string) => ["servers", serverId, "content"] as const,
+  bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   players: (serverId: string) => ["servers", serverId, "players"] as const,
   backups: (serverId: string | null) => ["backups", serverId] as const,
   backupPolicy: (serverId: string) => ["backups", "policy", serverId] as const,
@@ -61,5 +62,6 @@ export const useBackupLocation = () => useQuery({ queryKey: qk.backupLocation, q
 export const usePlayers = (serverId: string) => useQuery({ queryKey: qk.players(serverId), queryFn: () => api.players.get(serverId) });
 export const useContent = (serverId: string) => useQuery({ queryKey: qk.content(serverId), queryFn: () => api.content.list(serverId) });
 export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.restartPolicy(serverId), queryFn: () => api.crashes.policy(serverId) });
+export const useBedrock = (serverId: string) => useQuery({ queryKey: qk.bedrock(serverId), queryFn: () => api.bedrock.status(serverId) });
 export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });
 export const useTemplates = () => useQuery({ queryKey: qk.templates, queryFn: api.templates.list, staleTime: Infinity });
