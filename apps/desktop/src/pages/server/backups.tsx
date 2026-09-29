@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Archive, Save } from "lucide-react";
+import { Archive, RefreshCw, Save } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { BackupPolicyDto } from "@/bindings/BackupPolicyDto";
@@ -12,7 +12,7 @@ import { Dialog, DialogClose, DialogContent, Select } from "@/components/ui/over
 import { Card, CardHeader, Checkbox, Field, Input, Spinner, Switch } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatDateTime } from "@/lib/format";
-import { qk, useBackupLocation, useBackupPolicy, useBackups, useServer } from "@/lib/queries";
+import { qk, useBackupLocation, useBackupPolicy, useBackups, useDiskUsage, useServer } from "@/lib/queries";
 import { hasProcess } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
@@ -105,6 +105,7 @@ function ScheduleForm({ policy }: { policy: BackupPolicyDto }) {
     keepWeekly: policy.keepWeekly,
     keepMonthly: policy.keepMonthly,
   });
+  const [capGb, setCapGb] = useState(String(policy.maxTotalGb || ""));
   const [saving, setSaving] = useState(false);
   const intervals = INTERVALS.some((i) => i.value === interval) ? INTERVALS : [...INTERVALS, { value: interval, label: `Every ${interval} minutes` }];
   const num = (v: string) => Math.min(1000, Number(v.replace(/\D/g, "")) || 0);
@@ -112,7 +113,13 @@ function ScheduleForm({ policy }: { policy: BackupPolicyDto }) {
   const save = async () => {
     setSaving(true);
     try {
-      const p = await api.backups.updatePolicy(policy.serverId, { enabled, intervalMinutes: Number(interval), skipIfIdle: skipIdle, ...keep });
+      const p = await api.backups.updatePolicy(policy.serverId, {
+        enabled,
+        intervalMinutes: Number(interval),
+        skipIfIdle: skipIdle,
+        ...keep,
+        maxTotalGb: Number(capGb) || 0,
+      });
       qc.setQueryData(qk.backupPolicy(policy.serverId), p);
       toast.success(p.enabled ? "Backup schedule saved" : "Scheduled backups are off");
     } catch (e) {
@@ -162,11 +169,64 @@ function ScheduleForm({ policy }: { policy: BackupPolicyDto }) {
             ))}
           </div>
         </div>
+        <Field
+          label="Size limit for scheduled backups (GB)"
+          hint="Optional. When they use more, the oldest scheduled backups are deleted; the newest is always kept."
+        >
+          <Input inputMode="numeric" placeholder="No limit" value={capGb} onChange={(e) => setCapGb(e.target.value.replace(/\D/g, "").slice(0, 5))} />
+        </Field>
       </div>
       <div className="flex justify-end border-t border-border px-4 py-3">
         <Button variant="primary" onClick={save} disabled={saving || keep.keepLast < 1}>
           {saving ? <Spinner className="text-accent-fg" /> : <Save />} Save schedule
         </Button>
+      </div>
+    </Card>
+  );
+}
+
+function DiskUsageCard({ serverId }: { serverId: string }) {
+  const { data: u, refetch, isFetching } = useDiskUsage(serverId);
+  if (!u) return null;
+  const parts: [string, number, string][] = [
+    ["Worlds", u.worldsBytes, "var(--accent)"],
+    ["Plugins, mods & config", u.contentBytes, "var(--info)"],
+    ["Logs & crash reports", u.logsBytes, "var(--warning)"],
+    ["Other files", u.otherBytes, "var(--muted)"],
+    ["Backups", u.backupsBytes, "var(--faint)"],
+  ];
+  const sum = parts.reduce((n, p) => n + p[1], 0) || 1;
+  return (
+    <Card>
+      <CardHeader
+        title="Disk usage"
+        description={
+          u.driveFreeBytes != null && u.driveTotalBytes != null
+            ? `${formatBytes(u.totalBytes + u.backupsBytes)} used by this server · ${formatBytes(u.driveFreeBytes)} free of ${formatBytes(u.driveTotalBytes)} on its drive`
+            : `${formatBytes(u.totalBytes + u.backupsBytes)} used by this server`
+        }
+        actions={
+          <Button size="icon-sm" variant="ghost" aria-label="Measure again" onClick={() => void refetch()} disabled={isFetching}>
+            {isFetching ? <Spinner /> : <RefreshCw />}
+          </Button>
+        }
+      />
+      <div className="space-y-3 p-4">
+        <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-3">
+          {parts.map(([label, n, color]) => (
+            <div key={label} style={{ width: `${(n / sum) * 100}%`, background: color }} title={`${label}: ${formatBytes(n)}`} />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs md:grid-cols-3">
+          {parts.map(([label, n, color]) => (
+            <span key={label} className="flex items-center gap-2 text-muted">
+              <span className="size-2 rounded-full" style={{ background: color }} />
+              {label}
+              <span className="ml-auto text-fg tabular-nums">{formatBytes(n)}</span>
+            </span>
+          ))}
+        </div>
+        {u.truncated && <p className="text-[11px] text-faint">Very many files: the measurement stopped early and shows a lower bound.</p>}
       </div>
     </Card>
   );
@@ -207,6 +267,7 @@ export function ServerBackups() {
         <BackupList backups={backups} isRunning={() => hasProcess(server.state)} />
       </Card>
       {policy && <ScheduleForm key={JSON.stringify(policy)} policy={policy} />}
+      <DiskUsageCard serverId={id} />
       <BackupNowDialog server={server} open={open} onOpenChange={setOpen} />
     </PageBody>
   );

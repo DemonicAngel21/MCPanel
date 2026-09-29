@@ -20,6 +20,7 @@ import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
 import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
 import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
+import type { DiskUsageDto } from "@/bindings/DiskUsageDto";
 import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
 import type { NotificationDto } from "@/bindings/NotificationDto";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
@@ -189,6 +190,9 @@ export const api = {
     policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),
     updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
     history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
+  },
+  disk: {
+    usage: (serverId: string) => call<DiskUsageDto>("server_disk_usage", { serverId }),
   },
   diagnostics: {
     /** Writes a support ZIP to the chosen file; returns the number of entries. */

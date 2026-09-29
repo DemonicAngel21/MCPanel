@@ -17,6 +17,7 @@ const RULES: { key: keyof NotificationPrefsDto; label: string; description: stri
   { key: "backupFailed", label: "A backup fails", description: "Manual and scheduled backups." },
   { key: "taskFailed", label: "Another task fails", description: "Installs, restores, server creation, Bedrock setup." },
   { key: "playerJoined", label: "A player joins", description: "Any server managed by MCPanel." },
+  { key: "diskLow", label: "A drive is almost full", description: "Below 5 GB or 5 % free on a drive with servers or backups." },
 ];
 
 function NotificationRules() {
