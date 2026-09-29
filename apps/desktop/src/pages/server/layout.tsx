@@ -149,7 +149,7 @@ export function ServerLayout() {
             <ServerControls server={server} />
           </div>
         </div>
-        <nav className="-mb-px flex gap-1">
+        <nav aria-label="Server sections" className="-mb-px flex gap-1">
           {tabs.map((t) => {
             const to = `${base}${t.to}`;
             const active =

@@ -4,7 +4,17 @@ import * as ProgressPrimitive from "@radix-ui/react-progress";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Check, Loader2 } from "lucide-react";
-import { forwardRef, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
+import {
+  cloneElement,
+  forwardRef,
+  isValidElement,
+  useId,
+  type HTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from "react";
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/server-state";
 
@@ -54,10 +64,14 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
+  const generated = useId();
+  // Associate the label with a single control child (inputs, selects, switches).
+  const child = isValidElement(children) ? (children as ReactElement<{ id?: string }>) : null;
+  const id = child ? (child.props.id ?? generated) : undefined;
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {child && id ? cloneElement(child, { id }) : children}
       {error ? <p className="text-xs text-danger">{error}</p> : hint ? <p className="text-xs text-faint">{hint}</p> : null}
     </div>
   );
@@ -97,7 +111,7 @@ Checkbox.displayName = "Checkbox";
 
 const toneClasses: Record<Tone, string> = {
   neutral: "bg-surface-3 text-muted",
-  success: "bg-accent-soft text-accent",
+  success: "bg-accent-soft text-accent-text",
   warning: "bg-warning-soft text-warning",
   danger: "bg-danger-soft text-danger",
   info: "bg-info-soft text-info",
@@ -146,7 +160,7 @@ export function CardHeader({
   return (
     <div className={cn("flex items-start justify-between gap-3 border-b border-border px-4 py-3", className)}>
       <div className="min-w-0">
-        <h3 className="text-[13px] font-semibold text-fg">{title}</h3>
+        <h2 className="text-[13px] font-semibold text-fg">{title}</h2>
         {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

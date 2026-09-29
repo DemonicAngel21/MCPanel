@@ -158,6 +158,18 @@ impl PropertiesDocument {
                 return Ok(());
             }
         }
+        // A last line ending in an unescaped backslash continues onto the next line; an
+        // empty line ends that continuation so the new entry stays separate.
+        let dangling = match self.lines.last() {
+            Some(Line::Raw(s)) => ends_with_odd_backslashes(s),
+            Some(Line::Entry {
+                raw, dirty: false, ..
+            }) => ends_with_odd_backslashes(raw),
+            _ => false,
+        };
+        if dangling {
+            self.lines.push(Line::Raw(String::new()));
+        }
         self.lines.push(Line::Entry {
             key: key.to_string(),
             value: value.to_string(),
@@ -375,5 +387,14 @@ mod tests {
         let mut doc = PropertiesDocument::default();
         assert!(doc.set("bad key", "x").is_err());
         assert!(doc.set("", "x").is_err());
+    }
+
+    #[test]
+    fn appending_after_a_dangling_continuation_keeps_the_new_key() {
+        let mut doc = PropertiesDocument::parse("motd=Hello \\\n");
+        doc.set("pvp", "false").unwrap();
+        let again = PropertiesDocument::parse(&doc.to_text());
+        assert_eq!(again.get("pvp"), Some("false"));
+        assert_eq!(again.get("motd").map(str::trim), Some("Hello"));
     }
 }

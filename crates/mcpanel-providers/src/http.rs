@@ -168,17 +168,7 @@ impl HttpClient {
             .map_err(|e| net_err("Request failed", e))?
             .error_for_status()
             .map_err(|e| net_err("Request failed", e))?;
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| net_err("Reading response failed", e))?;
-        if bytes.len() > max {
-            return Err(CoreError::new(
-                ErrorCode::ProviderError,
-                "Provider response is too large",
-            ));
-        }
-        Ok(bytes.to_vec())
+        read_capped(resp, max).await
     }
 
     pub fn inner(&self) -> &reqwest::Client {
@@ -242,15 +232,29 @@ impl HttpDownloader {
                 "Only HTTPS downloads are allowed",
             ));
         }
-        let resp = self
-            .http
-            .inner()
+        // A download without a published hash is only trusted from the exact URL the
+        // provider checked: redirects are not followed for it.
+        let client = if req.expected_hash.is_none() {
+            &self.http.no_redirect
+        } else {
+            self.http.inner()
+        };
+        let resp = client
             .get(&req.url)
             .send()
             .await
             .map_err(|e| net_err("Download failed", e))?
             .error_for_status()
             .map_err(|e| net_err("Download failed", e))?;
+        if !resp.status().is_success() {
+            return Err(CoreError::new(
+                ErrorCode::DownloadFailed,
+                format!(
+                    "The download redirected elsewhere (HTTP {}); unverified downloads are only accepted from the provider's own address",
+                    resp.status()
+                ),
+            ));
+        }
         let total = resp.content_length().or(req.expected_size);
         if let (Some(len), Some(exp)) = (resp.content_length(), req.expected_size)
             && len != exp
@@ -344,6 +348,27 @@ impl Downloader for HttpDownloader {
 
 /// Parse an RFC 3339 timestamp (`2026-09-15T16:53:02+00:00`, `…Z`, fractional seconds)
 /// into unix milliseconds.
+/// Read a response body, failing as soon as it exceeds `max` bytes (a chunked response
+/// has no Content-Length to check up front).
+async fn read_capped(mut resp: reqwest::Response, max: usize) -> CoreResult<Vec<u8>> {
+    let too_large = || CoreError::new(ErrorCode::ProviderError, "Provider response is too large");
+    if resp.content_length().is_some_and(|l| l > max as u64) {
+        return Err(too_large());
+    }
+    let mut out = Vec::new();
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| net_err("Reading response failed", e))?
+    {
+        if out.len() + chunk.len() > max {
+            return Err(too_large());
+        }
+        out.extend_from_slice(&chunk);
+    }
+    Ok(out)
+}
+
 async fn read_json<T: DeserializeOwned>(resp: reqwest::Response) -> CoreResult<T> {
     let status = resp.status();
     if status.as_u16() == 404 {
@@ -369,16 +394,7 @@ async fn read_json<T: DeserializeOwned>(resp: reqwest::Response) -> CoreResult<T
             "Provider response is too large",
         ));
     }
-    let bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| net_err("Reading response failed", e))?;
-    if bytes.len() > 16 * 1024 * 1024 {
-        return Err(CoreError::new(
-            ErrorCode::ProviderError,
-            "Provider response is too large",
-        ));
-    }
+    let bytes = read_capped(resp, 16 * 1024 * 1024).await?;
     serde_json::from_slice(&bytes).map_err(|e| {
         CoreError::new(
             ErrorCode::ProviderError,

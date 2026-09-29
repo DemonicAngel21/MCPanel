@@ -84,6 +84,7 @@ export function BackupsPage() {
         description="Local backups of all servers. Create backups and schedules from a server's Backups tab."
         actions={
           <Select
+            aria-label="Show backups of"
             className="w-56"
             value={server}
             onValueChange={setServer}

@@ -345,7 +345,9 @@ export function ServerPlayers() {
                   <th className="px-4 py-2 font-medium">Player</th>
                   <th className="px-4 py-2 font-medium">Last seen</th>
                   <th className="px-4 py-2 font-medium">Play time</th>
-                  <th className="w-10" />
+                  <th className="w-10">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>

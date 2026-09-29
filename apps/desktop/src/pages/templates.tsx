@@ -37,7 +37,7 @@ export function TemplatesPage() {
                 <span className="flex size-9 items-center justify-center rounded-md bg-accent-soft text-accent [&_svg]:size-5">
                   {ICONS[t.icon] ?? <LayoutTemplate />}
                 </span>
-                <h3 className="text-[14px] font-semibold text-fg">{t.name}</h3>
+                <h2 className="text-[14px] font-semibold text-fg">{t.name}</h2>
               </div>
               <p className="flex-1 text-xs text-muted">{t.description}</p>
               <div className="mt-3 flex flex-wrap gap-1">

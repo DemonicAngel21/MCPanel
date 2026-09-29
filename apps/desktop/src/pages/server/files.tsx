@@ -270,8 +270,12 @@ export function ServerFiles() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
       <div className="mb-3 flex items-center gap-2">
-        <nav className="flex min-w-0 flex-1 items-center gap-1 text-[13px]">
-          <button onClick={() => go("")} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted hover:bg-surface-3 hover:text-fg">
+        <nav aria-label="Folder path" className="flex min-w-0 flex-1 items-center gap-1 text-[13px]">
+          <button
+            onClick={() => go("")}
+            aria-label="Server folder"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted hover:bg-surface-3 hover:text-fg"
+          >
             <Home className="size-3.5" />
           </button>
           {crumbs.map((c, i) => (
@@ -371,7 +375,9 @@ export function ServerFiles() {
                 <th className="py-2 font-medium">Name</th>
                 <th className="w-28 py-2 font-medium">Size</th>
                 <th className="w-44 py-2 font-medium">Modified</th>
-                <th className="w-10" />
+                <th className="w-10">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

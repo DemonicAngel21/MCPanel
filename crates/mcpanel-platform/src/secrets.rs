@@ -5,6 +5,7 @@
 
 use mcpanel_core::error::{CoreError, CoreResult, ErrorCode};
 use mcpanel_core::ports::SecretStore;
+use secrecy::zeroize::Zeroize;
 use secrecy::{ExposeSecret, SecretString};
 use windows::Win32::Foundation::{ERROR_NOT_FOUND, GetLastError};
 use windows::Win32::Security::Credentials::{
@@ -55,16 +56,20 @@ impl SecretStore for CredentialStore {
             return Err(err("Cannot read from the Windows Credential Manager", e));
         }
         // SAFETY: CredReadW succeeded, so `cred` points to a valid CREDENTIALW whose blob
-        // has `CredentialBlobSize` bytes.
-        let value = unsafe {
+        // has `CredentialBlobSize` bytes (the pointer may be null when the size is 0).
+        let mut value = unsafe {
             let c = &*cred;
-            let bytes = std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize)
-                .to_vec();
+            let bytes = if c.CredentialBlob.is_null() || c.CredentialBlobSize == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize).to_vec()
+            };
             CredFree(cred as *const _);
             bytes
         };
-        let s = String::from_utf8(value)
-            .map_err(|_| err("Credential Manager", "stored secret is not text"))?;
+        let text = std::str::from_utf8(&value).map(str::to_owned);
+        value.zeroize();
+        let s = text.map_err(|_| err("Credential Manager", "stored secret is not text"))?;
         Ok(Some(SecretString::from(s)))
     }
 
@@ -90,7 +95,7 @@ impl SecretStore for CredentialStore {
         // SAFETY: all pointers reference live buffers for the duration of the call.
         let r = unsafe { CredWriteW(&cred, 0) };
         // Best effort: do not leave the plaintext copy in our heap.
-        blob.iter_mut().for_each(|b| *b = 0);
+        blob.zeroize();
         r.map_err(|e| err("Cannot write to the Windows Credential Manager", e))
     }
 

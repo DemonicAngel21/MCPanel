@@ -63,7 +63,7 @@ function ServerList() {
           </Button>
         </Tooltip>
       </div>
-      <nav className="flex-1 overflow-y-auto p-2">
+      <nav aria-label="Servers" className="flex-1 overflow-y-auto p-2">
         {isLoading && <p className="px-2 py-1 text-xs text-faint">Loading…</p>}
         {servers?.length === 0 && (
           <div className="px-2 py-3 text-xs text-muted">
@@ -136,7 +136,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-full">
-      <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-background py-3">
+      <nav aria-label="Main" className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-background py-3">
         <Link to="/" className="mb-3 flex size-9 items-center justify-center" aria-label="MCPanel home">
           <img src="/logo.svg" alt="" className="size-8" />
         </Link>

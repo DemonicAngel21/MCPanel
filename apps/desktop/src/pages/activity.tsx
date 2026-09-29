@@ -19,6 +19,7 @@ export function ActivityPage() {
         description="Audit log of actions performed in MCPanel. Secrets are never recorded."
         actions={
           <Select
+            aria-label="Show activity of"
             className="w-56"
             value={server}
             onValueChange={setServer}

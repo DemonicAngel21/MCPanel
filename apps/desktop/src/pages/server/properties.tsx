@@ -32,7 +32,9 @@ function PropertyRow({ p, value, dirty, onChange }: { p: PropertyDto; value: str
     <div className={cn("grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6 px-4 py-3", dirty && "bg-accent-soft/50")}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-[13px] text-fg">{s?.label ?? p.key}</p>
+          <label htmlFor={`prop-${p.key}`} className="text-[13px] text-fg">
+            {s?.label ?? p.key}
+          </label>
           {dirty && <span className="size-1.5 rounded-full bg-accent" title="Changed" />}
           {p.applicability === "unknown" && (
             <Tooltip content="MCPanel could not confirm this setting exists in this Minecraft version.">
