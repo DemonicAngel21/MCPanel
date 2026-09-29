@@ -23,7 +23,7 @@ pub use http::{HttpClient, HttpDownloader};
 pub use profiles::MojangProfiles;
 
 /// Build the registry of built-in providers: server software (Vanilla, Paper, Purpur,
-/// Fabric, NeoForge, Forge) and content (Modrinth, Hangar).
+/// Fabric, Quilt, NeoForge, Forge) and content (Modrinth, Hangar).
 pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     let mojang = mojang::MojangClient::new(http.clone());
     let mut r = ProviderRegistry::new();
@@ -34,6 +34,10 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
         Arc::clone(&mojang),
     ));
     r.register_software(fabric::FabricProvider::provider(
+        http.clone(),
+        Arc::clone(&mojang),
+    ));
+    r.register_software(fabric::FabricProvider::quilt(
         http.clone(),
         Arc::clone(&mojang),
     ));

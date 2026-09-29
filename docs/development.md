@@ -83,6 +83,7 @@ server and checks that Paper loads them (network access required).
 
 `real_fabric` creates Fabric servers for 26.3 and 1.21.4, installs mods from
 Modrinth and checks they load (`--test-threads 1` keeps the downloads sequential).
+`real_quilt` boots Quilt 1.21.4 and loads a Fabric mod from Modrinth.
 `real_forge` installs NeoForge 1.21.4 (with a Modrinth mod) and Forge 1.20.1 through
 their official installers (several minutes; run with `--test-threads 1`).
 `real_crash` kills a real server externally and checks that it is restarted.

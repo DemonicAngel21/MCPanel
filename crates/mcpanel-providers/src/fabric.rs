@@ -34,10 +34,61 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 
-const META: &str = "https://meta.fabricmc.net/v2";
-const MAVEN_HOST: &str = "maven.fabricmc.net";
-pub const LAUNCH_JAR: &str = "fabric-server-launch.jar";
 const SERVER_JAR: &str = "server.jar";
+
+/// A Knot-based loader: Fabric, or its fork Quilt (same install and launch model).
+#[derive(Debug, Clone, Copy)]
+pub struct Flavor {
+    pub id: &'static str,
+    pub name: &'static str,
+    meta: &'static str,
+    /// Repositories libraries may come from (`https://…`, no trailing slash).
+    maven_bases: &'static [&'static str],
+    pub launch_jar: &'static str,
+    /// System properties that point the loader at the game jar.
+    game_jar_properties: &'static [&'static str],
+    content: &'static [ContentEcosystem],
+    description: &'static str,
+    /// Package prefix used to recognise an existing install.
+    marker: &'static str,
+}
+
+pub const FABRIC: Flavor = Flavor {
+    id: "fabric",
+    name: "Fabric",
+    meta: "https://meta.fabricmc.net/v2",
+    maven_bases: &["https://maven.fabricmc.net"],
+    launch_jar: "fabric-server-launch.jar",
+    game_jar_properties: &["fabric.gameJarPath"],
+    content: &[ContentEcosystem::FabricMods, ContentEcosystem::Datapacks],
+    description: "Lightweight mod loader; supports Fabric mods (install Fabric API for most mods).",
+    marker: "net.fabricmc",
+};
+
+/// Quilt (meta API v3, verified 2026-09-29): same profile format; libraries from Fabric's
+/// and Quilt's Maven (both publish `.sha512`); the per-version loader list is not sorted,
+/// so the global loader list defines "newest". Quilt also runs Fabric mods.
+pub const QUILT: Flavor = Flavor {
+    id: "quilt",
+    name: "Quilt",
+    meta: "https://meta.quiltmc.org/v3",
+    maven_bases: &[
+        "https://maven.fabricmc.net",
+        "https://maven.quiltmc.org/repository/release",
+    ],
+    launch_jar: "quilt-server-launch.jar",
+    game_jar_properties: &["loader.gameJarPath", "fabric.gameJarPath"],
+    content: &[
+        ContentEcosystem::QuiltMods,
+        ContentEcosystem::FabricMods,
+        ContentEcosystem::Datapacks,
+    ],
+    description: "Community fork of Fabric; runs Quilt and most Fabric mods.",
+    marker: "org.quiltmc",
+};
+
+/// Fabric's launch jar name (kept for callers of the Fabric-only API).
+pub const LAUNCH_JAR: &str = FABRIC.launch_jar;
 
 #[derive(Deserialize)]
 struct MetaGame {
@@ -53,7 +104,23 @@ struct LoaderEntry {
 #[derive(Deserialize)]
 struct LoaderInfo {
     version: String,
-    stable: bool,
+    /// Fabric publishes this; Quilt does not (derived from the version name).
+    #[serde(default)]
+    stable: Option<bool>,
+}
+
+impl LoaderInfo {
+    fn is_stable(&self) -> bool {
+        self.stable.unwrap_or_else(|| {
+            let v = self.version.to_lowercase();
+            !(v.contains("beta") || v.contains("alpha") || v.contains("pre") || v.contains("rc"))
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct GlobalLoader {
+    version: String,
 }
 
 #[derive(Deserialize)]
@@ -72,6 +139,7 @@ struct Library {
 }
 
 pub struct FabricProvider {
+    flavor: Flavor,
     http: HttpClient,
     mojang: Arc<MojangClient>,
 }
@@ -161,15 +229,23 @@ fn wrap_header(name: &str, value: &str) -> String {
 }
 
 impl FabricProvider {
-    pub fn descriptor() -> SoftwareDescriptor {
+    pub fn descriptor_for(flavor: Flavor) -> SoftwareDescriptor {
+        let mut hosts: Vec<String> = flavor
+            .maven_bases
+            .iter()
+            .filter_map(|b| b.strip_prefix("https://").and_then(|h| h.split('/').next()))
+            .map(String::from)
+            .collect();
+        hosts.extend([
+            "piston-data.mojang.com".into(),
+            "launcher.mojang.com".into(),
+        ]);
         SoftwareDescriptor {
-            id: "fabric".into(),
-            display_name: "Fabric".into(),
-            description:
-                "Lightweight mod loader; supports Fabric mods (install Fabric API for most mods)."
-                    .into(),
+            id: flavor.id.into(),
+            display_name: flavor.name.into(),
+            description: flavor.description.into(),
             caps: SoftwareCaps {
-                content: vec![ContentEcosystem::FabricMods, ContentEcosystem::Datapacks],
+                content: flavor.content.to_vec(),
                 is_proxy: false,
                 log_dialect: "minecraft".into(),
                 stop_command: "stop".into(),
@@ -177,42 +253,77 @@ impl FabricProvider {
                 requires_build_step: false,
                 tps_source: None,
             },
-            download_hosts: vec![
-                MAVEN_HOST.into(),
-                "piston-data.mojang.com".into(),
-                "launcher.mojang.com".into(),
-            ],
+            download_hosts: hosts,
+        }
+    }
+
+    pub fn descriptor() -> SoftwareDescriptor {
+        Self::descriptor_for(FABRIC)
+    }
+
+    pub fn provider_for(
+        flavor: Flavor,
+        http: HttpClient,
+        mojang: Arc<MojangClient>,
+    ) -> SoftwareProvider {
+        let p = Arc::new(Self {
+            flavor,
+            http,
+            mojang,
+        });
+        SoftwareProvider {
+            descriptor: Self::descriptor_for(flavor),
+            catalog: p.clone(),
+            installer: p.clone(),
+            launcher: Arc::new(FabricLauncher { flavor }),
+            detector: Some(p),
         }
     }
 
     pub fn provider(http: HttpClient, mojang: Arc<MojangClient>) -> SoftwareProvider {
-        let p = Arc::new(Self { http, mojang });
-        SoftwareProvider {
-            descriptor: Self::descriptor(),
-            catalog: p.clone(),
-            installer: p.clone(),
-            launcher: Arc::new(FabricLauncher),
-            detector: Some(p),
-        }
+        Self::provider_for(FABRIC, http, mojang)
+    }
+
+    pub fn quilt(http: HttpClient, mojang: Arc<MojangClient>) -> SoftwareProvider {
+        Self::provider_for(QUILT, http, mojang)
     }
 
     async fn loaders(&self, game_version: &str) -> CoreResult<Vec<LoaderInfo>> {
         check(game_version)?;
         let entries: Vec<LoaderEntry> = self
             .http
-            .get_json(&format!("{META}/versions/loader/{game_version}"))
+            .get_json(&format!(
+                "{}/versions/loader/{game_version}",
+                self.flavor.meta
+            ))
             .await
             .map_err(|e| {
                 if e.code == ErrorCode::VersionNotFound {
                     CoreError::new(
                         ErrorCode::VersionNotFound,
-                        format!("Fabric does not support Minecraft {game_version}"),
+                        format!(
+                            "{} does not support Minecraft {game_version}",
+                            self.flavor.name
+                        ),
                     )
                 } else {
                     e
                 }
             })?;
-        Ok(entries.into_iter().map(|e| e.loader).collect())
+        let mut loaders: Vec<LoaderInfo> = entries.into_iter().map(|e| e.loader).collect();
+        // Newest first, by the order of the global loader list.
+        let global: Vec<GlobalLoader> = self
+            .http
+            .get_json(&format!("{}/versions/loader", self.flavor.meta))
+            .await?;
+        let rank = |v: &str| {
+            global
+                .iter()
+                .position(|g| g.version == v)
+                .unwrap_or(usize::MAX)
+        };
+        loaders.sort_by_key(|l| rank(&l.version));
+        Ok(loaders)
     }
 
     /// SHA-512 of a library: from the profile, else Fabric's Maven checksum file.
@@ -229,7 +340,7 @@ impl FabricProvider {
         if hex.len() != 128 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(CoreError::new(
                 ErrorCode::ProviderError,
-                format!("Fabric's Maven has no valid SHA-512 for {}", lib.name),
+                format!("{} has no valid SHA-512 for {}", self.flavor.name, lib.name),
             ));
         }
         Ok(hex)
@@ -239,7 +350,10 @@ impl FabricProvider {
 #[async_trait]
 impl SoftwareCatalog for FabricProvider {
     async fn game_versions(&self) -> CoreResult<Vec<GameVersion>> {
-        let v: Vec<MetaGame> = self.http.get_json(&format!("{META}/versions/game")).await?;
+        let v: Vec<MetaGame> = self
+            .http
+            .get_json(&format!("{}/versions/game", self.flavor.meta))
+            .await?;
         Ok(v.into_iter()
             .map(|g| GameVersion {
                 kind: if g.stable {
@@ -259,12 +373,12 @@ impl SoftwareCatalog for FabricProvider {
             .await?
             .into_iter()
             .map(|l| SoftwareBuild {
-                id: l.version,
-                channel: if l.stable {
+                channel: if l.is_stable() {
                     ReleaseChannel::Stable
                 } else {
                     ReleaseChannel::Beta
                 },
+                id: l.version,
                 published_at: None,
             })
             .collect())
@@ -282,23 +396,26 @@ impl SoftwareInstaller for FabricProvider {
                 loaders.iter().find(|l| &l.version == b).ok_or_else(|| {
                     CoreError::new(
                         ErrorCode::VersionNotFound,
-                        format!("Fabric Loader {b} was not found"),
+                        format!("{} Loader {b} was not found", self.flavor.name),
                     )
                 })?
             }
             None => loaders
                 .iter()
-                .find(|l| l.stable)
+                .find(|l| l.is_stable())
                 .or_else(|| loaders.first())
                 .ok_or_else(|| {
-                    CoreError::new(ErrorCode::VersionNotFound, "No Fabric Loader is available")
+                    CoreError::new(
+                        ErrorCode::VersionNotFound,
+                        format!("No {} Loader is available", self.flavor.name),
+                    )
                 })?,
         };
         let profile: Profile = self
             .http
             .get_json(&format!(
-                "{META}/versions/loader/{}/{}/server/json",
-                req.game_version, loader.version
+                "{}/versions/loader/{}/{}/server/json",
+                self.flavor.meta, req.game_version, loader.version
             ))
             .await?;
         if !profile
@@ -308,7 +425,7 @@ impl SoftwareInstaller for FabricProvider {
         {
             return Err(CoreError::new(
                 ErrorCode::ProviderError,
-                "Unexpected Fabric main class",
+                "Unexpected loader main class",
             ));
         }
 
@@ -328,7 +445,7 @@ impl SoftwareInstaller for FabricProvider {
         for lib in &profile.libraries {
             let rel = maven_path(&lib.name)?;
             let base = lib.url.trim_end_matches('/');
-            if base != format!("https://{MAVEN_HOST}") {
+            if !self.flavor.maven_bases.contains(&base) {
                 return Err(CoreError::new(
                     ErrorCode::ProviderError,
                     format!("Library {} comes from an unexpected repository", lib.name),
@@ -353,29 +470,29 @@ impl SoftwareInstaller for FabricProvider {
         // `FabricLauncher`); on the system class path it would confuse Fabric Loader's
         // class-loader separation (verified: "trying to load … from target class loader").
         steps.push(InstallStep::WriteFile {
-            dest: LAUNCH_JAR.into(),
+            dest: self.flavor.launch_jar.into(),
             contents: launch_jar(&profile.main_class, &class_path)?,
-            description: "Writing the Fabric launch jar".into(),
+            description: format!("Writing the {} launch jar", self.flavor.name),
         });
         Ok(InstallPlan {
-            software_id: "fabric".into(),
+            software_id: self.flavor.id.into(),
             game_version: req.game_version.clone(),
             build: Some(loader.version.clone()),
-            build_channel: Some(if loader.stable {
+            build_channel: Some(if loader.is_stable() {
                 ReleaseChannel::Stable
             } else {
                 ReleaseChannel::Beta
             }),
             steps,
-            jar: LAUNCH_JAR.into(),
+            jar: self.flavor.launch_jar.into(),
             java: JavaRequirement {
                 min_major: java,
                 recommended_major: Some(java),
                 recommended_flags: Vec::new(),
             },
             notes: vec![format!(
-                "Fabric Loader {}: the Minecraft server comes from Mojang (SHA-1 verified) and every Fabric library is verified with SHA-512. Most mods also need Fabric API from the Mods tab.",
-                loader.version
+                "{} Loader {}: the Minecraft server comes from Mojang (SHA-1 verified) and every loader library is verified with SHA-512. Most mods also need Fabric API (or QSL for Quilt mods) from the Mods tab.",
+                self.flavor.name, loader.version
             )],
         })
     }
@@ -388,7 +505,9 @@ impl SoftwareInstaller for FabricProvider {
 /// FabricLoaderImpl from target class loader" — verified with loader 0.19.5). The
 /// libraries are therefore passed with `-cp`, read from the launch jar's manifest
 /// (written at install time), and the game jar via `fabric.gameJarPath`.
-pub struct FabricLauncher;
+pub struct FabricLauncher {
+    flavor: Flavor,
+}
 
 /// (main class, class path) from a manifest (continuation lines joined).
 pub fn read_manifest(text: &str) -> Option<(String, Vec<String>)> {
@@ -430,8 +549,8 @@ impl LaunchResolver for FabricLauncher {
             CoreError::new(
                 ErrorCode::PathNotFound,
                 format!(
-                    "{} is missing or damaged; create or import the Fabric server again",
-                    installed.jar
+                    "{} is missing or damaged; create or import the {} server again",
+                    installed.jar, self.flavor.name
                 ),
             )
         })?;
@@ -459,7 +578,12 @@ impl LaunchResolver for FabricLauncher {
             })?;
         }
         Ok(LaunchArgs {
-            jvm_args: vec![format!("-Dfabric.gameJarPath={SERVER_JAR}")],
+            jvm_args: self
+                .flavor
+                .game_jar_properties
+                .iter()
+                .map(|p| format!("-D{p}={SERVER_JAR}"))
+                .collect(),
             jar: installed.jar.clone(),
             main_class: Some(main),
             class_path,
@@ -471,22 +595,23 @@ impl LaunchResolver for FabricLauncher {
 
 impl SoftwareDetector for FabricProvider {
     fn detect(&self, dir: &Path) -> Option<DetectedSoftware> {
-        let jar = dir.join(LAUNCH_JAR);
+        let jar = dir.join(self.flavor.launch_jar);
         let md = std::fs::symlink_metadata(&jar).ok()?;
         if !md.is_file() {
             return None;
         }
         let manifest = read_jar_entry(&jar, "META-INF/MANIFEST.MF", 64 * 1024)
             .map(|b| String::from_utf8_lossy(&b).to_string());
-        let fabric = manifest
+        let marker_path = format!("{}/", self.flavor.marker.replace('.', "/"));
+        let matches = manifest
             .as_deref()
-            .is_some_and(|m| m.contains("net.fabricmc"))
-            || jar_has_entry_prefix(&jar, "net/fabricmc/");
-        fabric.then(|| DetectedSoftware {
-            software_id: "fabric".into(),
+            .is_some_and(|m| m.contains(self.flavor.marker))
+            || jar_has_entry_prefix(&jar, &marker_path);
+        matches.then(|| DetectedSoftware {
+            software_id: self.flavor.id.into(),
             game_version: None,
             build: None,
-            jar: LAUNCH_JAR.into(),
+            jar: self.flavor.launch_jar.into(),
             confidence: 90,
         })
     }
@@ -538,5 +663,33 @@ mod tests {
         let (main, parsed) = read_manifest(&text).unwrap();
         assert_eq!(main, "net.fabricmc.loader.impl.launch.knot.KnotServer");
         assert_eq!(parsed, cp);
+    }
+
+    #[test]
+    fn loader_stability_falls_back_to_the_version_name() {
+        let l = |v: &str, stable| LoaderInfo {
+            version: v.into(),
+            stable,
+        };
+        assert!(l("0.29.1", None).is_stable());
+        assert!(!l("0.30.0-beta.3", None).is_stable());
+        assert!(!l("0.26.0-rc.1", None).is_stable());
+        assert!(!l("0.29.1", Some(false)).is_stable());
+    }
+
+    #[test]
+    fn quilt_trusts_both_repositories_and_sets_both_game_jar_properties() {
+        let d = FabricProvider::descriptor_for(QUILT);
+        assert!(d.download_hosts.contains(&"maven.quiltmc.org".to_string()));
+        assert!(d.download_hosts.contains(&"maven.fabricmc.net".to_string()));
+        assert!(d.caps.content.contains(&ContentEcosystem::FabricMods));
+        assert_eq!(
+            QUILT.game_jar_properties,
+            ["loader.gameJarPath", "fabric.gameJarPath"]
+        );
+        assert_eq!(
+            FabricProvider::descriptor().download_hosts[0],
+            "maven.fabricmc.net"
+        );
     }
 }
