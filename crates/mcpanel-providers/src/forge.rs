@@ -27,7 +27,7 @@ use mcpanel_core::software::{
     ContentEcosystem, DetectedSoftware, GameVersion, GameVersionKind, InstallPlan, InstallRequest,
     InstallStep, JavaRequirement, LaunchArgs, LaunchResolver, ReleaseChannel, SoftwareBuild,
     SoftwareCaps, SoftwareCatalog, SoftwareDescriptor, SoftwareDetector, SoftwareInstaller,
-    SoftwareProvider,
+    SoftwareProvider, TpsSource,
 };
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
@@ -178,7 +178,7 @@ impl ForgeProvider {
                 stop_command: "stop".into(),
                 eula_required: true,
                 requires_build_step: false,
-                tps_source: None,
+                tps_source: Some(TpsSource::VanillaTickQuery),
             },
             download_hosts: vec![flavor.host().into()],
         }

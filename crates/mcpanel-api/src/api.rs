@@ -132,6 +132,7 @@ impl Api {
                 tray_notice_shown: patch.tray_notice_shown,
                 console_buffer_lines: patch.console_buffer_lines,
                 quit_stop_timeout_secs: patch.quit_stop_timeout_secs,
+                tick_sampling: patch.tick_sampling,
                 backups_dir: None,
             })
             .await?

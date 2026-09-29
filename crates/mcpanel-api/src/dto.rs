@@ -152,6 +152,39 @@ pub struct ServerMetricsDto {
     pub current: Option<ProcessUsageDto>,
     pub history: Vec<MetricPointDto>,
     pub uptime_ms: Option<i64>,
+    /// Source: the server's own `tick query` or Paper `tps`/`mspt` commands.
+    pub tick: Option<TickSampleDto>,
+    pub tick_history: Vec<TickSampleDto>,
+    /// "vanilla_tick_query" | "paper_commands"; `None` = not available for this server.
+    pub tick_source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TickSampleDto {
+    #[ts(type = "number")]
+    pub at: i64,
+    pub tps: Option<f32>,
+    /// TPS was calculated from MSPT (vanilla reports no TPS).
+    pub tps_calculated: bool,
+    pub mspt: Option<f32>,
+    /// Vanilla P95 or Paper's 5-second maximum.
+    pub mspt_high: Option<f32>,
+    pub status: Option<String>,
+}
+
+impl From<mcpanel_core::perf::TickSample> for TickSampleDto {
+    fn from(s: mcpanel_core::perf::TickSample) -> Self {
+        Self {
+            at: s.at.millis(),
+            tps: s.tps,
+            tps_calculated: s.tps_calculated,
+            mspt: s.mspt,
+            mspt_high: s.mspt_high,
+            status: s.status,
+        }
+    }
 }
 
 impl From<ServerMetrics> for ServerMetricsDto {
@@ -172,6 +205,9 @@ impl From<ServerMetrics> for ServerMetricsDto {
                 })
                 .collect(),
             uptime_ms: m.uptime_ms,
+            tick: m.tick.map(Into::into),
+            tick_history: m.tick_history.into_iter().map(Into::into).collect(),
+            tick_source: m.tick_source.map(|s| enum_str(&s)),
         }
     }
 }
@@ -185,6 +221,7 @@ pub struct SettingsDto {
     pub tray_notice_shown: bool,
     pub console_buffer_lines: u32,
     pub quit_stop_timeout_secs: u32,
+    pub tick_sampling: bool,
 }
 
 impl From<AppSettings> for SettingsDto {
@@ -194,6 +231,7 @@ impl From<AppSettings> for SettingsDto {
             tray_notice_shown: s.tray_notice_shown,
             console_buffer_lines: s.console_buffer_lines,
             quit_stop_timeout_secs: s.quit_stop_timeout_secs,
+            tick_sampling: s.tick_sampling,
         }
     }
 }
@@ -206,6 +244,7 @@ pub struct SettingsPatchDto {
     pub tray_notice_shown: Option<bool>,
     pub console_buffer_lines: Option<u32>,
     pub quit_stop_timeout_secs: Option<u32>,
+    pub tick_sampling: Option<bool>,
 }
 
 pub(crate) fn parse_theme(s: &str) -> Option<ThemePreference> {

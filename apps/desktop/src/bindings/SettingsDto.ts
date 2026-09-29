@@ -4,4 +4,4 @@ export type SettingsDto = {
 /**
  * "system" | "dark" | "light"
  */
-theme: string, trayNoticeShown: boolean, consoleBufferLines: number, quitStopTimeoutSecs: number, };
+theme: string, trayNoticeShown: boolean, consoleBufferLines: number, quitStopTimeoutSecs: number, tickSampling: boolean, };

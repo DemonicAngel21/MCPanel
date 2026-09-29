@@ -24,6 +24,7 @@ pub mod model;
 pub mod monitoring;
 pub mod notify;
 pub mod paths;
+pub mod perf;
 pub mod players;
 pub mod ports;
 pub mod server;

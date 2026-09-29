@@ -27,6 +27,8 @@ pub struct AppSettings {
     /// Where new backups are written; `None` = the default backups directory. Only set
     /// through [`SettingsService::set_backups_dir`] (from a folder the user picked).
     pub backups_dir: Option<String>,
+    /// Query running servers for TPS/MSPT (their replies appear in the server's log).
+    pub tick_sampling: bool,
 }
 
 impl Default for AppSettings {
@@ -37,6 +39,7 @@ impl Default for AppSettings {
             console_buffer_lines: 20_000,
             quit_stop_timeout_secs: 90,
             backups_dir: None,
+            tick_sampling: true,
         }
     }
 }
@@ -47,6 +50,8 @@ pub struct AppSettingsPatch {
     pub tray_notice_shown: Option<bool>,
     pub console_buffer_lines: Option<u32>,
     pub quit_stop_timeout_secs: Option<u32>,
+    #[serde(default)]
+    pub tick_sampling: Option<bool>,
     /// Persisted form only; ignored by [`SettingsService::update`].
     #[serde(default)]
     pub backups_dir: Option<String>,
@@ -133,6 +138,9 @@ fn apply(s: &mut AppSettings, p: AppSettingsPatch) {
     }
     if let Some(v) = p.quit_stop_timeout_secs {
         s.quit_stop_timeout_secs = v;
+    }
+    if let Some(v) = p.tick_sampling {
+        s.tick_sampling = v;
     }
     if p.backups_dir.is_some() {
         s.backups_dir = p.backups_dir;

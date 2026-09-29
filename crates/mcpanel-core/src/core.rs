@@ -109,6 +109,7 @@ impl Core {
         let files = Arc::new(ServerFiles::new(Arc::clone(&servers)));
         let monitor = Monitor::new(Arc::clone(&deps.platform));
         monitor.spawn(Arc::clone(&servers));
+        monitor.spawn_tick_sampler(Arc::clone(&servers), Arc::clone(&settings));
         let backups = BackupService::new(BackupServiceDeps {
             repo: deps.repos.backups,
             servers: Arc::clone(&servers),
