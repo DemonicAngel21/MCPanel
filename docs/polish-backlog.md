@@ -25,16 +25,18 @@ Functional bugs are fixed immediately and do not belong here.
 |---|---|---|
 | Players tab | After clicking a tab, the previously focused tab can still look underlined (focus vs. selected styling). | v0.2 players |
 | Players actions | A console reply can include an unrelated server line logged at the same moment (e.g. `handleDisconnection() called twice`). Consider filtering WARN lines or matching per command. | v0.2 players |
-| Toasts | Several toasts stack tightly in the corner during quick successive actions. | v0.2 backups |
-| Backups | Restore dialog content fades in with the dialog; the preview spinner is small. | v0.2 backups |
 | Backups | The backups-folder path in the server Backups tab header wraps awkwardly for long paths. | v0.2 backups |
 | Plugins | The plugin folder path in the Plugins header wraps; consider a shortened path with a tooltip. | v0.2 plugins |
-| Plugins | Search results lack a loading shimmer while typing; results jump when they arrive. | v0.2 plugins |
 | Templates | Template cards have no preview of the resolved values for the newest version. | v0.2 templates |
 | Fabric | The software line shows the loader as "build #0.19.5"; label it "Loader 0.19.5" for Fabric. | v0.2 fabric |
 | Create wizard | The download line shows the weakest hash of a multi-file install (Fabric: SHA-1 of the Mojang jar) without saying the libraries are SHA-512. | v0.2 fabric |
-| Notifications | The inbox popover fades in from transparent; a screenshot mid-animation looks washed out. Consider a shorter fade. | v0.3 notifications |
 | Settings | The Privacy card lists providers by hand; derive it from the registered providers. | v0.3 notifications |
 | Performance | TPS/MSPT history is in memory only (30 minutes) and starts empty after an MCPanel restart. | v0.4 performance |
 | Bedrock | Geyser passes the Java MOTD through with quotes (`"A Minecraft Server"`); the connection test shows them verbatim. | v0.3 bedrock |
 | Bedrock | The connection card could show this computer's LAN IP next to the Bedrock port (the Overview card already knows it). | v0.3 bedrock |
+| Server stop | Stopping a server while it is still *Starting* (e.g. Paper's first-run patching, which ignores `stop`) waits the full graceful timeout (60 s) before terminating it; the UI only shows "Stopping". Consider saying it will be terminated after N s. | v0.4 installer test |
+| Installer | The per-user install directory is the data directory (`%LOCALAPPDATA%\MCPanel`). Upgrades and uninstall only touch their own files, so data is safe, but the mix is untidy. | v0.4 installer test |
+| Motion | Route/tab fade-ins re-run when the same page is re-selected; harmless but could be skipped. | v0.4 animations |
+
+Resolved in v0.4 animations: toast spacing, restore-preview and plugin-search loading
+states (skeletons), inbox popover fade (now a 140 ms scale-in from its anchor).
