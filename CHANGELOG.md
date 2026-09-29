@@ -91,6 +91,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quilt support (v0.3): installed natively like Fabric (Mojang server jar + SHA-512-
   verified libraries from Quilt's and Fabric's Maven); runs Quilt and Fabric mods from
   Modrinth.
+- Bedrock crossplay (v0.3): a Bedrock tab sets up Geyser (+ Floodgate, + ViaVersion when
+  the server is older than Geyser's Minecraft version) on Paper/Purpur from GeyserMC's
+  download API (SHA-256) and on Fabric/NeoForge from Modrinth; seeds and patches the
+  Geyser config (port, sign-in method) without touching other options; refuses to start
+  when another program holds the Bedrock UDP port; tests the listener with a RakNet
+  ping. The Floodgate key is only reported as present, never read.
+- Server start hooks can be chained (content changes, then the Bedrock port check).
 - Provider requests are retried on transient failures (connection errors, 5xx, 429).
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
