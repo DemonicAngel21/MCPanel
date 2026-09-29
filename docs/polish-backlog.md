@@ -42,6 +42,7 @@ Functional bugs are fixed immediately and do not belong here.
 | Activity | On a server's Activity tab, details equal to the server name still show (no name map there). | v0.5 UI pass |
 | Server tabs | At narrow widths the active tab is not scrolled into view automatically. | v0.5 UI pass |
 | playit | The saved public address is not checked against playit.gg (no public API); a wrong address is only noticed by players. | v0.5 playit |
+| Backups | Deleting the last backup of a server leaves its empty per-server folder in the backups folder. | v0.5 installer test |
 
 Resolved in v0.4 animations: toast spacing, restore-preview and plugin-search loading
 states (skeletons), inbox popover fade (now a 140 ms scale-in from its anchor).
