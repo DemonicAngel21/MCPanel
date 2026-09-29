@@ -122,6 +122,10 @@ pub fn restore_into(
         .filter(|p| !p.key().eq_ignore_ascii_case(MANIFEST_NAME))
         .collect();
 
+    // `.mcpanel/restore` must be real folders: the old server tree is moved there.
+    if let Some(parent) = work.parent() {
+        fsx::ensure_real_dir_chain(root, parent)?;
+    }
     if work.exists() {
         fsx::remove_tree_no_follow(work)?;
     }

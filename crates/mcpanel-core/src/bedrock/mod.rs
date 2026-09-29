@@ -450,8 +450,7 @@ impl BedrockService {
         }
         let path = root.resolve(rel)?;
         if let Some(parent) = path.absolute().parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| CoreError::io("Cannot create the Geyser config folder", &e))?;
+            fsx::ensure_real_dir_chain(root.path(), parent)?;
         }
         path.ensure_no_reparse_points()?;
         fsx::atomic_write(&path.absolute(), text.as_bytes())

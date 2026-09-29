@@ -374,7 +374,16 @@ pub struct BundleSources {
 
 const MAX_LOG_BYTES: u64 = 20 * 1024 * 1024;
 
+/// Whether `dir` is a real folder (links/junctions are not followed into).
+fn real_dir(dir: &Path) -> bool {
+    std::fs::symlink_metadata(dir)
+        .is_ok_and(|md| md.is_dir() && !crate::files::fsx::is_reparse_point(&md))
+}
+
 fn newest_files(dir: &Path, filter: impl Fn(&str) -> bool, n: usize) -> Vec<PathBuf> {
+    if !real_dir(dir) {
+        return Vec::new();
+    }
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -390,23 +399,16 @@ fn newest_files(dir: &Path, filter: impl Fn(&str) -> bool, n: usize) -> Vec<Path
     v.into_iter().take(n).map(|(_, p)| p).collect()
 }
 
-/// `server.properties` with secret values replaced.
+/// `server.properties` with secret values replaced (parsed with the real properties
+/// parser, so every separator form and line continuations are handled).
 pub fn redact_properties(text: &str, sensitive: &[String]) -> String {
-    text.lines()
-        .map(|l| {
-            let t = l.trim_start();
-            if t.starts_with('#') || t.starts_with('!') {
-                return l.to_string();
-            }
-            match l.split_once(['=', ':']) {
-                Some((k, v)) if sensitive.iter().any(|s| s == k.trim()) && !v.trim().is_empty() => {
-                    format!("{}=<redacted>", k.trim_end())
-                }
-                _ => l.to_string(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    let mut doc = crate::config::PropertiesDocument::parse(text);
+    for k in sensitive {
+        if doc.get(k).is_some_and(|v| !v.trim().is_empty()) {
+            let _ = doc.set(k, "<redacted>");
+        }
+    }
+    doc.to_text()
 }
 
 fn file_name_of(p: &Path) -> String {
@@ -451,7 +453,7 @@ pub fn write_bundle(
                 == crate::files::sensitivity::Sensitivity::Normal
         })
     };
-    if normal("logs/latest.log") {
+    if normal("logs/latest.log") && real_dir(&src.server_dir.join("logs")) {
         files.push((
             "server/logs/latest.log".into(),
             src.server_dir.join("logs/latest.log"),
@@ -519,11 +521,18 @@ mod bundle_tests {
 
     #[test]
     fn secrets_are_redacted() {
-        let t = "#c\nrcon.password=hunter2\nmotd=Hi\nrcon.password =\nlevel-name=world";
-        let r = redact_properties(t, &["rcon.password".to_string()]);
-        assert!(r.contains("rcon.password=<redacted>"));
-        assert!(!r.contains("hunter2"));
-        assert!(r.contains("motd=Hi") && r.contains("rcon.password ="));
+        let keys = ["rcon.password".to_string()];
+        let r = redact_properties(
+            "#c\nrcon.password=hunter2\nmotd=Hi\nlevel-name=world",
+            &keys,
+        );
+        assert!(r.contains("rcon.password=<redacted>") && !r.contains("hunter2"));
+        assert!(r.contains("motd=Hi"));
+        // Whitespace separator and line continuations.
+        let r = redact_properties("rcon.password hunter2\nmotd=x", &keys);
+        assert!(!r.contains("hunter2"), "{r}");
+        let r = redact_properties("rcon.password=hun\\\n  ter2\nmotd=x", &keys);
+        assert!(!r.contains("hun") && !r.contains("ter2"), "{r}");
     }
 
     #[test]

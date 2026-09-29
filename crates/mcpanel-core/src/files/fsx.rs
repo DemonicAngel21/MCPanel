@@ -254,3 +254,44 @@ mod tests {
         assert!(outside.path().join("precious.txt").exists());
     }
 }
+
+/// Make sure every folder from `root` down to `dir` is a real folder (not a link or
+/// junction that could lead outside `root`), creating missing ones.
+pub fn ensure_real_dir_chain(root: &Path, dir: &Path) -> CoreResult<()> {
+    let rel = dir
+        .strip_prefix(root)
+        .map_err(|_| CoreError::internal("folder outside the server root"))?;
+    let mut cur = root.to_path_buf();
+    for c in rel.components() {
+        cur.push(c);
+        match fs::symlink_metadata(&cur) {
+            Ok(md) if is_reparse_point(&md) || !md.is_dir() => {
+                return Err(CoreError::new(
+                    crate::error::ErrorCode::PathRejected,
+                    format!("'{}' is a link or not a folder", cur.display()),
+                ));
+            }
+            Ok(_) => {}
+            Err(_) => {
+                fs::create_dir(&cur).map_err(|e| CoreError::io("Cannot create folder", &e))?
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod chain_tests {
+    use super::*;
+
+    #[test]
+    fn creates_missing_folders_and_rejects_files_in_the_way() {
+        let d = tempfile::tempdir().unwrap();
+        let dir = d.path().join(".mcpanel/trash");
+        ensure_real_dir_chain(d.path(), &dir).unwrap();
+        assert!(dir.is_dir());
+        std::fs::write(d.path().join("blocker"), b"x").unwrap();
+        assert!(ensure_real_dir_chain(d.path(), &d.path().join("blocker/sub")).is_err());
+        assert!(ensure_real_dir_chain(d.path(), Path::new("C:/elsewhere")).is_err());
+    }
+}
