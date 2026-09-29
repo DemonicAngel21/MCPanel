@@ -131,6 +131,15 @@ fn main() {
                     "Percentiles: P50: 2.0ms P95: 4.0ms P99: 9.0ms. Sample: 100",
                 );
             }
+            // Paper's watchdog: logs a shutdown ("Stopping server") and exits with 70.
+            "paper-watchdog" => {
+                log(
+                    "ERROR",
+                    "The server has stopped responding! This is (probably) not a Paper bug.",
+                );
+                log("INFO", "Stopping server");
+                std::process::exit(70);
+            }
             "watchdog" => {
                 log(
                     "ERROR",
