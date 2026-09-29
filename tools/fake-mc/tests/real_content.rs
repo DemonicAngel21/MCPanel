@@ -145,3 +145,37 @@ async fn plugins_from_modrinth_and_hangar_load_on_paper() {
     s.stop_and_wait().await;
     s.finish().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_plugin_from_spiget_loads_on_paper() {
+    if !eula_accepted() {
+        return;
+    }
+    let s = RealServer::create_with("paper", Some("1.21.11"), &[("server-port", "25614")]).await;
+    let _guard = KillOnPanic(Arc::clone(&s.core), s.id);
+    let c = &s.core.content;
+    let plan = c.plan(s.id, &req("spiget", "28140")).await.unwrap();
+    assert!(
+        plan.warnings.iter().any(|w| w.contains("unverified")),
+        "{:?}",
+        plan.warnings
+    );
+    wait_job(
+        &s.core,
+        c.install(s.id, req("spiget", "28140"), "e2e")
+            .await
+            .unwrap(),
+    )
+    .await;
+    let list = c.list(s.id).await.unwrap();
+    let e = &list.entries[0];
+    eprintln!("{} {:?}", e.file_name, e.descriptor);
+    assert_eq!(
+        e.descriptor.as_ref().and_then(|d| d.name.as_deref()),
+        Some("LuckPerms")
+    );
+    s.start_and_wait().await;
+    wait_console(&s, "Enabling LuckPerms").await;
+    s.stop_and_wait().await;
+    s.finish().await;
+}

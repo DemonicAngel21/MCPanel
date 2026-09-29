@@ -23,6 +23,8 @@ pub fn user_agent() -> String {
 #[derive(Clone)]
 pub struct HttpClient {
     client: reqwest::Client,
+    /// Same settings without following redirects (to inspect a redirect's target).
+    no_redirect: reqwest::Client,
 }
 
 fn net_err(context: &str, e: reqwest::Error) -> CoreError {
@@ -64,7 +66,59 @@ impl HttpClient {
             .redirect(reqwest::redirect::Policy::limited(5))
             .build()
             .map_err(|e| CoreError::internal(format!("Cannot create HTTP client: {e}")))?;
-        Ok(Self { client })
+        let no_redirect = reqwest::Client::builder()
+            .user_agent(user_agent())
+            .https_only(true)
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| CoreError::internal(format!("Cannot create HTTP client: {e}")))?;
+        Ok(Self {
+            client,
+            no_redirect,
+        })
+    }
+
+    /// Where `url` redirects to (`None` if it answers without a redirect). The response
+    /// body is not read.
+    pub async fn redirect_target(&self, url: &str) -> CoreResult<Option<String>> {
+        with_retries(|| async {
+            let resp = self
+                .no_redirect
+                .get(url)
+                .timeout(Duration::from_secs(30))
+                .send()
+                .await
+                .map_err(|e| net_err("Request failed", e))?;
+            let status = resp.status();
+            if status.is_redirection() {
+                let loc = resp
+                    .headers()
+                    .get(reqwest::header::LOCATION)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|l| resp.url().join(l).map(|u| u.to_string()));
+                return match loc {
+                    Some(Ok(u)) => Ok(Some(u)),
+                    _ => Err(CoreError::new(
+                        ErrorCode::ProviderError,
+                        "Redirect without a valid location",
+                    )),
+                };
+            }
+            if status.as_u16() == 404 {
+                return Err(CoreError::new(ErrorCode::VersionNotFound, "Not found"));
+            }
+            if status.is_server_error() || status.as_u16() == 429 {
+                return Err(CoreError::new(
+                    ErrorCode::ProviderError,
+                    format!("Provider returned HTTP {status}"),
+                )
+                .retryable());
+            }
+            Ok(None)
+        })
+        .await
     }
 
     /// GET a JSON document (metadata-sized, bounded to 16 MiB).

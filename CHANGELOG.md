@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- SpigotMC plugins through Spiget (v0.4): search SpigotMC resources and install the
+  latest version of free resources from Spiget's CDN. Spiget publishes no hashes, so
+  these downloads are marked unverified; premium and external resources link to their
+  page instead. Download redirects are resolved first and only Spiget's CDN is accepted.
 - TPS and MSPT (v0.4): running servers are asked every 15 s with `tick query`
   (Minecraft 1.20.3+, including Fabric/Quilt/NeoForge/Forge) or Paper/Purpur's `tps` and
   `mspt`; the overview shows the values with 30-minute sparklines. Vanilla TPS is

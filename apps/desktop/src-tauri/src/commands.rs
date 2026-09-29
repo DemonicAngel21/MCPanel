@@ -698,6 +698,7 @@ pub fn open_external(app: AppHandle, url: String) -> R<()> {
         "modrinth.com",
         "hangar.papermc.io",
         "geysermc.org",
+        "www.spigotmc.org",
         "playit.gg",
     ];
     let host_ok = tauri::Url::parse(&url).is_ok_and(|u| {

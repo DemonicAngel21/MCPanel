@@ -167,3 +167,67 @@ async fn geysermc_latest_builds_download_and_match_their_hash() {
         }
     }
 }
+
+#[tokio::test]
+async fn spiget_search_latest_version_and_cdn_download() {
+    use mcpanel_core::content::{ContentProvider, SearchQuery, SearchSort};
+    let http = crate::http_client().unwrap();
+    let sp = crate::spiget::Spiget::new(http.clone());
+    let target = paper_target("1.21.4");
+    assert!(sp.supports(&target));
+    let page = sp
+        .search(&SearchQuery {
+            text: "LuckPerms".into(),
+            target: target.clone(),
+            sort: SearchSort::Downloads,
+            offset: 0,
+            limit: 5,
+        })
+        .await
+        .unwrap();
+    let lp = page
+        .hits
+        .iter()
+        .find(|p| p.name == "LuckPerms")
+        .expect("found");
+    assert_eq!(lp.page_url, "https://www.spigotmc.org/resources/28140/");
+    let versions = sp.versions(&lp.id, &target).await.unwrap();
+    assert_eq!(versions.len(), 1);
+    let file = versions[0].file.as_ref().expect("installable");
+    assert!(
+        file.url.starts_with("https://cdn.spiget.org/"),
+        "{}",
+        file.url
+    );
+    assert!(file.hash.is_none(), "Spiget publishes no hashes");
+    assert_eq!(
+        sp.version(&lp.id, &versions[0].id).await.unwrap().id,
+        versions[0].id
+    );
+    // External resources are listed but not downloadable.
+    let ex = sp.versions("9089", &target).await.unwrap();
+    assert!(ex[0].file.is_none());
+    assert!(
+        ex[0]
+            .external_url
+            .as_deref()
+            .unwrap_or("")
+            .starts_with("https://")
+    );
+    // Unknown resources are "not found"; empty searches are empty.
+    assert_eq!(
+        sp.project("999999999").await.unwrap_err().code,
+        mcpanel_core::error::ErrorCode::NotFound
+    );
+    let none = sp
+        .search(&SearchQuery {
+            text: "zzqqxx-no-such-plugin-zzqqxx".into(),
+            target,
+            sort: SearchSort::Relevance,
+            offset: 0,
+            limit: 5,
+        })
+        .await
+        .unwrap();
+    assert!(none.hits.is_empty());
+}
