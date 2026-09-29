@@ -262,7 +262,7 @@ result. If the finding contradicts the specification, the spec is updated in the
   `claim exchange <CODE> [--wait]` (prints the secret key — not used by MCPanel),
   `setup` (prints "Open this link to finish setting up playit:" and
   `https://playit.gg/claim/<10 hex>`, then waits; verified against a separate
-  `playitd.exe --secret-path <tmp> --socket-path \.\pipe\<test>`), `account login-url`
+  `playitd.exe --secret-path <tmp> --socket-path \\.\pipe\<test>`), `account login-url`
   (guest accounts only: "Fail(AccountIsNotGuest)" for a verified account).
 - `playit start` / `stop` on the installed service as a normal user: "The playit service
   started." / "The playit service stopped."; status phases observed: starting → running.

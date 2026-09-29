@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, History, XCircle } from "lucide-react";
 import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { EmptyState, Tooltip } from "./ui/primitives";
@@ -77,11 +77,13 @@ function detail(e: AuditEntryDto): string | null {
 export function ActivityList({ entries, serverNames }: { entries: AuditEntryDto[] | undefined; serverNames?: Record<string, string> }) {
   if (!entries) return null;
   if (entries.length === 0)
-    return <EmptyState title="No activity yet" description="Actions such as starting servers or editing files appear here." />;
+    return <EmptyState icon={<History />} title="No activity yet" description="Actions such as starting servers or editing files appear here." />;
   return (
     <ul className="divide-y divide-border">
       {entries.map((e) => {
-        const d = detail(e);
+        const raw = detail(e);
+        // Skip details that only repeat what the row already says.
+        const d = raw && raw !== (e.serverId && serverNames?.[e.serverId]) && !(e.action.startsWith("tunnel.") && raw === "playit") ? raw : null;
         return (
           <li key={e.id} className="flex items-start gap-3 px-4 py-2.5">
             {e.result === "success" ? (

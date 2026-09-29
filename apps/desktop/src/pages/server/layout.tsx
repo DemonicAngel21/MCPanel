@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { AlertTriangle, ExternalLink, FolderOpen, Unplug } from "lucide-react";
+import { AlertTriangle, ExternalLink, FolderOpen, ServerOff, Unplug } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { ServerDto } from "@/bindings/ServerDto";
@@ -112,7 +112,7 @@ export function ServerLayout() {
       </div>
     );
   }
-  if (!server) return <EmptyState title="Server not found" description={error ? errorMessage(error) : undefined} />;
+  if (!server) return <EmptyState icon={<ServerOff />} title="Server not found" description={error ? errorMessage(error) : undefined} />;
   const meta = stateMeta(server.state);
   // The content tab is named after (and only shown for) what the software supports.
   const content = software?.find((sw) => sw.id === server.software.softwareId)?.content ?? [];

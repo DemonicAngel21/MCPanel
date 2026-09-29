@@ -1,4 +1,4 @@
-import { AlertTriangle, ArchiveRestore, FolderSearch, KeyRound, Lock, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, FolderSearch, KeyRound, Lock, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -154,7 +154,7 @@ export function BackupList({
   const [reveal, setReveal] = useState<BackupDto | null>(null);
 
   if (!backups) return <Spinner className="m-6" />;
-  if (backups.length === 0) return <EmptyState title="No backups yet" description="Backups you create or schedule appear here." />;
+  if (backups.length === 0) return <EmptyState icon={<Archive />} title="No backups yet" description="Backups you create or schedule appear here." />;
 
   const doReveal = (b: BackupDto) => api.backups.reveal(b.id).catch((e) => toast.error(errorMessage(e)));
 

@@ -252,7 +252,11 @@ export function ServerBackups() {
             location && (
               <>
                 {backups?.length ?? 0} backups · {formatBytes(total)} ·{" "}
-                <Link to="/backups" className="text-accent hover:underline">
+                <Link
+                  to="/backups"
+                  title="Change the backups folder on the Backups page"
+                  className="text-muted underline-offset-2 hover:text-fg hover:underline"
+                >
                   {location.directory}
                 </Link>
               </>

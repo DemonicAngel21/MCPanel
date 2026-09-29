@@ -18,6 +18,14 @@ export function Sparkline({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
+  // Callers pass inline `format` functions and new `points` arrays on every render; keep
+  // the latest in refs so the chart is only rebuilt when its shape changes.
+  const formatRef = useRef(format);
+  const pointsRef = useRef(points);
+  useEffect(() => {
+    formatRef.current = format;
+    pointsRef.current = points;
+  });
 
   useEffect(() => {
     const el = ref.current;
@@ -45,11 +53,12 @@ export function Sparkline({
           width: 1.5,
           points: { show: false },
           fill: `${resolved}22`,
-          value: (_u, v) => (v == null ? "—" : format ? format(v) : String(v)),
+          value: (_u, v) => (v == null ? "—" : formatRef.current ? formatRef.current(v) : String(v)),
         },
       ],
     };
-    plot.current = new uPlot(opts, [[], []], el);
+    const initial = pointsRef.current;
+    plot.current = new uPlot(opts, [initial.map((p) => p[0] / 1000), initial.map((p) => p[1])], el);
     const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height }));
     ro.observe(el);
     return () => {
@@ -57,11 +66,17 @@ export function Sparkline({
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [height, max, color, format]);
+  }, [height, max, color]);
 
   useEffect(() => {
     plot.current?.setData([points.map((p) => p[0] / 1000), points.map((p) => p[1])]);
   }, [points]);
 
-  return <div ref={ref} className="w-full" style={{ height }} />;
+  return (
+    <div className="relative w-full" style={{ height }}>
+      <div ref={ref} className="absolute inset-0" />
+      {/* Until there are two samples, show a quiet baseline instead of blank space. */}
+      {points.length < 2 && <div aria-hidden className="absolute inset-x-0 bottom-0 border-b border-dashed border-border-strong" />}
+    </div>
+  );
 }

@@ -238,7 +238,7 @@ export function CreateServerPage() {
         </ol>
       </PageHeader>
       <PageBody>
-        <div className="mx-auto max-w-2xl space-y-5">
+        <div className="max-w-3xl space-y-5">
           {template && !jobId && (
             <Banner
               tone="info"

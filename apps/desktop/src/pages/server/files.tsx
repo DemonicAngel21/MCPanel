@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  AlertTriangle,
   Archive,
   ChevronRight,
   Copy,
@@ -354,7 +355,7 @@ export function ServerFiles() {
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface">
         {list.isError ? (
-          <EmptyState title="Cannot open this folder" description={errorMessage(list.error)} />
+          <EmptyState tone="danger" icon={<AlertTriangle />} title="Cannot open this folder" description={errorMessage(list.error)} />
         ) : entries?.length === 0 ? (
           <EmptyState
             icon={<Folder />}

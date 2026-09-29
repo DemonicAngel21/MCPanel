@@ -197,6 +197,12 @@ export function PageHeader({
   );
 }
 
+/** The scrolling page area. `className` styles the content column (e.g. `max-w-5xl`), so
+ * the scrollbar stays at the window edge however narrow the content is. */
 export function PageBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("min-h-0 flex-1 overflow-y-auto px-6 py-5", className)}>{children}</div>;
+  return (
+    <div className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-6 py-5">
+      <div className={cn("w-full", className)}>{children}</div>
+    </div>
+  );
 }

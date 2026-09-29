@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createHashHistory, createRootRouteWithContext, createRoute, createRouter } from "@tanstack/react-router";
 import { lazy } from "react";
 import { AppShell } from "@/app/app-shell";
-import { ErrorView } from "@/app/error-view";
+import { ErrorView, NotFoundView } from "@/app/error-view";
 import { DashboardPage } from "@/pages/dashboard";
 import { ServersPage } from "@/pages/servers";
 import { CreateServerPage } from "@/pages/create-server";
@@ -98,6 +98,7 @@ export const router = createRouter({
   context: { queryClient: undefined as unknown as QueryClient },
   defaultPreload: false,
   defaultErrorComponent: ErrorView,
+  defaultNotFoundComponent: NotFoundView,
 });
 
 declare module "@tanstack/react-router" {

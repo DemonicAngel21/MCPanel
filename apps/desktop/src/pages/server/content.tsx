@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowUpCircle,
   Download,
   ExternalLink,
@@ -10,6 +11,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  SearchX,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -236,7 +238,9 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
       </div>
       {results.isLoading && <SkeletonRows rows={5} />}
       {results.error && <p className="p-4 text-xs text-danger">{errorMessage(results.error)}</p>}
-      {results.data && results.data.hits.length === 0 && <EmptyState title="No results" description="Try another search or provider." />}
+      {results.data && results.data.hits.length === 0 && (
+        <EmptyState icon={<SearchX />} title="No results" description="Try another search or provider." />
+      )}
       <ul className="divide-y divide-border">
         {results.data?.hits.map((p) => (
           <li key={p.id} className="flex animate-fade-in items-start gap-3 px-4 py-3 transition-colors duration-100 hover:bg-surface-2">
@@ -377,7 +381,10 @@ export function ServerContent() {
         </Card>
       </PageBody>
     );
-  if (!list) return <EmptyState title="Plugins are unavailable" description={error ? errorMessage(error) : undefined} />;
+  if (!list)
+    return (
+      <EmptyState tone="danger" icon={<AlertTriangle />} title="Plugins are unavailable" description={error ? errorMessage(error) : undefined} />
+    );
   const label = list.kind === "mod" ? "Mods" : "Plugins";
 
   const check = async () => {

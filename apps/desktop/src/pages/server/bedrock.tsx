@@ -204,7 +204,10 @@ export function ServerBedrock() {
       </PageBody>
     );
   }
-  if (!status) return <EmptyState title="Bedrock status unavailable" description={error ? errorMessage(error) : undefined} />;
+  if (!status)
+    return (
+      <EmptyState tone="danger" icon={<AlertTriangle />} title="Bedrock status unavailable" description={error ? errorMessage(error) : undefined} />
+    );
   if (!status.supported) {
     return (
       <PageBody className="max-w-3xl">

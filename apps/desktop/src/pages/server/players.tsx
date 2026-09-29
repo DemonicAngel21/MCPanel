@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Crown, DoorOpen, MoreHorizontal, ShieldCheck, ShieldOff, UserPlus } from "lucide-react";
+import { AlertTriangle, Ban, Crown, DoorOpen, MoreHorizontal, ShieldCheck, ShieldOff, UserPlus, Users } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { KnownPlayerDto } from "@/bindings/KnownPlayerDto";
@@ -264,7 +264,10 @@ export function ServerPlayers() {
         </Card>
       </PageBody>
     );
-  if (!data) return <EmptyState title="Players are unavailable" description={error ? errorMessage(error) : undefined} />;
+  if (!data)
+    return (
+      <EmptyState tone="danger" icon={<AlertTriangle />} title="Players are unavailable" description={error ? errorMessage(error) : undefined} />
+    );
   const ro = !!data.readOnlyReason;
   const tabs: [Tab, string, number][] = [
     ["players", "Players", data.known.length],
@@ -345,7 +348,7 @@ export function ServerPlayers() {
         <div key={tab} className="animate-fade-in">
           {tab === "players" &&
             (data.known.length === 0 ? (
-              <EmptyState title="No players yet" description="Players who join, and players on the server's lists, appear here." />
+              <EmptyState icon={<Users />} title="No players yet" description="Players who join, and players on the server's lists, appear here." />
             ) : (
               <table className="w-full text-[13px]">
                 <thead className="border-b border-border text-left text-xs text-muted">

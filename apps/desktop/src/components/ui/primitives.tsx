@@ -215,10 +215,32 @@ export function Tooltip({
   );
 }
 
-export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: string; description?: ReactNode; action?: ReactNode }) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  tone = "neutral",
+}: {
+  icon?: ReactNode;
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  /** "danger" for something that could not be loaded. */
+  tone?: "neutral" | "danger";
+}) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      {icon && <div className="mb-1 text-faint [&_svg]:size-8">{icon}</div>}
+    <div role={tone === "danger" ? "alert" : undefined} className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+      {icon && (
+        <div
+          className={cn(
+            "mb-1 flex size-11 items-center justify-center rounded-full [&_svg]:size-5",
+            tone === "danger" ? "bg-danger-soft text-danger" : "bg-surface-2 text-muted",
+          )}
+        >
+          {icon}
+        </div>
+      )}
       <p className="text-sm font-medium text-fg">{title}</p>
       {description && <p className="max-w-sm text-xs text-muted">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
