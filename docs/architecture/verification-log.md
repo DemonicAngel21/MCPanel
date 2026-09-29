@@ -270,6 +270,22 @@ result. If the finding contradicts the specification, the spec is updated in the
   - Fabric 26.2: `tick query` as vanilla 26.3.
 - Sampling through MCPanel verified on those three servers (`real_performance`).
 
+## 2026-09-29 — Spiget
+
+- API `https://api.spiget.org/v2` (swagger: github.com/SpiGetOrg/Documentation, Apache
+  2.0, operated by inventivetalent; not SpigotMC). Search
+  `/search/resources/{q}?field=name&size&page&sort&fields`, listing `/resources`, details
+  `/resources/{id}` (404 unknown), `/resources/{id}/versions/latest`. Searches without
+  results answer 404. Resources: `external`, `premium` (omitted when false),
+  `file{type ".jar"|".sk"|"external", url, externalUrl?}`, `testedVersions`,
+  `updateDate` (unix seconds). No file hashes anywhere.
+- Downloads: `/resources/{id}/download` → 302 `https://cdn.spiget.org/file/spiget-resources/{id}.jar`
+  (latest stored file); `/resources/{id}/versions/{v}/download` → 302 to
+  spigotmc.org (Cloudflare, not automatable); `…/download/proxy` documented as strictly
+  rate limited.
+- Through MCPanel: LuckPerms (28140) from Spiget installed on Paper 1.21.11 (plan warned
+  "unverified"), descriptor LuckPerms 5.5.71, Paper enabled it.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
