@@ -197,6 +197,19 @@ result. If the finding contradicts the specification, the spec is updated in the
   on JDK 25. Old Forge (1.12.2/1.16.5) needs Java 8 to *run*; not run here (no Java 8
   installed).
 
+## 2026-09-29 — Quilt
+
+- Meta API v3 (`https://meta.quiltmc.org/v3`): `/versions/game` → `{version, stable}`;
+  `/versions/loader/{game}` → `[{loader:{version,…},…}]`, **not sorted** and without a
+  stable flag; the global `/versions/loader` list is newest first.
+  `/versions/loader/{game}/{loader}/server/json` has the Fabric profile format, main
+  class `org.quiltmc.loader.impl.launch.knot.KnotServer`, libraries from
+  `https://maven.fabricmc.net/` and `https://maven.quiltmc.org/repository/release/`
+  without hashes; both repositories publish `.sha512` files.
+- Real server through MCPanel: Quilt Loader 0.30.1 on 1.21.4 booted in ~13 s on JDK 25
+  (`-cp` launch with `-Dloader.gameJarPath` / `-Dfabric.gameJarPath`), and Lithium
+  (a Fabric mod) from Modrinth loaded.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |

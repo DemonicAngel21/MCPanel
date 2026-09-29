@@ -13,6 +13,7 @@ async fn all_providers_list_versions_and_plan_installs() {
         ("paper", "1.21.11"),
         ("purpur", "1.21.11"),
         ("fabric", "1.21.11"),
+        ("quilt", "1.21.4"),
         ("neoforge", "1.21.4"),
         ("forge", "1.20.1"),
     ] {

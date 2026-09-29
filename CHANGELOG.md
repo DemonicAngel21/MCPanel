@@ -88,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   afterwards; 1.17+ servers start from the installer's argument file, older Forge from
   its server jar. Forge picks the recommended build by default. Mods for both come from
   Modrinth.
+- Quilt support (v0.3): installed natively like Fabric (Mojang server jar + SHA-512-
+  verified libraries from Quilt's and Fabric's Maven); runs Quilt and Fabric mods from
+  Modrinth.
 - Provider requests are retried on transient failures (connection errors, 5xx, 429).
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
