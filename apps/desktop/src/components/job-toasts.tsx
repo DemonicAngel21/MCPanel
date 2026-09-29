@@ -5,6 +5,7 @@ import { useUi } from "@/stores/ui";
 const LABELS: Record<string, string> = {
   "server.create": "Creating server",
   "content.install": "Installing",
+  "bedrock.enable": "Setting up Bedrock crossplay",
   "backup.create": "Backing up",
   "backup.scheduled": "Scheduled backup",
   "backup.verify": "Verifying backup",

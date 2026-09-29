@@ -559,6 +559,86 @@ impl Platform for WindowsPlatform {
             }
         }
     }
+
+    fn udp_port_status(&self, port: u16) -> PortStatus {
+        match udp_bound_pid(port) {
+            Ok(None) => PortStatus::Free,
+            Ok(Some(pid)) => PortStatus::InUse {
+                pid: Some(pid),
+                process_name: self.metrics.process_name(pid),
+            },
+            Err(e) => {
+                tracing::warn!(target: "mcpanel::platform", "cannot query UDP table: {e}");
+                PortStatus::Unknown
+            }
+        }
+    }
+}
+
+/// Owner PID of a UDP socket bound to `port` (IPv4 or IPv6), via the IP Helper API.
+fn udp_bound_pid(port: u16) -> Result<Option<u32>, String> {
+    use windows::Win32::NetworkManagement::IpHelper::{
+        GetExtendedUdpTable, MIB_UDP6ROW_OWNER_PID, MIB_UDPROW_OWNER_PID, UDP_TABLE_OWNER_PID,
+    };
+    use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6};
+    const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
+
+    for family in [AF_INET.0 as u32, AF_INET6.0 as u32] {
+        let mut size = 0u32;
+        // SAFETY: size query with a null buffer.
+        let rc =
+            unsafe { GetExtendedUdpTable(None, &mut size, false, family, UDP_TABLE_OWNER_PID, 0) };
+        if rc != ERROR_INSUFFICIENT_BUFFER && rc != 0 {
+            return Err(format!("GetExtendedUdpTable size query failed ({rc})"));
+        }
+        let mut buf = vec![0u8; size as usize + 1024];
+        let mut size = buf.len() as u32;
+        // SAFETY: buffer is large enough per the size query; the API fills it.
+        let rc = unsafe {
+            GetExtendedUdpTable(
+                Some(buf.as_mut_ptr().cast()),
+                &mut size,
+                false,
+                family,
+                UDP_TABLE_OWNER_PID,
+                0,
+            )
+        };
+        if rc != 0 {
+            return Err(format!("GetExtendedUdpTable failed ({rc})"));
+        }
+        if buf.len() < 4 {
+            continue;
+        }
+        let count = u32::from_ne_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+        let rows_offset = 4usize;
+        let row_size = if family == AF_INET.0 as u32 {
+            std::mem::size_of::<MIB_UDPROW_OWNER_PID>()
+        } else {
+            std::mem::size_of::<MIB_UDP6ROW_OWNER_PID>()
+        };
+        for i in 0..count {
+            let off = rows_offset + i * row_size;
+            if off + row_size > buf.len() {
+                break;
+            }
+            let (local_port, pid) = if family == AF_INET.0 as u32 {
+                // SAFETY: bounds checked above; read_unaligned tolerates alignment.
+                let row: MIB_UDPROW_OWNER_PID =
+                    unsafe { std::ptr::read_unaligned(buf[off..].as_ptr().cast()) };
+                (row.dwLocalPort, row.dwOwningPid)
+            } else {
+                // SAFETY: bounds checked above.
+                let row: MIB_UDP6ROW_OWNER_PID =
+                    unsafe { std::ptr::read_unaligned(buf[off..].as_ptr().cast()) };
+                (row.dwLocalPort, row.dwOwningPid)
+            };
+            if u16::from_be((local_port & 0xFFFF) as u16) == port {
+                return Ok(Some(pid));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Owner PID of a TCP listener on `port` (IPv4 or IPv6), via the IP Helper API.
@@ -656,6 +736,19 @@ mod tests {
         }
         drop(listener);
         assert_eq!(p.tcp_port_status(port), PortStatus::Free);
+    }
+
+    #[test]
+    fn detects_a_bound_udp_port() {
+        let sock = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let port = sock.local_addr().unwrap().port();
+        let p = WindowsPlatform::new();
+        match p.udp_port_status(port) {
+            PortStatus::InUse { pid, .. } => assert_eq!(pid, Some(std::process::id())),
+            other => panic!("expected in use, got {other:?}"),
+        }
+        drop(sock);
+        assert_eq!(p.udp_port_status(port), PortStatus::Free);
     }
 
     #[test]

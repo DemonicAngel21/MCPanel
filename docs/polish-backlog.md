@@ -12,6 +12,9 @@ Functional bugs are fixed immediately and do not belong here.
 - Provider-recommended JVM flags are applied as published; JDK 26 already deprecates
   `ParallelRefProcEnabled`. MCPanel diagnoses a rejected flag, but could also test flags
   against the chosen Java when a server is created.
+- Bedrock: MCPanel does not add Windows Firewall rules for the UDP port (that needs
+  administrator rights); Windows prompts for Java on first use. Decide whether an
+  elevated "Allow through firewall" action is wanted.
 
 | Area | Issue | Found |
 |---|---|---|
@@ -25,3 +28,5 @@ Functional bugs are fixed immediately and do not belong here.
 | Templates | Template cards have no preview of the resolved values for the newest version. | v0.2 templates |
 | Fabric | The software line shows the loader as "build #0.19.5"; label it "Loader 0.19.5" for Fabric. | v0.2 fabric |
 | Create wizard | The download line shows the weakest hash of a multi-file install (Fabric: SHA-1 of the Mojang jar) without saying the libraries are SHA-512. | v0.2 fabric |
+| Bedrock | Geyser passes the Java MOTD through with quotes (`"A Minecraft Server"`); the connection test shows them verbatim. | v0.3 bedrock |
+| Bedrock | The connection card could show this computer's LAN IP next to the Bedrock port (the Overview card already knows it). | v0.3 bedrock |

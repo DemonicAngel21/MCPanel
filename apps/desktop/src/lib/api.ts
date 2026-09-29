@@ -15,6 +15,10 @@ import type { ConsoleBatchDto } from "@/bindings/ConsoleBatchDto";
 import type { ContentListDto } from "@/bindings/ContentListDto";
 import type { ContentVersionDto } from "@/bindings/ContentVersionDto";
 import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
+import type { BedrockEnableDto } from "@/bindings/BedrockEnableDto";
+import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
+import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
+import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
 import type { FileEntryDto } from "@/bindings/FileEntryDto";
@@ -180,6 +184,13 @@ export const api = {
     policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),
     updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
     history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
+  },
+  bedrock: {
+    status: (serverId: string) => call<BedrockStatusDto>("bedrock_status", { serverId }),
+    /** Returns the setup job id. */
+    enable: (serverId: string, request: BedrockEnableDto) => call<string>("bedrock_enable", { serverId, request }),
+    configure: (serverId: string, settings: BedrockSettingsDto) => call<BedrockStatusDto>("bedrock_configure", { serverId, settings }),
+    ping: (serverId: string) => call<BedrockPongDto>("bedrock_ping", { serverId }),
   },
   content: {
     list: (serverId: string) => call<ContentListDto>("content_list", { serverId }),

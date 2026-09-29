@@ -19,6 +19,8 @@ const ACTIONS: Record<string, string> = {
   "content.disable": "Disabled a plugin/mod",
   "content.enable": "Enabled a plugin/mod",
   "content.discard_pending": "Discarded a queued plugin/mod change",
+  "bedrock.enable": "Set up Bedrock crossplay",
+  "bedrock.configure": "Changed the Bedrock settings",
   "player.op": "Made a player operator",
   "player.deop": "Removed an operator",
   "player.whitelist_add": "Added a player to the whitelist",

@@ -8,6 +8,7 @@ use crate::grants::{GrantKind, GrantRegistry};
 use crate::principal::{Permission, Principal};
 use mcpanel_core::Core;
 use mcpanel_core::backup::{BackupPolicy, CreateBackupRequest, Retention};
+use mcpanel_core::bedrock::EnableRequest;
 use mcpanel_core::console::ConsoleSubscription;
 use mcpanel_core::content::{InstallRequest, SearchSort};
 use mcpanel_core::events::EventEnvelope;
@@ -1036,6 +1037,57 @@ impl Api {
             .into_iter()
             .map(Into::into)
             .collect())
+    }
+
+    // ───────────────────────────── bedrock ─────────────────────────────
+
+    pub async fn bedrock_status(&self, p: &Principal, server: &str) -> ApiResult<BedrockStatusDto> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.bedrock.status(server_id(server)?).await?.into())
+    }
+
+    /// Returns the id of the setup job.
+    pub async fn bedrock_enable(
+        &self,
+        p: &Principal,
+        server: &str,
+        req: BedrockEnableDto,
+    ) -> ApiResult<String> {
+        p.authorize(Permission::ContentManage)?;
+        Ok(self
+            .core
+            .bedrock
+            .enable(
+                server_id(server)?,
+                EnableRequest {
+                    floodgate: req.floodgate,
+                    via_version: req.via_version,
+                    port: req.port,
+                },
+                p.actor(),
+            )
+            .await?
+            .to_string())
+    }
+
+    pub async fn bedrock_configure(
+        &self,
+        p: &Principal,
+        server: &str,
+        settings: BedrockSettingsDto,
+    ) -> ApiResult<BedrockStatusDto> {
+        p.authorize(Permission::ContentManage)?;
+        Ok(self
+            .core
+            .bedrock
+            .configure(server_id(server)?, settings.try_into()?, p.actor())
+            .await?
+            .into())
+    }
+
+    pub async fn bedrock_ping(&self, p: &Principal, server: &str) -> ApiResult<BedrockPongDto> {
+        p.authorize(Permission::ServersRead)?;
+        Ok(self.core.bedrock.ping(server_id(server)?).await?.into())
     }
 
     // ───────────────────────────── content ─────────────────────────────

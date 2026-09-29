@@ -2,9 +2,11 @@
 //! TypeScript (`apps/desktop/src/bindings`) by ts-rs. Domain types never cross the
 //! boundary directly.
 
+use crate::error::ApiError;
 use mcpanel_core::backup::BackupPolicy;
 use mcpanel_core::backup::restore::RestorePreview;
 use mcpanel_core::backup::service::BackupView;
+use mcpanel_core::bedrock::{AuthType, BedrockPiece, BedrockPong, BedrockSettings, BedrockStatus};
 use mcpanel_core::config::schema::{Applicability, PropertySchema, PropertyView};
 use mcpanel_core::console::{ConsoleBatch, ConsoleLine};
 use mcpanel_core::content::service::{ContentList, PendingChange, PendingKind};
@@ -18,7 +20,7 @@ use mcpanel_core::model::{AuditEntry, JavaRuntime, LaunchConfig};
 use mcpanel_core::monitoring::{ServerMetrics, SystemMetrics};
 use mcpanel_core::players::lists::Ban;
 use mcpanel_core::players::{ActionOutcome, PlayerAction, ServerPlayers};
-use mcpanel_core::ports::{LocationWarning, SystemSnapshot};
+use mcpanel_core::ports::{LocationWarning, PortStatus, SystemSnapshot};
 use mcpanel_core::server::ServerView;
 use mcpanel_core::settings::{AppSettings, ThemePreference};
 use mcpanel_core::software::{GameVersion, SoftwareBuild, SoftwareDescriptor};
@@ -901,6 +903,9 @@ pub enum EventDto {
     ContentChanged {
         server_id: String,
     },
+    BedrockChanged {
+        server_id: String,
+    },
     CrashRecorded {
         server_id: String,
         action: String,
@@ -987,6 +992,9 @@ impl From<&EventEnvelope> for EventDto {
                 server_id: server_id.to_string(),
             },
             D::ContentChanged { server_id } => Self::ContentChanged {
+                server_id: server_id.to_string(),
+            },
+            D::BedrockChanged { server_id } => Self::BedrockChanged {
                 server_id: server_id.to_string(),
             },
             D::CrashRecorded { server_id, action } => Self::CrashRecorded {
@@ -1709,6 +1717,161 @@ fn other_file(k: &PendingKind) -> String {
         PendingKind::Remove { file_name }
         | PendingKind::Disable { file_name }
         | PendingKind::Enable { file_name } => file_name.clone(),
+    }
+}
+
+// ─────────────────────────────── bedrock ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BedrockPieceDto {
+    pub file_name: String,
+    pub version: Option<String>,
+    pub enabled: bool,
+    pub pending: bool,
+}
+
+impl From<BedrockPiece> for BedrockPieceDto {
+    fn from(p: BedrockPiece) -> Self {
+        Self {
+            file_name: p.file_name,
+            version: p.version,
+            enabled: p.enabled,
+            pending: p.pending,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BedrockSettingsDto {
+    pub port: u16,
+    /// "online" | "offline" | "floodgate"
+    pub auth_type: String,
+}
+
+impl From<BedrockSettings> for BedrockSettingsDto {
+    fn from(s: BedrockSettings) -> Self {
+        Self {
+            port: s.port,
+            auth_type: serde_json::to_value(s.auth_type)
+                .ok()
+                .and_then(|v| v.as_str().map(String::from))
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl TryFrom<BedrockSettingsDto> for BedrockSettings {
+    type Error = ApiError;
+    fn try_from(d: BedrockSettingsDto) -> Result<Self, ApiError> {
+        let auth_type: AuthType = serde_json::from_value(serde_json::Value::String(d.auth_type))
+            .map_err(|_| ApiError::invalid("Unknown authentication type"))?;
+        Ok(Self {
+            port: d.port,
+            auth_type,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BedrockStatusDto {
+    pub supported: bool,
+    pub unsupported_reason: Option<String>,
+    pub geyser: Option<BedrockPieceDto>,
+    pub floodgate: Option<BedrockPieceDto>,
+    pub via_version: Option<BedrockPieceDto>,
+    pub via_version_available: bool,
+    pub via_version_suggested: bool,
+    pub via_version_required: bool,
+    pub config_path: Option<String>,
+    pub config_exists: bool,
+    pub settings: BedrockSettingsDto,
+    pub active_port: Option<u16>,
+    pub running: bool,
+    pub restart_required: bool,
+    pub floodgate_key_present: bool,
+    /// Another program holds the Bedrock UDP port (checked while stopped).
+    pub port_in_use: bool,
+    pub port_in_use_by: Option<String>,
+    pub default_port: u16,
+}
+
+impl From<BedrockStatus> for BedrockStatusDto {
+    fn from(s: BedrockStatus) -> Self {
+        let (port_in_use, port_in_use_by) = match s.port_status {
+            Some(PortStatus::InUse { pid, process_name }) => (
+                true,
+                match (process_name, pid) {
+                    (Some(n), Some(p)) => Some(format!("{n} (PID {p})")),
+                    (None, Some(p)) => Some(format!("PID {p}")),
+                    (n, None) => n,
+                },
+            ),
+            _ => (false, None),
+        };
+        Self {
+            supported: s.supported,
+            unsupported_reason: s.unsupported_reason,
+            geyser: s.geyser.map(Into::into),
+            floodgate: s.floodgate.map(Into::into),
+            via_version: s.via_version.map(Into::into),
+            via_version_available: s.via_version_available,
+            via_version_suggested: s.via_version_suggested,
+            via_version_required: s.via_version_required,
+            config_path: s.config_path,
+            config_exists: s.config_exists,
+            settings: s.settings.into(),
+            active_port: s.active_port,
+            running: s.running,
+            restart_required: s.restart_required,
+            floodgate_key_present: s.floodgate_key_present,
+            port_in_use,
+            port_in_use_by,
+            default_port: s.default_port,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BedrockEnableDto {
+    pub floodgate: bool,
+    pub via_version: bool,
+    pub port: Option<u16>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BedrockPongDto {
+    pub motd: String,
+    pub sub_motd: Option<String>,
+    pub version: String,
+    pub protocol: Option<u32>,
+    pub players: Option<u32>,
+    pub max_players: Option<u32>,
+    pub game_mode: Option<String>,
+    pub latency_ms: u64,
+}
+
+impl From<BedrockPong> for BedrockPongDto {
+    fn from(p: BedrockPong) -> Self {
+        Self {
+            motd: p.motd,
+            sub_motd: p.sub_motd,
+            version: p.version,
+            protocol: p.protocol,
+            players: p.players,
+            max_players: p.max_players,
+            game_mode: p.game_mode,
+            latency_ms: p.latency_ms,
+        }
     }
 }
 

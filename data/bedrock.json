@@ -1,0 +1,34 @@
+{
+  "_comment": "Bedrock crossplay (Geyser + Floodgate) per server software. Verified 2026-09-29; see docs/architecture/verification-log.md. Sources are content providers; names match plugin.yml / fabric.mod.json / neoforge.mods.toml display names (case-insensitive).",
+  "defaultPort": 19132,
+  "viaVersionBelow": "26.1",
+  "geyserStartedPattern": "Started Geyser on UDP port (\\d+)",
+  "viaVersionWarningPattern": "Please install ViaVersion",
+  "platforms": [
+    {
+      "software": ["paper", "purpur"],
+      "minGameVersion": "1.20.5",
+      "geyser": { "provider": "geysermc", "project": "geyser", "names": ["Geyser-Spigot"] },
+      "floodgate": { "provider": "geysermc", "project": "floodgate", "names": ["floodgate"] },
+      "viaVersion": { "provider": "modrinth", "project": "viaversion", "names": ["ViaVersion"] },
+      "geyserConfig": "plugins/Geyser-Spigot/config.yml",
+      "floodgateKey": "plugins/floodgate/key.pem"
+    },
+    {
+      "software": ["fabric"],
+      "latestOnly": true,
+      "geyser": { "provider": "modrinth", "project": "geyser", "names": ["Geyser-Fabric"] },
+      "floodgate": { "provider": "modrinth", "project": "floodgate", "names": ["Floodgate"] },
+      "geyserConfig": "config/Geyser-Fabric/config.yml",
+      "floodgateKey": "config/floodgate/key.pem"
+    },
+    {
+      "software": ["neoforge"],
+      "latestOnly": true,
+      "geyser": { "provider": "modrinth", "project": "geyser", "names": ["Geyser-NeoForge"] },
+      "floodgate": { "provider": "modrinth", "project": "floodgate", "names": ["Floodgate"] },
+      "geyserConfig": "config/Geyser-NeoForge/config.yml",
+      "floodgateKey": "config/floodgate/key.pem"
+    }
+  ]
+}

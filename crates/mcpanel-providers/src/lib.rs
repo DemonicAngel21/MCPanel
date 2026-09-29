@@ -7,6 +7,7 @@
 mod detect;
 pub mod fabric;
 pub mod forge;
+pub mod geysermc;
 pub mod hangar;
 pub mod http;
 pub mod modrinth;
@@ -23,7 +24,8 @@ pub use http::{HttpClient, HttpDownloader};
 pub use profiles::MojangProfiles;
 
 /// Build the registry of built-in providers: server software (Vanilla, Paper, Purpur,
-/// Fabric, Quilt, NeoForge, Forge) and content (Modrinth, Hangar).
+/// Fabric, Quilt, NeoForge, Forge) and content (Modrinth, Hangar,
+/// GeyserMC).
 pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     let mojang = mojang::MojangClient::new(http.clone());
     let mut r = ProviderRegistry::new();
@@ -52,6 +54,7 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     r.register_software(mojang::VanillaProvider::provider(mojang));
     r.register_content(Arc::new(modrinth::Modrinth::new(http.clone())));
     r.register_content(Arc::new(hangar::Hangar::new(http.clone())));
+    r.register_content(Arc::new(geysermc::GeyserMc::new(http.clone())));
     r
 }
 

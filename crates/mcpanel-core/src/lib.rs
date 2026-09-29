@@ -7,6 +7,7 @@
 
 pub mod audit;
 pub mod backup;
+pub mod bedrock;
 pub mod config;
 pub mod console;
 pub mod content;

@@ -210,6 +210,36 @@ result. If the finding contradicts the specification, the spec is updated in the
   (`-cp` launch with `-Dloader.gameJarPath` / `-Dfabric.gameJarPath`), and Lithium
   (a Fabric mod) from Modrinth loaded.
 
+## 2026-09-29 — GeyserMC / Bedrock
+
+- Download API `https://download.geysermc.org/v2` (documented at
+  geysermc.org/wiki/api/downloads): `/projects` (geyser, floodgate, …),
+  `/projects/{p}` → `versions[]` oldest first, `/projects/{p}/versions/{v}/builds` →
+  `builds[]` oldest first with `build`, `time`, `channel` ("default"),
+  `downloads{platform:{name, sha256}}`; `/…/builds/{b}` (404 if unknown) and
+  `/…/builds/{b}/downloads/{platform}` (the jar; SHA-256 matched). `…/latest/builds/latest`
+  answers with a 302 to the concrete build. Geyser platforms: spigot, fabric, neoforge,
+  velocity, bungeecord, standalone, viaproxy; Floodgate: spigot, bungee, velocity.
+- Geyser docs: Geyser 2.11.x supports Bedrock 26.30–26.51 and Java 26.2; Geyser-Spigot
+  runs on Spigot/Paper 1.20.5+; Geyser-Fabric/-NeoForge only on the latest Java version
+  (Modrinth tags the mod builds with it, e.g. 26.2). Floodgate for Fabric/NeoForge comes
+  from Modrinth (GeyserMC organisation).
+- Observed on Paper 1.21.11 with Geyser 2.11.3-b1247 + Floodgate 2.2.5-b141: config
+  `plugins/Geyser-Spigot/config.yml` (config-version 8; `bedrock.port`,
+  `java.auth-type` — "online" by default even with Floodgate installed), Floodgate key
+  `plugins/floodgate/key.pem`; log line `Started Geyser on UDP port <n>`; without
+  ViaVersion: "Your server software does not support the Java version that Geyser
+  requires (26.2, 26.1.1, 26.1.2). Please install ViaVersion …" (gone with ViaVersion
+  5.12.0). A config containing only `bedrock.port` and `java.auth-type` (no
+  `config-version`) is completed by Geyser with defaults and comments, keeping those
+  values; the listener binds the configured port.
+- RakNet unconnected ping: `0x01, i64 time, MAGIC 00ffff00fefefefefdfdfdfd12345678, i64
+  guid` → `0x1c, i64 time, i64 guid, MAGIC, u16 len, "MCPE;motd;2193;26.51;0;20;guid;
+  sub-motd;Survival;1;19132;19132;"`.
+- Through MCPanel: Paper 1.21.11 (Geyser + Floodgate + ViaVersion) and Fabric 26.2
+  (Geyser-Fabric 2.11.3 + Floodgate-Fabric 2.2.6 + Fabric API) both answered the ping on
+  the configured port with Floodgate authentication.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
@@ -217,7 +247,6 @@ result. If the finding contradicts the specification, the spec is updated in the
 | Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
 | CurseForge API key terms and distribution flags | v0.3+ |
 | Playit agent interfaces / supported tunnel management | v0.3 spike |
-| GeyserMC download API, config schema, Forge support status | v0.3 |
 | OneDrive (Graph), Dropbox, Google Drive APIs + app verification | v0.4 |
 | Adoptium API (Java downloader) | later |
 | Tauri NSIS per-user install directory default | v0.5 |
