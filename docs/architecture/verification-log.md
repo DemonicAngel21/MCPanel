@@ -309,11 +309,74 @@ result. If the finding contradicts the specification, the spec is updated in the
   (class-loader name = plugin jar), then "Stopping server", world saving and exit code
   70. No crash-reports file is written.
 
+## 2026-09-30 — Cloud storage OAuth (Google Drive, OneDrive, Dropbox)
+
+All three use the authorization code flow with PKCE (`S256`) through the system browser
+and a loopback redirect; MCPanel sends **no client secret**. Refresh tokens are stored in
+the Windows Credential Manager (`MCPanel/cloud-<provider>-refresh-token`), access tokens
+only in memory. Without an app registration, each real token endpoint was called with an
+invalid client ID (live test `cloud_token_endpoints_reject_an_unknown_client_clearly`):
+Google answered "The OAuth client was not found", Microsoft `AADSTS9002313`, Dropbox
+`invalid_client: Invalid client_id` — endpoints and error mapping confirmed. A real
+sign-in has **not** been tested (needs the app registrations).
+
+**Google Drive** (developers.google.com/identity/protocols/oauth2/native-app;
+workspace/drive/api/guides/api-specific-auth; support.google.com/cloud/answer/15549945)
+- OAuth client type **Desktop app**. Redirect `http://127.0.0.1:{port}` on any free port;
+  loopback redirects are not pre-registered ("`localhost` … may cause issues with client
+  firewalls"). MCPanel uses `http://127.0.0.1:{port}/`.
+- Endpoints: `https://accounts.google.com/o/oauth2/v2/auth`,
+  `https://oauth2.googleapis.com/token`, `https://oauth2.googleapis.com/revoke`.
+- `client_secret` is documented as **Optional** for code exchange and refresh
+  ("installed apps … cannot keep secrets"); refresh tokens are always returned for
+  installed apps.
+- Scope `https://www.googleapis.com/auth/drive.file` — **non-sensitive** (files the app
+  creates or the user opens with it); `about.get` accepts it (`fields` required).
+- Publishing status "Testing": at most 100 test users and authorizations **expire after 7
+  days**; "In production" needs no verification for non-sensitive scopes (the
+  unverified-app screen and 100-user cap apply only to sensitive/restricted scopes).
+
+**Microsoft OneDrive** (learn.microsoft.com: entra/identity-platform/reply-url,
+v2-oauth2-auth-code-flow; onedrive/developer/rest-api/concepts/special-folders-appfolder)
+- Register under **Mobile and desktop applications** (public client). `http://localhost`
+  is allowed and "the port component … is ignored for the purposes of matching a
+  localhost redirect URI"; the path must match (case-sensitive); query parameters are not
+  allowed for apps that sign in personal accounts. (http + `127.0.0.1` needs the manifest
+  editor; MCPanel uses `localhost`.) MCPanel uses `http://localhost:{port}/mcpanel/oauth`
+  → register `http://localhost/mcpanel/oauth`. The listener binds 127.0.0.1 and ::1.
+- Endpoints: `https://login.microsoftonline.com/common/oauth2/v2.0/authorize|token`
+  (`common` = personal + work/school accounts); `response_mode=query`.
+- "Public clients … must not use secrets or certificates when redeeming an authorization
+  code." A refresh token is returned only with `offline_access`; refresh tokens can be
+  rotated (MCPanel stores the new one).
+- Scopes (delegated): `offline_access`, `User.Read` (`GET /me`),
+  `Files.ReadWrite.AppFolder` (`/drive/special/approot`, created in the user's `Apps`
+  folder and named after the app registration).
+- No token revocation endpoint for this flow: disconnect deletes the stored token and
+  links to https://account.live.com/consent/Manage.
+
+**Dropbox** (docs.dropboxapi.com/dropbox-api/docs/oauth; dropbox.tech PKCE and offline
+access posts; Dropbox staff answers on dropboxforum.com)
+- PKCE: `code_challenge`, `code_challenge_method=S256`; the exchange passes
+  `code_verifier` instead of `client_secret`; `token_access_type=offline` returns a
+  refresh token; refresh with `grant_type=refresh_token` + `client_id`.
+- Redirect URIs must be **pre-registered and match exactly, including the port**
+  (no variable loopback port). MCPanel uses the first free of
+  `http://localhost:43917/mcpanel/oauth`, `…:43918/…`, `…:43919/…` — all three must be
+  registered.
+- Endpoints: `https://www.dropbox.com/oauth2/authorize`,
+  `https://api.dropboxapi.com/oauth2/token`, `POST /2/users/get_current_account`,
+  `POST /2/auth/token/revoke`.
+- Scoped app, access type **App folder**; scopes `account_info.read` (required for
+  user-linked apps), `files.metadata.read`, `files.content.read`, `files.content.write`.
+- Development status: up to 500 linked users; after 50, two weeks to obtain production
+  approval.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
 | CurseForge API key terms and distribution flags | v0.3+ |
-| OneDrive (Graph), Dropbox, Google Drive APIs + app verification | v0.4 |
+| Cloud sign-in with real app registrations; upload APIs (resumable upload per provider) | v0.4 |
 | Adoptium API (Java downloader) | later |
 | Tauri NSIS per-user install directory default | v0.5 |

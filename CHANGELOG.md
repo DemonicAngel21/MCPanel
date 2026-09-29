@@ -97,6 +97,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- Cloud storage connections (v0.4 foundation): Settings can connect and disconnect
+  Google Drive, OneDrive and Dropbox with OAuth 2.0 + PKCE through the browser and a
+  loopback redirect (no client secret). Refresh tokens are kept in the Windows Credential
+  Manager and refreshed automatically; disconnect revokes access where the provider
+  supports it. Providers without an app registration show as not configured. Uploading
+  backups is not available yet.
 - Disk policy (v0.4): a notification when a drive with servers or backups drops below
   5 GB or 5 % free (once per drive until it recovers); an optional size limit for a
   server's scheduled backups (oldest removed first, newest always kept); a disk-usage
