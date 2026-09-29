@@ -41,6 +41,7 @@ pub struct BackupServiceDeps {
     pub settings: Arc<SettingsService>,
     pub paths: AppPaths,
     pub platform: Arc<dyn Platform>,
+    pub encryption: Arc<crate::crypto::EncryptionService>,
 }
 
 pub struct BackupService {
@@ -52,6 +53,7 @@ pub struct BackupService {
     settings: Arc<SettingsService>,
     paths: AppPaths,
     platform: Arc<dyn Platform>,
+    encryption: Arc<crate::crypto::EncryptionService>,
     session_started: Timestamp,
     tz: jiff::tz::TimeZone,
     /// How long to wait for `save-all flush` to be confirmed.
@@ -76,6 +78,24 @@ fn partial_path(path: &Path) -> PathBuf {
     let mut s = path.as_os_str().to_owned();
     s.push(".partial");
     PathBuf::from(s)
+}
+
+/// Prefix of decrypted temporary copies next to encrypted backups.
+const PLAIN_PREFIX: &str = ".mcpanel-plain-";
+
+/// A plain ZIP for reading a backup: the archive itself, or a decrypted temporary copy
+/// next to it (deleted when dropped).
+struct PlainArchive {
+    path: PathBuf,
+    temporary: bool,
+}
+
+impl Drop for PlainArchive {
+    fn drop(&mut self) {
+        if self.temporary {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
 }
 
 fn not_found() -> CoreError {
@@ -129,6 +149,7 @@ impl BackupService {
             settings: deps.settings,
             paths: deps.paths,
             platform: deps.platform,
+            encryption: deps.encryption,
             session_started: Timestamp::now(),
             tz: jiff::tz::TimeZone::system(),
             save_timeout: Duration::from_secs(300),
@@ -151,6 +172,7 @@ impl BackupService {
                 continue;
             }
             let _ = tokio::fs::remove_file(partial_path(&b.path)).await;
+            let _ = tokio::fs::remove_file(partial_path(&b.path.with_extension("age-tmp"))).await;
             b.status = BackupStatus::Failed;
             b.error_message =
                 Some("Interrupted: MCPanel was closed while the backup was running".into());
@@ -158,7 +180,74 @@ impl BackupService {
             self.repo.update(&b).await?;
             n += 1;
         }
+        // Decrypted temporary copies left by an interrupted verify/restore.
+        let mut dirs = std::collections::BTreeSet::new();
+        for b in self.repo.list(None).await? {
+            if let Some(p) = b.path.parent() {
+                dirs.insert(p.to_path_buf());
+            }
+        }
+        for d in dirs {
+            let Ok(entries) = std::fs::read_dir(&d) else {
+                continue;
+            };
+            for e in entries.flatten() {
+                if e.file_name().to_string_lossy().starts_with(PLAIN_PREFIX) {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
+        }
         Ok(n)
+    }
+
+    /// A readable plain archive for `b` (decrypting an encrypted backup to a temporary
+    /// file next to it).
+    async fn plain_archive(
+        &self,
+        b: &BackupRecord,
+        ctx: Option<&JobContext>,
+    ) -> CoreResult<PlainArchive> {
+        if !b.encrypted {
+            return Ok(PlainArchive {
+                path: b.path.clone(),
+                temporary: false,
+            });
+        }
+        let identity = self.encryption.identity()?;
+        let dir = b
+            .path
+            .parent()
+            .ok_or_else(|| CoreError::internal("backup without a folder"))?
+            .to_path_buf();
+        if let Ok(space) = self.platform.disk_space(&dir)
+            && space.available_bytes < b.size_bytes.saturating_add(DISK_RESERVE_BYTES)
+        {
+            return Err(CoreError::new(
+                ErrorCode::InsufficientDiskSpace,
+                "Not enough free space to decrypt the backup",
+            ));
+        }
+        let plain = PlainArchive {
+            path: dir.join(format!(
+                "{PLAIN_PREFIX}{}-{}.zip",
+                b.id,
+                uuid::Uuid::new_v4().simple()
+            )),
+            temporary: true,
+        };
+        if let Some(c) = ctx {
+            c.progress(None, "Decrypting the backup…");
+        }
+        let (src, dst) = (b.path.clone(), plain.path.clone());
+        let job = ctx.cloned();
+        tokio::task::spawn_blocking(move || {
+            crate::crypto::decrypt_file(&src, &dst, &identity, &|| {
+                job.as_ref().is_some_and(|j| j.is_cancelled())
+            })
+        })
+        .await
+        .map_err(|e| CoreError::internal(e.to_string()))??;
+        Ok(plain)
     }
 
     // ───────────────────────────── location ─────────────────────────────
@@ -317,7 +406,12 @@ impl BackupService {
                 format!("{stamp}_{kind}-{n}.zip")
             };
             let p = dir.join(name);
-            if !p.exists() && !partial_path(&p).exists() {
+            let enc = p.with_extension("zip.age");
+            if !p.exists()
+                && !partial_path(&p).exists()
+                && !enc.exists()
+                && !partial_path(&enc).exists()
+            {
                 return p;
             }
             n += 1;
@@ -466,7 +560,11 @@ impl BackupService {
         }
 
         let now = Timestamp::now();
-        let path = self.backup_file_name(dir, now, kind);
+        let recipient = self.encryption.backup_recipient().await?;
+        let mut path = self.backup_file_name(dir, now, kind);
+        if recipient.is_some() {
+            path.set_extension("zip.age");
+        }
         let mut record = BackupRecord {
             id: BackupId::new(),
             server_id: Some(server.id),
@@ -482,6 +580,7 @@ impl BackupService {
             sha256: None,
             live,
             contains_sensitive: false,
+            encrypted: recipient.is_some(),
             software_id: server.software.software_id.clone(),
             game_version: server.software.game_version.clone(),
             note,
@@ -534,8 +633,22 @@ impl BackupService {
                     &|| job.is_cancelled(),
                     &mut report,
                 )?;
-                std::fs::rename(&partial, &final_path)
-                    .map_err(|e| CoreError::io("Cannot finish the backup file", &e))?;
+                if let Some(r) = &recipient {
+                    job.progress(Some(1.0), "Encrypting…");
+                    let enc = partial_path(&final_path.with_extension("age-tmp"));
+                    let res =
+                        crate::crypto::encrypt_file(&partial, &enc, r, &|| job.is_cancelled());
+                    let _ = std::fs::remove_file(&partial);
+                    if let Err(e) = res {
+                        let _ = std::fs::remove_file(&enc);
+                        return Err(e);
+                    }
+                    std::fs::rename(&enc, &final_path)
+                        .map_err(|e| CoreError::io("Cannot finish the backup file", &e))?;
+                } else {
+                    std::fs::rename(&partial, &final_path)
+                        .map_err(|e| CoreError::io("Cannot finish the backup file", &e))?;
+                }
                 let (size, sha) = archive::hash_file(&final_path)?;
                 Ok((m, size, sha))
             })
@@ -648,10 +761,24 @@ impl BackupService {
                     },
                     Err(e) => return Err(e),
                     Ok(()) => {
-                        let path = b.path.clone();
+                        let plain = match this.plain_archive(&b, Some(&ctx)).await {
+                            Ok(p) => p,
+                            Err(e) if e.code == ErrorCode::ArchiveRejected => {
+                                return Ok(Some(
+                                    serde_json::to_value(VerifyReport {
+                                        ok: false,
+                                        problems: vec![e.message],
+                                        ..Default::default()
+                                    })
+                                    .map_err(|e| CoreError::internal(e.to_string()))?,
+                                ));
+                            }
+                            Err(e) => return Err(e),
+                        };
+                        let path = plain.path.clone();
                         let total = b.content_bytes;
                         let job = ctx.clone();
-                        tokio::task::spawn_blocking(move || {
+                        let r = tokio::task::spawn_blocking(move || {
                             let mut done = 0u64;
                             archive::verify_archive(&path, &|| job.is_cancelled(), &mut |n| {
                                 done += n;
@@ -659,7 +786,9 @@ impl BackupService {
                             })
                         })
                         .await
-                        .map_err(|e| CoreError::internal(e.to_string()))??
+                        .map_err(|e| CoreError::internal(e.to_string()))??;
+                        drop(plain);
+                        r
                     }
                 };
                 this.audit
@@ -686,7 +815,7 @@ impl BackupService {
 
     // ───────────────────────────── restore ─────────────────────────────
 
-    async fn restore_target(&self, b: &BackupRecord) -> CoreResult<(Server, BackupManifest)> {
+    async fn restore_server(&self, b: &BackupRecord) -> CoreResult<Server> {
         Self::ready(b)?;
         let server_id = b.server_id.ok_or_else(|| {
             CoreError::new(
@@ -694,8 +823,16 @@ impl BackupService {
                 "The server of this backup no longer exists",
             )
         })?;
-        let server = self.servers.get(server_id).await?;
-        let path = b.path.clone();
+        self.servers.get(server_id).await
+    }
+
+    async fn restore_target(
+        &self,
+        b: &BackupRecord,
+        plain: &Path,
+    ) -> CoreResult<(Server, BackupManifest)> {
+        let server = self.restore_server(b).await?;
+        let path = plain.to_path_buf();
         let manifest = tokio::task::spawn_blocking(move || archive::read_manifest(&path))
             .await
             .map_err(|e| CoreError::internal(e.to_string()))??;
@@ -710,7 +847,10 @@ impl BackupService {
 
     pub async fn restore_preview(&self, id: BackupId) -> CoreResult<RestorePreview> {
         let b = self.get(id).await?;
-        let (server, manifest) = self.restore_target(&b).await?;
+        self.restore_server(&b).await?;
+        let plain = self.plain_archive(&b, None).await?;
+        let (server, manifest) = self.restore_target(&b, &plain.path).await?;
+        drop(plain);
         tokio::task::spawn_blocking(move || restore::preview(&server.directory, &manifest))
             .await
             .map_err(|e| CoreError::internal(e.to_string()))?
@@ -719,7 +859,13 @@ impl BackupService {
     /// Start a restore job: pre-restore backup, verified staged extraction, swap.
     pub async fn restore(self: &Arc<Self>, id: BackupId, actor: &str) -> CoreResult<JobId> {
         let b = self.get(id).await?;
-        let (server, _) = self.restore_target(&b).await?;
+        let server = if b.encrypted {
+            // The key must be here; the archive itself is checked inside the job.
+            self.encryption.identity()?;
+            self.restore_server(&b).await?
+        } else {
+            self.restore_target(&b, &b.path.clone()).await?.0
+        };
         let rt = self.servers.runtime(server.id);
         if rt.state().has_process() {
             return Err(CoreError::new(
@@ -751,7 +897,8 @@ impl BackupService {
     ) -> CoreResult<BackupId> {
         ctx.progress(None, "Checking the backup…");
         self.check_file_hash(b).await?;
-        let (_, manifest) = self.restore_target(b).await?;
+        let plain = self.plain_archive(b, Some(ctx)).await?;
+        let (_, manifest) = self.restore_target(b, &plain.path).await?;
 
         ctx.progress(None, "Backing up the current state…");
         let when = jiff::Timestamp::from_millisecond(b.created_at.millis())
@@ -775,7 +922,7 @@ impl BackupService {
             &format!("Restoring the backup from {when}…"),
         );
         let root = server.directory.clone();
-        let archive_path = b.path.clone();
+        let archive_path = plain.path.clone();
         let work = restore::work_dir(&root, &ctx.id.to_string());
         let total = b.content_bytes;
         let job = ctx.clone();
@@ -794,6 +941,7 @@ impl BackupService {
         })
         .await
         .map_err(|e| CoreError::internal(e.to_string()))?;
+        drop(plain);
         let files = match restored {
             Ok(n) => n,
             Err(e) => {

@@ -43,6 +43,7 @@ pub struct CoreDeps {
     pub downloader: Arc<dyn Downloader>,
     pub registry: ProviderRegistry,
     pub profiles: Arc<dyn ProfileLookup>,
+    pub secrets: Arc<dyn crate::ports::SecretStore>,
     pub repos: Repositories,
 }
 
@@ -66,6 +67,7 @@ pub struct Core {
     pub bedrock: Arc<crate::bedrock::BedrockService>,
     pub tunnels: Arc<crate::tunnels::PlayitTunnel>,
     pub notifications: Arc<crate::notify::NotificationService>,
+    pub encryption: Arc<crate::crypto::EncryptionService>,
 }
 
 impl Core {
@@ -110,7 +112,13 @@ impl Core {
         let monitor = Monitor::new(Arc::clone(&deps.platform));
         monitor.spawn(Arc::clone(&servers));
         monitor.spawn_tick_sampler(Arc::clone(&servers), Arc::clone(&settings));
+        let encryption = crate::crypto::EncryptionService::new(
+            deps.secrets,
+            Arc::clone(&deps.repos.settings),
+            events.clone(),
+        );
         let backups = BackupService::new(BackupServiceDeps {
+            encryption: Arc::clone(&encryption),
             repo: deps.repos.backups,
             servers: Arc::clone(&servers),
             jobs: Arc::clone(&jobs),
@@ -198,6 +206,7 @@ impl Core {
             bedrock,
             tunnels,
             notifications,
+            encryption,
         }))
     }
 }

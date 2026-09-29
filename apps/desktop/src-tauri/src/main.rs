@@ -23,6 +23,24 @@ type Started = (
     Vec<tracing_appender::non_blocking::WorkerGuard>,
 );
 
+/// Credential Manager namespace: the installed app uses `MCPanel`; a development
+/// instance with its own data directory (MCPANEL_DATA_DIR) gets a separate one so it
+/// never touches the real Backup Master Key.
+fn secret_namespace() -> String {
+    match std::env::var_os("MCPANEL_DATA_DIR") {
+        None => "MCPanel".into(),
+        Some(dir) => {
+            // FNV-1a: stable across builds.
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for b in dir.to_string_lossy().to_lowercase().bytes() {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0100_0000_01b3);
+            }
+            format!("MCPanel-dev-{h:016x}")
+        }
+    }
+}
+
 async fn build_api() -> Result<Started, String> {
     let paths = mcpanel_platform::default_paths().map_err(|e| e.message)?;
     let guards = logging::init(&paths.logs_dir());
@@ -40,6 +58,7 @@ async fn build_api() -> Result<Started, String> {
         downloader: Arc::new(mcpanel_providers::HttpDownloader::new(http.clone())),
         registry: mcpanel_providers::builtin_registry(&http),
         profiles: Arc::new(mcpanel_providers::MojangProfiles::new(http.clone())),
+        secrets: Arc::new(mcpanel_platform::NativeSecretStore::new(&secret_namespace())),
         repos: db.repositories(),
     })
     .await
@@ -194,6 +213,11 @@ fn main() {
             commands::restart_policy_update,
             commands::crash_history,
             commands::tunnel_status,
+            commands::encryption_status,
+            commands::encryption_setup,
+            commands::encryption_import,
+            commands::encryption_set_enabled,
+            commands::dialog_pick_file,
             commands::notifications_list,
             commands::notifications_unread,
             commands::notifications_mark_read,

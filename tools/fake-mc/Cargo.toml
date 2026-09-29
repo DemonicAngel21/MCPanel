@@ -23,6 +23,7 @@ mcpanel-db.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+secrecy.workspace = true
 mcpanel-core.workspace = true
 mcpanel-db.workspace = true
 mcpanel-platform.workspace = true

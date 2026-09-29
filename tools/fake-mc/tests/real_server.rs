@@ -83,6 +83,7 @@ async fn create_start_and_stop_a_real_server() {
         profiles: Arc::new(mcpanel_providers::MojangProfiles::new(
             mcpanel_providers::http_client().unwrap(),
         )),
+        secrets: Arc::new(mcpanel_core::crypto::MemorySecretStore::default()),
         repos: db.repositories(),
     })
     .await

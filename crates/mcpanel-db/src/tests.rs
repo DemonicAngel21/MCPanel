@@ -277,6 +277,7 @@ async fn backups_roundtrip_and_outlive_their_server() {
         sha256: None,
         live: true,
         contains_sensitive: false,
+        encrypted: false,
         software_id: "paper".into(),
         game_version: "1.21.11".into(),
         note: Some("before update".into()),

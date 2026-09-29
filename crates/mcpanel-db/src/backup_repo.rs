@@ -43,6 +43,7 @@ fn row_to_backup(r: &SqliteRow) -> CoreResult<BackupRecord> {
         sha256: r.try_get("sha256").map_err(g)?,
         live: r.try_get("live").map_err(g)?,
         contains_sensitive: r.try_get("contains_sensitive").map_err(g)?,
+        encrypted: r.try_get("encrypted").map_err(g)?,
         software_id: r.try_get("software_id").map_err(g)?,
         game_version: r.try_get("game_version").map_err(g)?,
         note: r.try_get("note").map_err(g)?,
@@ -85,8 +86,8 @@ impl BackupRepository for SqliteRepos {
         sqlx::query(
             "INSERT INTO backups (id, server_id, server_name, kind, status, path, created_at, finished_at,
                 size_bytes, content_bytes, file_count, sha256, live, contains_sensitive, software_id,
-                game_version, note, protected, skipped_json, error_message)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                game_version, note, protected, skipped_json, error_message, encrypted)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(b.id.to_string())
         .bind(b.server_id.map(|s| s.to_string()))
@@ -108,6 +109,7 @@ impl BackupRepository for SqliteRepos {
         .bind(b.protected)
         .bind(skipped_json(b)?)
         .bind(&b.error_message)
+        .bind(b.encrypted)
         .execute(self.pool())
         .await
         .map_err(db_err)?;
@@ -118,7 +120,7 @@ impl BackupRepository for SqliteRepos {
         sqlx::query(
             "UPDATE backups SET status = ?, finished_at = ?, size_bytes = ?, content_bytes = ?,
                 file_count = ?, sha256 = ?, contains_sensitive = ?, note = ?, protected = ?,
-                skipped_json = ?, error_message = ?
+                skipped_json = ?, error_message = ?, encrypted = ?, path = ?
              WHERE id = ?",
         )
         .bind(b.status.as_str())
@@ -132,6 +134,8 @@ impl BackupRepository for SqliteRepos {
         .bind(b.protected)
         .bind(skipped_json(b)?)
         .bind(&b.error_message)
+        .bind(b.encrypted)
+        .bind(b.path.to_string_lossy().to_string())
         .bind(b.id.to_string())
         .execute(self.pool())
         .await

@@ -373,3 +373,106 @@ async fn backups_folder_must_not_overlap_a_server() {
     );
     h.finish().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn encrypted_backups_need_the_key_and_the_recovery_kit_restores_it() {
+    use mcpanel_core::ports::SecretStore;
+    use secrecy::SecretString;
+    let h = harness().await;
+    let (id, _) = add_server(&h, "vault", "{}", true, 60).await;
+    let dir = h.servers.path().join("vault");
+    write_world(&dir);
+    let enc = &h.core.encryption;
+    let kit = h.data.path().join("recovery-kit.txt");
+
+    let short = enc
+        .setup(SecretString::from("short".to_string()), &kit)
+        .await
+        .unwrap_err();
+    assert_eq!(short.code, ErrorCode::InvalidInput);
+    let st = enc
+        .setup(
+            SecretString::from("a long enough passphrase".to_string()),
+            &kit,
+        )
+        .await
+        .unwrap();
+    assert!(st.configured && st.key_available && st.encrypt_backups);
+    let recipient = st.recipient.clone().unwrap();
+    let kit_text = std::fs::read_to_string(&kit).unwrap();
+    assert!(kit_text.contains(&recipient) && kit_text.contains("BEGIN AGE ENCRYPTED FILE"));
+    assert!(
+        !kit_text.contains("AGE-SECRET-KEY"),
+        "the kit holds no plaintext key"
+    );
+
+    let bid = backup(&h, id, None).await;
+    let b = h.core.backups.get(bid).await.unwrap();
+    assert!(b.encrypted);
+    assert!(
+        b.path.to_string_lossy().ends_with(".zip.age"),
+        "{}",
+        b.path.display()
+    );
+    assert!(zip::ZipArchive::new(std::fs::File::open(&b.path).unwrap()).is_err());
+    let r = wait_job(&h.core, h.core.backups.verify(bid, "test").await.unwrap())
+        .await
+        .unwrap();
+    assert_eq!(r["ok"], true, "{r}");
+
+    // Restore through decryption; no plaintext copy is left behind.
+    std::fs::write(dir.join("world/level.dat"), "changed").unwrap();
+    wait_job(&h.core, h.core.backups.restore(bid, "test").await.unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(dir.join("world/level.dat")).unwrap(),
+        "original"
+    );
+    let leftovers: Vec<_> = std::fs::read_dir(b.path.parent().unwrap())
+        .unwrap()
+        .flatten()
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with(".mcpanel-plain-")
+        })
+        .collect();
+    assert!(leftovers.is_empty());
+
+    // Without the key (e.g. a new computer) the backup cannot be opened…
+    h.secrets.delete(mcpanel_core::crypto::MASTER_KEY).unwrap();
+    let st = enc.status().await.unwrap();
+    assert!(st.configured && !st.key_available && !st.encrypt_backups);
+    let e = h.core.backups.restore(bid, "test").await.unwrap_err();
+    assert_eq!(e.code, ErrorCode::NotFound);
+    // …and new backups are not encrypted to a key that is not here.
+    let plain = backup(&h, id, None).await;
+    assert!(!h.core.backups.get(plain).await.unwrap().encrypted);
+
+    // The Recovery Kit with its passphrase brings the key back.
+    let wrong = enc
+        .import(&kit, SecretString::from("not the passphrase".to_string()))
+        .await
+        .unwrap_err();
+    assert_eq!(wrong.code, ErrorCode::InvalidInput);
+    let st = enc
+        .import(
+            &kit,
+            SecretString::from("a long enough passphrase".to_string()),
+        )
+        .await
+        .unwrap();
+    assert!(st.key_available && st.encrypt_backups);
+    assert_eq!(st.recipient.as_deref(), Some(recipient.as_str()));
+    let r = wait_job(&h.core, h.core.backups.verify(bid, "test").await.unwrap())
+        .await
+        .unwrap();
+    assert_eq!(r["ok"], true);
+
+    // Encryption can be switched off for new backups.
+    enc.set_encrypt_backups(false).await.unwrap();
+    let off = backup(&h, id, None).await;
+    assert!(!h.core.backups.get(off).await.unwrap().encrypted);
+    h.finish().await;
+}

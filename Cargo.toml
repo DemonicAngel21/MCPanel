@@ -54,6 +54,7 @@ bytes = "1"
 encoding_rs = "0.8"
 chardetng = "1"
 secrecy = "0.10"
+age = { version = "0.12", features = ["armor"] }
 
 # adapters
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "derive"] }
