@@ -244,7 +244,7 @@ result. If the finding contradicts the specification, the spec is updated in the
 
 - Source: github.com/playit-cloud/playit-agent @ 4c27794 (v1.0.10, BSD-2-Clause);
   winget `DevelopedMethods.playit` 1.0.10 (Developed Methods LLC). Windows install:
-  `C:\Program Files\playit_ggin\playit.exe` + service `playitd` (pipe
+  `C:\Program Files\playit_gg\bin\playit.exe` + service `playitd` (pipe
   `\.\pipe\playitd-system`; the installer grants authenticated users start/stop).
 - CLI (`playit --help`, run locally): version, attach, start, stop, status, reset,
   secret-path, setup, account login-url, claim generate|url|exchange. `playit status`
