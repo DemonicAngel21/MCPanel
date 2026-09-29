@@ -64,10 +64,6 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
         ids.google,
         ids.google_secret,
     )));
-    r.register_cloud(Arc::new(cloud::onedrive::OneDrive::new(
-        http.clone(),
-        ids.microsoft,
-    )));
     r.register_cloud(Arc::new(cloud::dropbox::Dropbox::new(
         http.clone(),
         ids.dropbox,

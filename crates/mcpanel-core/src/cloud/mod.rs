@@ -1,4 +1,4 @@
-//! Cloud storage connections (spec §9): Google Drive, OneDrive and Dropbox behind
+//! Cloud storage connections (spec §9): Google Drive and Dropbox behind
 //! [`CloudStorageProvider`], connected with OAuth 2.0 authorization code + PKCE through the
 //! system browser and a loopback redirect. MCPanel is a public client: no client secret
 //! exists anywhere. Refresh tokens live in the OS secret store; access tokens only in
@@ -55,7 +55,7 @@ impl RedirectSpec {
 /// Static description of a provider and its OAuth configuration.
 #[derive(Debug, Clone)]
 pub struct CloudProviderInfo {
-    /// `google_drive`, `onedrive`, `dropbox`.
+    /// `google_drive`, `dropbox`.
     pub id: &'static str,
     pub display_name: &'static str,
     /// The public client ID; `None` until MCPanel's app registration is configured.

@@ -1836,7 +1836,7 @@ pub struct DiskUsageDto {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct CloudStatusDto {
-    /// "google_drive" | "onedrive" | "dropbox"
+    /// "google_drive" | "dropbox"
     pub id: String,
     pub display_name: String,
     pub configured: bool,

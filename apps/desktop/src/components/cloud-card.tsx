@@ -157,7 +157,7 @@ export function CloudCard() {
     <Card>
       <CardHeader
         title="Cloud storage"
-        description="Link Google Drive, OneDrive or Dropbox. MCPanel signs in through your browser; your password never passes through MCPanel, and the sign-in is stored in the Windows Credential Manager."
+        description="Link Google Drive or Dropbox. MCPanel signs in through your browser; your password never passes through MCPanel, and the sign-in is stored in the Windows Credential Manager."
       />
       <div className="divide-y divide-border">
         {data.map((p) => (

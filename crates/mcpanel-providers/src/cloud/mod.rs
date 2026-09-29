@@ -1,10 +1,9 @@
-//! Cloud storage providers (Google Drive, OneDrive, Dropbox): OAuth 2.0 public clients
+//! Cloud storage providers (Google Drive, Dropbox): OAuth 2.0 public clients
 //! with PKCE. Verified requirements: docs/architecture/verification-log.md
 //! ("Cloud storage OAuth").
 
 pub mod dropbox;
 pub mod google_drive;
-pub mod onedrive;
 
 use crate::http::HttpClient;
 use mcpanel_core::cloud::TokenSet;
@@ -25,7 +24,6 @@ pub struct CloudClientIds {
     /// embedded in the application and "obviously not treated as a secret". It is still
     /// kept out of Git, logs, diagnostics and the UI.
     pub google_secret: Option<SecretString>,
-    pub microsoft: Option<String>,
     pub dropbox: Option<String>,
 }
 
@@ -37,14 +35,12 @@ impl std::fmt::Debug for CloudClientIds {
                 "google_secret",
                 &self.google_secret.as_ref().map(|_| "[set]"),
             )
-            .field("microsoft", &self.microsoft)
             .field("dropbox", &self.dropbox)
             .finish()
     }
 }
 
 pub const GOOGLE_CLIENT_ID_VAR: &str = "MCPANEL_GOOGLE_CLIENT_ID";
-pub const MICROSOFT_CLIENT_ID_VAR: &str = "MCPANEL_MICROSOFT_CLIENT_ID";
 pub const DROPBOX_CLIENT_ID_VAR: &str = "MCPANEL_DROPBOX_CLIENT_ID";
 pub const GOOGLE_CLIENT_SECRET_VAR: &str = "MCPANEL_GOOGLE_CLIENT_SECRET";
 
@@ -73,10 +69,6 @@ impl CloudClientIds {
                 option_env!("MCPANEL_GOOGLE_CLIENT_SECRET"),
             )
             .map(SecretString::from),
-            microsoft: pick(
-                std::env::var(MICROSOFT_CLIENT_ID_VAR).ok(),
-                option_env!("MCPANEL_MICROSOFT_CLIENT_ID"),
-            ),
             dropbox: pick(
                 std::env::var(DROPBOX_CLIENT_ID_VAR).ok(),
                 option_env!("MCPANEL_DROPBOX_CLIENT_ID"),
@@ -255,12 +247,12 @@ mod tests {
         .err()
         .unwrap();
         assert!(e.message.contains("Connect again") && e.message.contains("malformed"));
-        let e = parse_token_response("OneDrive", Stage::Refresh, 503, b"<html>")
+        let e = parse_token_response("Dropbox", Stage::Refresh, 503, b"<html>")
             .err()
             .unwrap();
         assert!(e.retryable);
         let e = parse_token_response(
-            "OneDrive",
+            "Dropbox",
             Stage::Exchange,
             400,
             br#"{"error":"invalid_client: Invalid client_id"}"#,
@@ -299,7 +291,7 @@ mod tests {
             e.message
         );
         let e = parse_token_response(
-            "OneDrive",
+            "Dropbox",
             Stage::Refresh,
             400,
             br#"{"error":"invalid_request","error_description":"x"}"#,
@@ -308,7 +300,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             e.message,
-            "OneDrive's token server rejected the token refresh. [OneDrive said: invalid_request — x]"
+            "Dropbox's token server rejected the token refresh. [Dropbox said: invalid_request — x]"
         );
     }
 
@@ -338,15 +330,6 @@ mod tests {
             ["https://www.googleapis.com/auth/drive.file"]
         );
         assert_eq!(g.info().redirect.uri(5000), "http://127.0.0.1:5000/");
-        let o = onedrive::OneDrive::new(http.clone(), Some("o".into()));
-        assert_eq!(
-            o.info().scopes,
-            ["offline_access", "User.Read", "Files.ReadWrite.AppFolder"]
-        );
-        assert_eq!(
-            registered_redirect_uris(&o.info().redirect),
-            vec!["http://localhost/mcpanel/oauth"]
-        );
         let d = dropbox::Dropbox::new(http, None);
         assert!(d.info().client_id.is_none());
         assert_eq!(

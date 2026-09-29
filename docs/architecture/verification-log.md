@@ -352,7 +352,8 @@ workspace/drive/api/guides/api-specific-auth; support.google.com/cloud/answer/15
   days**; "In production" needs no verification for non-sensitive scopes (the
   unverified-app screen and 100-user cap apply only to sensitive/restricted scopes).
 
-**Microsoft OneDrive** (learn.microsoft.com: entra/identity-platform/reply-url,
+**Microsoft OneDrive** — *postponed on 2026-09-30: removed from the product; kept here
+for when it is added back* (learn.microsoft.com: entra/identity-platform/reply-url,
 v2-oauth2-auth-code-flow; onedrive/developer/rest-api/concepts/special-folders-appfolder)
 - Register under **Mobile and desktop applications** (public client). `http://localhost`
   is allowed and "the port component … is ignored for the purposes of matching a

@@ -410,11 +410,7 @@ pub async fn cloud_list(s: State<'_, AppState>) -> R<Vec<CloudStatusDto>> {
 }
 
 /// Sign-in hosts the browser may be sent to (the providers' authorization endpoints).
-const CLOUD_AUTH_HOSTS: &[&str] = &[
-    "accounts.google.com",
-    "login.microsoftonline.com",
-    "www.dropbox.com",
-];
+const CLOUD_AUTH_HOSTS: &[&str] = &["accounts.google.com", "www.dropbox.com"];
 
 /// Start a sign-in and open the provider's page in the system browser. Returns the flow id.
 #[tauri::command]
@@ -824,7 +820,6 @@ pub fn open_external(app: AppHandle, url: String) -> R<()> {
         "geysermc.org",
         "www.spigotmc.org",
         "myaccount.google.com",
-        "account.live.com",
         "www.dropbox.com",
         "playit.gg",
     ];

@@ -245,10 +245,6 @@ async fn cloud_token_endpoints_reject_an_unknown_client_clearly() {
             http.clone(),
             bogus.clone(),
         )),
-        Box::new(crate::cloud::onedrive::OneDrive::new(
-            http.clone(),
-            bogus.clone(),
-        )),
         Box::new(crate::cloud::dropbox::Dropbox::new(http.clone(), bogus)),
     ];
     for p in providers {

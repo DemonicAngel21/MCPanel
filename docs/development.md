@@ -108,7 +108,6 @@ Their client IDs are **not** stored in the repository. MCPanel reads, in this or
 |---|---|
 | Google Drive | `MCPANEL_GOOGLE_CLIENT_ID` |
 | Google Drive | `MCPANEL_GOOGLE_CLIENT_SECRET` (the Desktop client's secret, see below) |
-| OneDrive | `MCPANEL_MICROSOFT_CLIENT_ID` |
 | Dropbox | `MCPANEL_DROPBOX_CLIENT_ID` |
 
 - **Development:** set them in the shell before `pnpm dev` (for example
@@ -116,8 +115,8 @@ Their client IDs are **not** stored in the repository. MCPanel reads, in this or
   you load yourself — `.env*` files are git-ignored. A runtime variable overrides the
   compiled-in value.
 - **Release:** the release workflow passes the repository secrets
-  `MCPANEL_GOOGLE_CLIENT_ID`, `MCPANEL_GOOGLE_CLIENT_SECRET`, `MCPANEL_MICROSOFT_CLIENT_ID`
-  and `MCPANEL_DROPBOX_CLIENT_ID` to `pnpm build`; the values are compiled into the
+  `MCPANEL_GOOGLE_CLIENT_ID`, `MCPANEL_GOOGLE_CLIENT_SECRET` and
+  `MCPANEL_DROPBOX_CLIENT_ID` to `pnpm build`; the values are compiled into the
   binary. Users of an installed release never enter anything.
 - **Local release builds** embed whatever is set in your environment at build time. The
   build prints `This build embeds cloud OAuth configuration from the environment: …`
@@ -133,7 +132,7 @@ it as **non-confidential**: it proves nothing about the caller, PKCE still prote
 every sign-in, and a copy extracted from the binary cannot be used to obtain anyone's
 tokens without their browser consent. It is still kept out of Git, logs (redacted),
 diagnostics, error messages and the UI, and is sent only on Google's code exchange and
-refresh. Microsoft and Dropbox use no secret.
+refresh. Dropbox uses no secret.
 
 Providers without an ID show "Not configured". Registration details:
 docs/architecture/verification-log.md ("Cloud storage OAuth").
