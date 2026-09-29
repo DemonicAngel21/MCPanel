@@ -15,6 +15,7 @@ pub mod mojang;
 pub mod paper;
 pub mod profiles;
 pub mod purpur;
+pub mod spiget;
 
 use mcpanel_core::error::CoreResult;
 use mcpanel_core::software::ProviderRegistry;
@@ -25,7 +26,7 @@ pub use profiles::MojangProfiles;
 
 /// Build the registry of built-in providers: server software (Vanilla, Paper, Purpur,
 /// Fabric, Quilt, NeoForge, Forge) and content (Modrinth, Hangar,
-/// GeyserMC).
+/// GeyserMC, Spiget).
 pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     let mojang = mojang::MojangClient::new(http.clone());
     let mut r = ProviderRegistry::new();
@@ -55,6 +56,7 @@ pub fn builtin_registry(http: &HttpClient) -> ProviderRegistry {
     r.register_content(Arc::new(modrinth::Modrinth::new(http.clone())));
     r.register_content(Arc::new(hangar::Hangar::new(http.clone())));
     r.register_content(Arc::new(geysermc::GeyserMc::new(http.clone())));
+    r.register_content(Arc::new(spiget::Spiget::new(http.clone())));
     r
 }
 
