@@ -144,6 +144,10 @@ pub struct BackupPolicy {
     /// Skip a scheduled backup when the server has not run since the newest backup.
     pub skip_if_idle: bool,
     pub retention: Retention,
+    /// Scheduled backups of this server may use at most this many GiB (0 = no cap);
+    /// the oldest are removed first and the newest is always kept.
+    #[serde(default)]
+    pub max_total_gb: u32,
     /// Last time the scheduler considered this server (a backup ran or was skipped).
     pub last_run_at: Option<Timestamp>,
 }
@@ -156,6 +160,7 @@ impl BackupPolicy {
             interval_minutes: 6 * 60,
             skip_if_idle: true,
             retention: Retention::default(),
+            max_total_gb: 0,
             last_run_at: None,
         }
     }

@@ -1137,10 +1137,25 @@ impl BackupService {
             .map(|b| Candidate {
                 id: b.id,
                 created_at: b.created_at,
+                size_bytes: b.size_bytes,
             })
             .collect();
+        let mut doomed = retention::expired(&candidates, r, &self.tz);
+        let cap_gb = self
+            .policy(server_id)
+            .await
+            .map(|p| p.max_total_gb)
+            .unwrap_or(0);
+        if cap_gb > 0 {
+            let left: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| !doomed.contains(&c.id))
+                .copied()
+                .collect();
+            doomed.extend(retention::over_cap(&left, u64::from(cap_gb) << 30));
+        }
         let mut removed = 0;
-        for id in retention::expired(&candidates, r, &self.tz) {
+        for id in doomed {
             match self.delete(id, "retention").await {
                 Ok(()) => removed += 1,
                 Err(e) => {

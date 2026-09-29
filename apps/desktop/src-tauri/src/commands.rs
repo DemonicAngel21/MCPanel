@@ -382,6 +382,13 @@ pub async fn crash_history(
     s.api.crash_history(&s.principal(), &server_id, limit).await
 }
 
+// ──────────────────────────────── disk ────────────────────────────
+
+#[tauri::command]
+pub async fn server_disk_usage(s: State<'_, AppState>, server_id: String) -> R<DiskUsageDto> {
+    s.api.server_disk_usage(&s.principal(), &server_id).await
+}
+
 // ───────────────────────────── diagnostics ────────────────────────
 
 #[tauri::command]

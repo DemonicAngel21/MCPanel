@@ -69,6 +69,7 @@ fn row_to_policy(r: &SqliteRow) -> CoreResult<BackupPolicy> {
             keep_weekly: n("keep_weekly")?,
             keep_monthly: n("keep_monthly")?,
         },
+        max_total_gb: n("max_total_gb")?,
         last_run_at: r
             .try_get::<Option<i64>, _>("last_run_at")
             .map_err(g)?
@@ -201,13 +202,13 @@ impl BackupRepository for SqliteRepos {
     async fn save_policy(&self, p: &BackupPolicy) -> CoreResult<()> {
         sqlx::query(
             "INSERT INTO backup_policies (server_id, enabled, interval_minutes, skip_if_idle,
-                keep_last, keep_daily, keep_weekly, keep_monthly, last_run_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                keep_last, keep_daily, keep_weekly, keep_monthly, last_run_at, max_total_gb)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (server_id) DO UPDATE SET enabled = excluded.enabled,
                 interval_minutes = excluded.interval_minutes, skip_if_idle = excluded.skip_if_idle,
                 keep_last = excluded.keep_last, keep_daily = excluded.keep_daily,
                 keep_weekly = excluded.keep_weekly, keep_monthly = excluded.keep_monthly,
-                last_run_at = excluded.last_run_at",
+                last_run_at = excluded.last_run_at, max_total_gb = excluded.max_total_gb",
         )
         .bind(p.server_id.to_string())
         .bind(p.enabled)
@@ -218,6 +219,7 @@ impl BackupRepository for SqliteRepos {
         .bind(p.retention.keep_weekly as i64)
         .bind(p.retention.keep_monthly as i64)
         .bind(p.last_run_at.map(|t| t.millis()))
+        .bind(p.max_total_gb as i64)
         .execute(self.pool())
         .await
         .map_err(db_err)?;

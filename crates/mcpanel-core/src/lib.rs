@@ -15,6 +15,7 @@ pub mod core;
 pub mod crash;
 pub mod crypto;
 pub mod diagnostics;
+pub mod disk;
 pub mod error;
 pub mod events;
 pub mod files;

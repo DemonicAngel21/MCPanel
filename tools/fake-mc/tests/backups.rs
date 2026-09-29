@@ -476,3 +476,92 @@ async fn encrypted_backups_need_the_key_and_the_recovery_kit_restores_it() {
     assert!(!h.core.backups.get(off).await.unwrap().encrypted);
     h.finish().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn size_cap_removes_the_oldest_scheduled_backups() {
+    use mcpanel_core::backup::BackupRecord;
+    let h = harness().await;
+    let (id, _) = add_server(&h, "capped", "{}", true, 60).await;
+    let dir = h.data.path().join("fake-backups");
+    std::fs::create_dir_all(&dir).unwrap();
+    // Three scheduled backups recorded at 600 MiB each, one manual one.
+    let mut ids = Vec::new();
+    for (i, kind) in [
+        BackupKind::Scheduled,
+        BackupKind::Scheduled,
+        BackupKind::Manual,
+        BackupKind::Scheduled,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let path = dir.join(format!("b{i}.zip"));
+        std::fs::write(&path, b"x").unwrap();
+        let b = BackupRecord {
+            id: BackupId::new(),
+            server_id: Some(id),
+            server_name: "capped".into(),
+            kind,
+            status: BackupStatus::Ready,
+            path,
+            created_at: Timestamp(1_000_000 + i as i64 * 60_000),
+            finished_at: Some(Timestamp(1_000_000 + i as i64 * 60_000)),
+            size_bytes: 600 << 20,
+            content_bytes: 0,
+            file_count: 0,
+            sha256: None,
+            live: false,
+            contains_sensitive: false,
+            encrypted: false,
+            software_id: "fake".into(),
+            game_version: "1.21.4".into(),
+            note: None,
+            protected: false,
+            skipped: vec![],
+            error_message: None,
+        };
+        h.db.repositories().backups.insert(&b).await.unwrap();
+        ids.push(b.id);
+    }
+    let keep_all = Retention {
+        keep_last: 10,
+        keep_daily: 0,
+        keep_weekly: 0,
+        keep_monthly: 0,
+    };
+    // Without a cap GFS keeps everything.
+    assert_eq!(
+        h.core.backups.apply_retention(id, keep_all).await.unwrap(),
+        0
+    );
+    h.core
+        .backups
+        .set_policy(
+            BackupPolicy {
+                retention: keep_all,
+                max_total_gb: 1,
+                ..BackupPolicy::default_for(id)
+            },
+            "test",
+        )
+        .await
+        .unwrap();
+    // 1 GiB fits one 600 MiB scheduled backup: the two older scheduled ones go; the
+    // manual backup is never removed by retention.
+    assert_eq!(
+        h.core.backups.apply_retention(id, keep_all).await.unwrap(),
+        2
+    );
+    let left: Vec<BackupId> = h
+        .core
+        .backups
+        .list(Some(id))
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|v| v.backup.id)
+        .collect();
+    assert!(left.contains(&ids[3]) && left.contains(&ids[2]));
+    assert!(!left.contains(&ids[0]) && !left.contains(&ids[1]));
+    h.finish().await;
+}
