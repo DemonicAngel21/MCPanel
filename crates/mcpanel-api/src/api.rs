@@ -1040,6 +1040,103 @@ impl Api {
             .collect())
     }
 
+    // ───────────────────────────── diagnostics ─────────────────────────────
+
+    /// Write a support ZIP for a server to the save target; returns the entry count.
+    pub async fn diagnostics_export(
+        &self,
+        p: &Principal,
+        server: &str,
+        save_grant: &str,
+    ) -> ApiResult<u32> {
+        p.authorize(Permission::ServersRead)?;
+        let id = server_id(server)?;
+        let s = self.core.servers.get(id).await?;
+        let dest = self.grants.take(save_grant, GrantKind::SaveTarget)?;
+        let java = match s.launch.java_runtime_id {
+            Some(j) => self.core.java.get(j).await.ok().map(|r| {
+                serde_json::json!({
+                    "major": r.major, "version": r.version, "vendor": r.vendor,
+                    "arch": r.arch, "path": r.path,
+                })
+            }),
+            None => None,
+        };
+        let content = match self.core.content.list(id).await {
+            Ok(list) => list
+                .entries
+                .into_iter()
+                .map(|e| {
+                    serde_json::json!({
+                        "file": e.file_name,
+                        "enabled": e.enabled,
+                        "name": e.descriptor.as_ref().and_then(|d| d.name.clone()),
+                        "version": e.descriptor.as_ref().and_then(|d| d.version.clone()),
+                        "source": e.record.and_then(|r| r.source).map(|s| s.provider),
+                    })
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        let crashes = self
+            .core
+            .crashes
+            .history(id, 5)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|c| {
+                serde_json::json!({
+                    "at": c.occurred_at.millis(), "kind": c.kind, "message": c.message,
+                    "exitCode": c.exit_code, "action": c.action.as_str(),
+                    "crashReport": c.crash_report, "analysis": c.analysis,
+                })
+            })
+            .collect();
+        let info = mcpanel_core::diagnostics::BundleInfo {
+            generator: format!("MCPanel {}", self.version),
+            created_at: Timestamp::now(),
+            os: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
+            server: serde_json::json!({
+                "name": s.name,
+                "software": s.software,
+                "memoryMb": { "min": s.launch.min_memory_mb, "max": s.launch.max_memory_mb },
+                "jvmArgs": s.launch.jvm_args,
+                "serverArgs": s.launch.server_args,
+            }),
+            java: java.unwrap_or(serde_json::Value::Null),
+            content,
+            crashes,
+        };
+        let sources = mcpanel_core::diagnostics::BundleSources {
+            server_dir: s.directory.clone(),
+            console_dir: self.core.paths.console_dir(&id),
+            app_logs_dir: self.core.paths.logs_dir(),
+            sensitive_properties: mcpanel_core::config::schema::all_schemas()
+                .iter()
+                .filter(|p| p.sensitive)
+                .map(|p| p.key.clone())
+                .collect(),
+        };
+        let n = tokio::task::spawn_blocking(move || {
+            mcpanel_core::diagnostics::write_bundle(&dest, &info, &sources)
+        })
+        .await
+        .map_err(|e| ApiError::new("INTERNAL", e.to_string()))??;
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                "server.diagnostics_export",
+                Some(id),
+                Some(s.name.clone()),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({ "entries": n }),
+            )
+            .await;
+        Ok(n as u32)
+    }
+
     // ───────────────────────────── encryption ─────────────────────────────
 
     pub async fn encryption_status(&self, p: &Principal) -> ApiResult<EncryptionStatusDto> {

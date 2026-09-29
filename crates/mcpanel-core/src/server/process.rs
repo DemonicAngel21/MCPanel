@@ -243,9 +243,14 @@ impl ServerManager {
             i.last_exit_at = Some(crate::time::Timestamp::now());
             i.online_players.clear();
             let restart = std::mem::take(&mut i.restart_after_exit);
+            // A "Stopping…" line alone means a stop from inside the game — unless the
+            // server also reported a crash (Paper's watchdog logs "Stopping server"
+            // while shutting down a hung server and exits with 70).
+            let in_game_stop =
+                i.seen_stopping_line && i.diagnosis.is_none() && exit.code.is_none_or(|c| c == 0);
             (
                 i.state,
-                i.stop_requested || i.seen_stopping_line,
+                i.stop_requested || in_game_stop,
                 i.forced,
                 restart,
                 i.diagnosis.clone(),

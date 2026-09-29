@@ -190,6 +190,10 @@ export const api = {
     updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
     history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
   },
+  diagnostics: {
+    /** Writes a support ZIP to the chosen file; returns the number of entries. */
+    export: (serverId: string, grant: string) => call<number>("diagnostics_export", { serverId, grant }),
+  },
   encryption: {
     status: () => call<EncryptionStatusDto>("encryption_status"),
     setup: (passphrase: string, kitGrant: string) => call<EncryptionStatusDto>("encryption_setup", { passphrase, kitGrant }),

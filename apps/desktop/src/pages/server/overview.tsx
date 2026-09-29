@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, Cpu, ExternalLink, Gauge, Globe, MemoryStick, Timer, Users } from "lucide-react";
+import { Copy, Cpu, ExternalLink, FileArchive, Gauge, Globe, MemoryStick, Timer, Users } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
@@ -15,6 +15,18 @@ import { useAudit, useJava, useServer, useServerMetrics, useTunnel } from "@/lib
 import { hasProcess } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
+
+async function exportDiagnostics(serverId: string, name: string) {
+  try {
+    const safe = name.replace(/[^\w.-]+/g, "-").slice(0, 40) || "server";
+    const grant = await api.dialog.saveFile(`${safe}-diagnostics.zip`);
+    if (!grant) return;
+    const n = await api.diagnostics.export(serverId, grant.token);
+    toast.success(`Diagnostics saved (${n} files)`);
+  } catch (e) {
+    toast.error(errorMessage(e));
+  }
+}
 
 function TickMetrics({
   source,
@@ -196,7 +208,16 @@ export function ServerOverview() {
           </div>
         </Card>
         <Card>
-          <CardHeader title="Details" />
+          <CardHeader
+            title="Details"
+            actions={
+              <Tooltip content="Save a ZIP with logs, crash reports and settings for getting help. Worlds and secret files are never included; logs can contain player names and IP addresses.">
+                <Button size="sm" variant="ghost" onClick={() => void exportDiagnostics(server.id, server.name)}>
+                  <FileArchive /> Diagnostics
+                </Button>
+              </Tooltip>
+            }
+          />
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 p-4 text-xs">
             <dt className="text-muted">Software</dt>
             <dd className="text-fg">

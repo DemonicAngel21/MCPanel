@@ -253,3 +253,43 @@ async fn restart_waits_for_an_operation_that_holds_the_server() {
     wait_state(&h, id, LifecycleState::Stopped, T).await;
     h.finish().await;
 }
+
+/// Regression: Paper's watchdog logs "Stopping server" while shutting a hung server
+/// down; that must still count as a crash (it was recorded as a normal stop).
+#[tokio::test(flavor = "multi_thread")]
+async fn paper_watchdog_shutdown_is_a_crash() {
+    let h = harness().await;
+    let (id, _) = add_server(&h, "hung", "{}", true, 60).await;
+    policy(&h, id, |p| p.enabled = false).await;
+    h.core.servers.start(id, "test").await.unwrap();
+    wait_state(&h, id, LifecycleState::Running, T).await;
+    h.core
+        .servers
+        .send_command(id, "paper-watchdog")
+        .await
+        .unwrap();
+    let c = crashes(&h, id, 1).await;
+    assert_eq!(c[0].kind, "watchdog");
+    assert_eq!(c[0].exit_code, Some(70));
+    assert_eq!(c[0].action, CrashAction::Disabled);
+    assert_eq!(
+        h.core.servers.view(id).await.unwrap().runtime.state,
+        LifecycleState::Crashed
+    );
+    h.finish().await;
+}
+
+/// An in-game /stop (stopping line, exit code 0) is still a normal stop.
+#[tokio::test(flavor = "multi_thread")]
+async fn in_game_stop_is_not_a_crash() {
+    let h = harness().await;
+    let (id, _) = add_server(&h, "calm", "{}", true, 60).await;
+    h.core.servers.start(id, "test").await.unwrap();
+    wait_state(&h, id, LifecycleState::Running, T).await;
+    // Written to stdin directly, as a player's /stop would reach the server.
+    h.core.servers.send_command(id, "say bye").await.unwrap();
+    h.core.servers.stop(id, false, "test").await.unwrap();
+    wait_state(&h, id, LifecycleState::Stopped, T).await;
+    assert!(h.core.crashes.history(id, 5).await.unwrap().is_empty());
+    h.finish().await;
+}

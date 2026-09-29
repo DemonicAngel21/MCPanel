@@ -64,8 +64,8 @@ impl CrashRepository for SqliteRepos {
     async fn insert(&self, e: &CrashEvent) -> CoreResult<()> {
         sqlx::query(
             "INSERT INTO crash_events (id, server_id, occurred_at, exit_code, kind, message, attempt, action,
-                restart_at, crash_report, console_tail_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                restart_at, crash_report, console_tail_json, analysis_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&e.id)
         .bind(e.server_id.to_string())
@@ -78,6 +78,7 @@ impl CrashRepository for SqliteRepos {
         .bind(e.restart_at.map(|t| t.millis()))
         .bind(&e.crash_report)
         .bind(serde_json::to_string(&e.console_tail).map_err(|x| CoreError::internal(x.to_string()))?)
+        .bind(serde_json::to_string(&e.analysis).map_err(|x| CoreError::internal(x.to_string()))?)
         .execute(self.pool())
         .await
         .map_err(db_err)?;
@@ -123,6 +124,11 @@ impl CrashRepository for SqliteRepos {
                         .map(Timestamp),
                     crash_report: r.try_get("crash_report").map_err(g)?,
                     console_tail: serde_json::from_str(&tail).unwrap_or_default(),
+                    analysis: r
+                        .try_get::<String, _>("analysis_json")
+                        .ok()
+                        .and_then(|a| serde_json::from_str(&a).ok())
+                        .unwrap_or_default(),
                 })
             })
             .collect()

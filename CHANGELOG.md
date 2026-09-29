@@ -97,6 +97,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- Crash diagnostics (v0.4): each crash records the root-cause exception and the
+  plugins/mods that ran in the crashing code (from the jar named in stack frames, or
+  from class packages unique to one installed jar); the crash history shows them. A
+  "Diagnostics" button saves a support ZIP (logs, crash reports, console captures,
+  redacted server.properties, plugin/mod list) without worlds or sensitive files.
 - Backup encryption (v0.4): age (X25519) with a Backup Master Key kept in the Windows
   Credential Manager (this user, this computer). Setting it up requires saving a
   Recovery Kit — the key protected by a passphrase (age scrypt) — which restores access
@@ -126,6 +131,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed
+
+- Paper watchdog shutdowns (exit code 70, "Stopping server" in the log) were recorded
+  as normal stops, so no crash was handled and auto-restart never ran.
 
 - The console no longer says "Automatic restart is not enabled" after every crash.
 - An automatic restart no longer gives up when a backup or queued plugin changes hold
