@@ -76,7 +76,9 @@ pub(crate) enum Stage {
     Refresh,
 }
 
-/// Map an OAuth token-endpoint error to a clear message.
+/// Map an OAuth token-endpoint error to a clear message. The message always says that
+/// the provider's token server answered (not MCPanel), at which step, and quotes the raw
+/// OAuth error so it can be looked up.
 fn token_error(
     provider: &str,
     stage: Stage,
@@ -84,25 +86,34 @@ fn token_error(
     error: Option<&str>,
     description: Option<&str>,
 ) -> CoreError {
-    let detail = description.map(|d| format!(" ({d})")).unwrap_or_default();
+    let step = match stage {
+        Stage::Exchange => "the sign-in code exchange",
+        Stage::Refresh => "the token refresh",
+    };
     // Some providers append a description to the code ("invalid_client: Invalid client_id").
     let code = error.map(|e| e.split(':').next().unwrap_or(e).trim());
+    let raw = match (error, description) {
+        (Some(e), Some(d)) => format!(" [{provider} said: {e} — {d}]"),
+        (Some(e), None) => format!(" [{provider} said: {e}]"),
+        (None, _) => format!(" [HTTP {status}]"),
+    };
+    let secret_demanded =
+        description.is_some_and(|d| d.to_ascii_lowercase().contains("client_secret"));
     let msg = match code {
+        Some("invalid_request") if secret_demanded => format!(
+            "{provider}'s token server rejected {step} because it expects a client secret for this OAuth client. MCPanel is a public client and sends none by design (PKCE instead).{raw}"
+        ),
         Some("invalid_grant") if stage == Stage::Exchange => format!(
-            "{provider} did not accept the sign-in code (it may have expired). Try connecting again.{detail}"
+            "{provider}'s token server did not accept the sign-in code (it may have expired). Try connecting again.{raw}"
         ),
         Some("invalid_grant") => format!(
-            "{provider} no longer accepts MCPanel's authorization — it expired or was revoked. Connect again.{detail}"
+            "{provider}'s token server no longer accepts MCPanel's authorization — it expired or was revoked. Connect again.{raw}"
         ),
         Some("invalid_client") | Some("unauthorized_client") => format!(
-            "{provider} rejected MCPanel's app registration (client ID not valid for this sign-in).{detail}"
+            "{provider}'s token server rejected {step}: the OAuth client (client ID) is not valid for this sign-in.{raw}"
         ),
-        Some("invalid_request") => format!("{provider} rejected the sign-in request.{detail}"),
-        Some(_) => format!(
-            "{provider} returned an error: {}{detail}",
-            error.unwrap_or_default()
-        ),
-        None => format!("{provider} returned HTTP {status}"),
+        Some(_) => format!("{provider}'s token server rejected {step}.{raw}"),
+        None => format!("{provider}'s token server failed during {step}.{raw}"),
     };
     let err = CoreError::new(ErrorCode::ProviderError, msg);
     if status >= 500 || status == 429 {
@@ -231,7 +242,53 @@ mod tests {
         )
         .err()
         .unwrap();
-        assert!(e.message.contains("app registration"));
+        assert!(
+            e.message.contains("client ID) is not valid"),
+            "{}",
+            e.message
+        );
+    }
+
+    #[test]
+    fn provider_answers_are_attributed_to_the_provider_and_step() {
+        // Google's real answer for a "Desktop app" client without a secret (2026-09-30).
+        let e = parse_token_response(
+            "Google Drive",
+            Stage::Exchange,
+            400,
+            br#"{"error":"invalid_request","error_description":"client_secret is missing."}"#,
+        )
+        .err()
+        .unwrap();
+        assert!(
+            e.message
+                .starts_with("Google Drive's token server rejected the sign-in code exchange"),
+            "{}",
+            e.message
+        );
+        assert!(
+            e.message.contains("MCPanel is a public client"),
+            "{}",
+            e.message
+        );
+        assert!(
+            e.message
+                .contains("[Google Drive said: invalid_request — client_secret is missing.]"),
+            "{}",
+            e.message
+        );
+        let e = parse_token_response(
+            "OneDrive",
+            Stage::Refresh,
+            400,
+            br#"{"error":"invalid_request","error_description":"x"}"#,
+        )
+        .err()
+        .unwrap();
+        assert_eq!(
+            e.message,
+            "OneDrive's token server rejected the token refresh. [OneDrive said: invalid_request — x]"
+        );
     }
 
     #[test]

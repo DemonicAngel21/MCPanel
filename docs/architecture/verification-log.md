@@ -330,6 +330,17 @@ workspace/drive/api/guides/api-specific-auth; support.google.com/cloud/answer/15
 - `client_secret` is documented as **Optional** for code exchange and refresh
   ("installed apps … cannot keep secrets"); refresh tokens are always returned for
   installed apps.
+- **Actual token endpoint behaviour differs from the parameter table** (checked
+  2026-09-30 with a public installed-app client ID and a deliberately invalid code): without
+  `client_secret` both the code exchange and the refresh answer HTTP 400
+  `{"error":"invalid_request","error_description":"client_secret is missing."}` — the
+  secret is checked before the code. With a wrong secret: `invalid_client` "The provided
+  client secret is invalid." Google's OAuth overview says of installed apps: "a client
+  secret, which you embed in the source code of your application. (In this context, the
+  client secret is obviously not treated as a secret.)" MCPanel currently sends none; a
+  Google sign-in with a "Desktop app" client therefore fails at the code exchange with
+  that message (shown as Google's answer). How to supply Google's non-confidential
+  desktop secret is an open decision.
 - Scope `https://www.googleapis.com/auth/drive.file` — **non-sensitive** (files the app
   creates or the user opens with it); `about.get` accepts it (`fields` required).
 - Publishing status "Testing": at most 100 test users and authorizations **expire after 7
