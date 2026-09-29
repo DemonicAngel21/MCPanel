@@ -17,11 +17,12 @@ static SECRET_PATTERNS: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| 
         (r"(?i)(authorization:\s*bearer\s+)[A-Za-z0-9._~+/=-]+", "${1}[REDACTED]"),
         (r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{16,}", "${1}[REDACTED]"),
         (r"AGE-SECRET-KEY-1[0-9A-Z]+", "[REDACTED-AGE-KEY]"),
+        (r"GOCSPX-[A-Za-z0-9_-]+", "[REDACTED-CLIENT-SECRET]"),
         (
             r"(?i)(\b(?:access_token|refresh_token|id_token|client_secret|password|secret|token|code)=)[^&\s]+",
             "${1}[REDACTED]",
         ),
-        (r#"(?i)("(?:access_token|refresh_token|password|secret)"\s*:\s*")[^"]*"#, "${1}[REDACTED]"),
+        (r#"(?i)("(?:access_token|refresh_token|client_secret|password|secret)"\s*:\s*")[^"]*"#, "${1}[REDACTED]"),
         (r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", "[REDACTED-PRIVATE-KEY]"),
     ]
     .into_iter()
@@ -143,6 +144,10 @@ mod tests {
         assert!(!redact("refresh_token=r3fr35h").contains("r3fr35h"));
         assert!(!redact(r#"{"access_token":"tok123"}"#).contains("tok123"));
         assert!(!redact("AGE-SECRET-KEY-1QQQQQQQQQQQQ").contains("QQQQ"));
+        // Google Desktop client secret (embedded in releases, never logged).
+        assert!(!redact("client_id=x&client_secret=GOCSPX-abcDEF_123").contains("abcDEF_123"));
+        assert!(!redact("value GOCSPX-abcDEF_123 seen").contains("abcDEF_123"));
+        assert!(!redact(r#"{"client_secret":"GOCSPX-abcDEF_123"}"#).contains("abcDEF_123"));
         assert!(
             !redact("-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----")
                 .contains("MIIE")

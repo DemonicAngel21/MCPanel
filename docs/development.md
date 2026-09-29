@@ -107,12 +107,35 @@ Their client IDs are **not** stored in the repository. MCPanel reads, in this or
 | Provider | Variable |
 |---|---|
 | Google Drive | `MCPANEL_GOOGLE_CLIENT_ID` |
+| Google Drive | `MCPANEL_GOOGLE_CLIENT_SECRET` (the Desktop client's secret, see below) |
 | OneDrive | `MCPANEL_MICROSOFT_CLIENT_ID` |
 | Dropbox | `MCPANEL_DROPBOX_CLIENT_ID` |
 
-Development: set them in the shell before `pnpm dev`. Release: set them in the build
-environment (CI secrets) before `pnpm build`; they end up in the binary, which is fine for
-public client IDs. Providers without an ID show "Not configured". Registration details:
+- **Development:** set them in the shell before `pnpm dev` (for example
+  `$env:MCPANEL_GOOGLE_CLIENT_SECRET = "…"`), or keep them in a local `.env.local` that
+  you load yourself — `.env*` files are git-ignored. A runtime variable overrides the
+  compiled-in value.
+- **Release:** the release workflow passes the repository secrets
+  `MCPANEL_GOOGLE_CLIENT_ID`, `MCPANEL_GOOGLE_CLIENT_SECRET`, `MCPANEL_MICROSOFT_CLIENT_ID`
+  and `MCPANEL_DROPBOX_CLIENT_ID` to `pnpm build`; the values are compiled into the
+  binary. Users of an installed release never enter anything.
+- **Local release builds** embed whatever is set in your environment at build time. The
+  build prints `This build embeds cloud OAuth configuration from the environment: …`
+  (names only) so you notice; unset the variables (`Remove-Item Env:MCPANEL_…`) for a
+  build that must not contain your app registration.
+
+**Why Google has a client secret at all:** Google's token endpoint rejects "Desktop app"
+clients without `client_secret` (`invalid_request` "client_secret is missing."), even
+with PKCE, although its parameter table lists the field as optional. Google's OAuth
+overview says installed apps embed this value in the application, where it "is
+obviously not treated as a secret". MCPanel therefore embeds it in releases and treats
+it as **non-confidential**: it proves nothing about the caller, PKCE still protects
+every sign-in, and a copy extracted from the binary cannot be used to obtain anyone's
+tokens without their browser consent. It is still kept out of Git, logs (redacted),
+diagnostics, error messages and the UI, and is sent only on Google's code exchange and
+refresh. Microsoft and Dropbox use no secret.
+
+Providers without an ID show "Not configured". Registration details:
 docs/architecture/verification-log.md ("Cloud storage OAuth").
 
 ## Accessibility check
