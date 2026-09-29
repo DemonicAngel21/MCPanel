@@ -359,7 +359,7 @@ impl ServerManager {
                     }
                     let staging = this.paths.staging_dir().join(ctx.id.to_string());
                     this.executor
-                        .execute(&plan, &root, &staging, &ctx, (0.08, 0.9))
+                        .execute(&plan, &root, &staging, &ctx, (0.08, 0.9), Some(&java.path))
                         .await?;
                     ctx.check_cancelled()?;
 

@@ -164,6 +164,7 @@ impl JavaManager {
                     "-XshowSettings:properties".to_string(),
                     "-version".to_string(),
                 ],
+                None,
                 Duration::from_secs(20),
             )
             .await?;

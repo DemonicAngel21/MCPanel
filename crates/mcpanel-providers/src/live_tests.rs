@@ -13,6 +13,8 @@ async fn all_providers_list_versions_and_plan_installs() {
         ("paper", "1.21.11"),
         ("purpur", "1.21.11"),
         ("fabric", "1.21.11"),
+        ("neoforge", "1.21.4"),
+        ("forge", "1.20.1"),
     ] {
         let p = registry.get_software(id).unwrap();
         let versions = p.catalog.game_versions().await.unwrap();
@@ -29,7 +31,7 @@ async fn all_providers_list_versions_and_plan_installs() {
             .await
             .unwrap();
         mcpanel_core::software::executor::PlanExecutor::validate(&plan, &p.descriptor).unwrap();
-        assert!(plan.java.min_major >= 21, "{id} java requirement");
+        assert!(plan.java.min_major >= 17, "{id} java requirement");
         let InstallStep::Download { expected_hash, .. } = &plan.steps[0] else {
             panic!("{id}: first step is not a download");
         };

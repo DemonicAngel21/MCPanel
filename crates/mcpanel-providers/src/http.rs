@@ -34,6 +34,26 @@ fn net_err(context: &str, e: reqwest::Error) -> CoreError {
     if retryable { err.retryable() } else { err }
 }
 
+/// Retry transient failures (connection errors, timeouts, 5xx, 429) of metadata requests:
+/// up to 3 attempts, waiting 1 s and 3 s. Anything else fails immediately.
+async fn with_retries<T, F, Fut>(mut f: F) -> CoreResult<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = CoreResult<T>>,
+{
+    let mut attempt = 0;
+    loop {
+        match f().await {
+            Err(e) if e.retryable && attempt < 2 => {
+                attempt += 1;
+                tracing::warn!(target: "mcpanel::api", attempt, "provider request failed, retrying: {}", e.message);
+                tokio::time::sleep(Duration::from_secs(if attempt == 1 { 1 } else { 3 })).await;
+            }
+            r => return r,
+        }
+    }
+}
+
 impl HttpClient {
     pub fn new() -> CoreResult<Self> {
         let client = reqwest::Client::builder()
@@ -49,6 +69,10 @@ impl HttpClient {
 
     /// GET a JSON document (metadata-sized, bounded to 16 MiB).
     pub async fn get_json<T: DeserializeOwned>(&self, url: &str) -> CoreResult<T> {
+        with_retries(|| self.get_json_once(url)).await
+    }
+
+    async fn get_json_once<T: DeserializeOwned>(&self, url: &str) -> CoreResult<T> {
         let resp = self
             .client
             .get(url)
@@ -77,6 +101,10 @@ impl HttpClient {
     }
 
     pub async fn get_bytes(&self, url: &str, max: usize) -> CoreResult<Vec<u8>> {
+        with_retries(|| self.get_bytes_once(url, max)).await
+    }
+
+    async fn get_bytes_once(&self, url: &str, max: usize) -> CoreResult<Vec<u8>> {
         let resp = self
             .client
             .get(url)

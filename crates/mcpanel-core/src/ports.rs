@@ -254,6 +254,7 @@ pub trait Platform: Send + Sync {
         &self,
         program: &Path,
         args: &[String],
+        cwd: Option<&Path>,
         timeout: Duration,
     ) -> CoreResult<CommandOutput>;
 

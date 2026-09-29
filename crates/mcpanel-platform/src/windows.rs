@@ -335,9 +335,13 @@ impl Platform for WindowsPlatform {
         &self,
         program: &Path,
         args: &[String],
+        cwd: Option<&Path>,
         timeout: Duration,
     ) -> CoreResult<CommandOutput> {
         let mut cmd = tokio::process::Command::new(program);
+        if let Some(dir) = cwd {
+            cmd.current_dir(dir);
+        }
         cmd.args(args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -717,6 +721,7 @@ mod tests {
             .run_capture(
                 Path::new(r"C:\Windows\System32\cmd.exe"),
                 &["/C".into(), "set".into()],
+                None,
                 Duration::from_secs(10),
             )
             .await

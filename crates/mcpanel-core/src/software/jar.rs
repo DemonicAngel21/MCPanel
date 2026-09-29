@@ -34,6 +34,7 @@ impl LaunchResolver for SingleJarLauncher {
             jar: installed.jar.clone(),
             main_class: None,
             class_path: Vec::new(),
+            arg_files: Vec::new(),
             server_args: self.server_args.clone(),
         })
     }
