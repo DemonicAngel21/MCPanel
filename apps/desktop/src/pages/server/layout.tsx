@@ -159,8 +159,8 @@ export function ServerLayout() {
                 key={t.label}
                 to={to}
                 className={cn(
-                  "border-b-2 px-3 py-2 text-[13px] transition-colors",
-                  active ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:text-fg",
+                  "border-b-2 px-3 py-2 text-[13px] transition-colors duration-150",
+                  active ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:border-border-strong hover:text-fg",
                 )}
               >
                 {t.label}
@@ -170,7 +170,9 @@ export function ServerLayout() {
         </nav>
       </header>
       <ServerBanners server={server} />
-      <Outlet />
+      <div key={path.slice(base.length).split("/")[1] ?? ""} className="flex min-h-0 flex-1 animate-page-in flex-col">
+        <Outlet />
+      </div>
     </div>
   );
 }

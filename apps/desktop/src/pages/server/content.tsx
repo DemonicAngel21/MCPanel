@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
   Select,
 } from "@/components/ui/overlays";
-import { Badge, Banner, Card, CardHeader, Checkbox, EmptyState, Input, Spinner, Tooltip } from "@/components/ui/primitives";
+import { Badge, Banner, Card, CardHeader, Checkbox, EmptyState, Input, SkeletonRows, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatRelative } from "@/lib/format";
 import { waitForJob } from "@/lib/jobs";
@@ -234,12 +234,12 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
           ]}
         />
       </div>
-      {results.isLoading && <Spinner className="m-6" />}
+      {results.isLoading && <SkeletonRows rows={5} />}
       {results.error && <p className="p-4 text-xs text-danger">{errorMessage(results.error)}</p>}
       {results.data && results.data.hits.length === 0 && <EmptyState title="No results" description="Try another search or provider." />}
       <ul className="divide-y divide-border">
         {results.data?.hits.map((p) => (
-          <li key={p.id} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-2">
+          <li key={p.id} className="flex animate-fade-in items-start gap-3 px-4 py-3 transition-colors duration-100 hover:bg-surface-2">
             {p.iconUrl ? (
               <img src={p.iconUrl} alt="" className="size-10 shrink-0 rounded-md bg-surface-3" loading="lazy" />
             ) : (
@@ -369,7 +369,14 @@ export function ServerContent() {
   const [updates, setUpdates] = useState<UpdateInfoDto[] | null>(null);
   const [checking, setChecking] = useState(false);
 
-  if (isLoading) return <Spinner className="m-6" />;
+  if (isLoading)
+    return (
+      <PageBody className="max-w-5xl">
+        <Card>
+          <SkeletonRows rows={5} />
+        </Card>
+      </PageBody>
+    );
   if (!list) return <EmptyState title="Plugins are unavailable" description={error ? errorMessage(error) : undefined} />;
   const label = list.kind === "mod" ? "Mods" : "Plugins";
 

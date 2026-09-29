@@ -3,7 +3,7 @@ import { FolderInput, Plus, Server } from "lucide-react";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { ServerControls } from "@/components/server-controls";
 import { Button } from "@/components/ui/button";
-import { Badge, Card, EmptyState, StatusDot } from "@/components/ui/primitives";
+import { Badge, Card, EmptyState, SkeletonRows, StatusDot } from "@/components/ui/primitives";
 import { formatRelative } from "@/lib/format";
 import { useServers } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
@@ -33,7 +33,7 @@ export function ServersPage() {
       <PageBody>
         <Card>
           {isLoading ? (
-            <p className="p-4 text-xs text-muted">Loading…</p>
+            <SkeletonRows rows={3} />
           ) : servers?.length === 0 ? (
             <EmptyState icon={<Server />} title="No servers yet" description="Create a server or import an existing server folder." />
           ) : (

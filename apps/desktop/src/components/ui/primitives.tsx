@@ -23,7 +23,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     ref={ref}
     className={cn(
       "h-8 w-full rounded-md border border-border-strong bg-surface-2 px-2.5 text-[13px] text-fg placeholder:text-faint",
-      "focus:border-accent/60 focus:ring-2 focus:ring-ring/30 focus:outline-none disabled:opacity-50",
+      "transition-[border-color,box-shadow] duration-150 focus:border-accent/60 focus:ring-2 focus:ring-ring/30 focus:outline-none disabled:opacity-50",
       className,
     )}
     spellCheck={false}
@@ -37,7 +37,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
     ref={ref}
     className={cn(
       "min-h-16 w-full rounded-md border border-border-strong bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg placeholder:text-faint",
-      "focus:border-accent/60 focus:ring-2 focus:ring-ring/30 focus:outline-none",
+      "transition-[border-color,box-shadow] duration-150 focus:border-accent/60 focus:ring-2 focus:ring-ring/30 focus:outline-none",
       className,
     )}
     spellCheck={false}
@@ -206,7 +206,7 @@ export function Tooltip({
         <TooltipPrimitive.Content
           side={side}
           sideOffset={6}
-          className="z-50 max-w-xs animate-fade-in rounded-md border border-border-strong bg-surface-3 px-2 py-1 text-xs text-fg shadow-lg"
+          className="z-50 max-w-xs origin-(--radix-tooltip-content-transform-origin) animate-pop-in rounded-md border border-border-strong bg-surface-3 px-2 py-1 text-xs text-fg shadow-lg data-[state=closed]:animate-pop-out"
         >
           {content}
         </TooltipPrimitive.Content>
@@ -254,6 +254,28 @@ export function Banner({
         {children && <div className="mt-0.5 text-xs text-fg/80">{children}</div>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/** Placeholder for content that is loading (a soft pulse; static with reduced motion). */
+export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div aria-hidden className={cn("animate-skeleton rounded-md bg-surface-3", className)} style={style} />;
+}
+
+/** A few skeleton rows for lists and tables while their data loads. */
+export function SkeletonRows({ rows = 4, className }: { rows?: number; className?: string }) {
+  return (
+    <div role="status" aria-label="Loading" className={cn("space-y-2 p-4", className)}>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="size-8 shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3" style={{ width: `${70 - ((i * 13) % 30)}%` }} />
+            <Skeleton className="h-2.5 w-1/3" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

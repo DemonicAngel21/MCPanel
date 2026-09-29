@@ -37,7 +37,7 @@ function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; lab
       <Link
         to={to}
         className={cn(
-          "flex size-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-3 hover:text-fg [&_svg]:size-[18px]",
+          "flex size-10 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg active:scale-95 [&_svg]:size-[18px]",
           active && "bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent",
         )}
         aria-label={label}
@@ -45,6 +45,17 @@ function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; lab
         {icon}
       </Link>
     </Tooltip>
+  );
+}
+
+/** Fades a page in on navigation; server tabs animate inside the server layout. */
+function RouteTransition() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const key = path.startsWith("/servers/") && path !== "/servers/new" ? path.split("/").slice(0, 3).join("/") : path;
+  return (
+    <div key={key} className="flex min-h-0 flex-1 animate-page-in flex-col">
+      <Outlet />
+    </div>
   );
 }
 
@@ -82,7 +93,7 @@ function ServerList() {
               to="/servers/$serverId"
               params={{ serverId: s.id }}
               className={cn(
-                "group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-muted hover:bg-surface-3 hover:text-fg",
+                "group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg",
                 active && "bg-surface-3 text-fg",
               )}
             >
@@ -152,7 +163,7 @@ export function AppShell() {
       </nav>
       <ServerList />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <Outlet />
+        <RouteTransition />
       </main>
       <CommandPalette />
       <QuitDialog />

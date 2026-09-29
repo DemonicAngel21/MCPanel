@@ -79,8 +79,8 @@ export function CommandPalette() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/40" />
-        <DialogPrimitive.Content className="fixed top-[18%] left-1/2 z-50 w-[min(600px,calc(100vw-32px))] -translate-x-1/2 animate-slide-up overflow-hidden rounded-xl border border-border-strong bg-surface shadow-2xl">
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/40 data-[state=closed]:animate-fade-out" />
+        <DialogPrimitive.Content className="fixed top-[18%] left-1/2 z-50 w-[min(600px,calc(100vw-32px))] -translate-x-1/2 animate-dialog-in overflow-hidden rounded-xl border border-border-strong bg-surface shadow-2xl data-[state=closed]:animate-dialog-out">
           <DialogPrimitive.Title className="sr-only">Command palette</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">Search servers, pages and actions</DialogPrimitive.Description>
           <Command loop>

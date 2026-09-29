@@ -8,7 +8,7 @@ import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
 import { PageBody } from "@/app/app-shell";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Badge, Banner, Card, CardHeader, Checkbox, EmptyState, Field, Input, Spinner } from "@/components/ui/primitives";
+import { Badge, Banner, Card, CardHeader, Checkbox, EmptyState, Field, Input, SkeletonRows, Spinner } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { waitForJob } from "@/lib/jobs";
 import { qk, useBedrock } from "@/lib/queries";
@@ -197,8 +197,10 @@ export function ServerBedrock() {
   const { data: status, isLoading, error, refetch, isFetching } = useBedrock(id);
   if (isLoading) {
     return (
-      <PageBody className="flex items-center justify-center">
-        <Spinner />
+      <PageBody className="max-w-3xl">
+        <Card>
+          <SkeletonRows rows={3} />
+        </Card>
       </PageBody>
     );
   }

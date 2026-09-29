@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/overlays";
-import { Badge, EmptyState, Spinner, Tooltip } from "@/components/ui/primitives";
+import { Badge, EmptyState, Skeleton, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatDateTime, formatRelative } from "@/lib/format";
 import { waitForJob } from "@/lib/jobs";
@@ -65,7 +65,13 @@ function RestoreDialog({ backup, running, onClose }: { backup: BackupDto; runnin
           </p>
         )}
         {error && <p className="text-danger">{error}</p>}
-        {!preview && !error && <Spinner />}
+        {!preview && !error && (
+          <div role="status" aria-label="Loading" className="space-y-2">
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-3 w-3/5" />
+          </div>
+        )}
         {preview && (
           <>
             <dl className="grid grid-cols-4 gap-2 text-center">

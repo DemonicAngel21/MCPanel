@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/overlays";
-import { Badge, Card, EmptyState, Spinner } from "@/components/ui/primitives";
+import { Badge, Card, EmptyState, SkeletonRows, Spinner } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
 import { qk, useJava } from "@/lib/queries";
@@ -61,7 +61,7 @@ export function JavaPage() {
       <PageBody>
         <Card>
           {isLoading ? (
-            <p className="p-4 text-xs text-muted">Loading…</p>
+            <SkeletonRows rows={3} />
           ) : runtimes?.length === 0 ? (
             <EmptyState
               icon={<Coffee />}

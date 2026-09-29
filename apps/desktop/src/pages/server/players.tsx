@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/overlays";
-import { Badge, Banner, Card, CardHeader, EmptyState, Field, Input, Spinner, StatusDot, Switch, Tooltip } from "@/components/ui/primitives";
+import { Badge, Banner, Card, CardHeader, EmptyState, Field, Input, SkeletonRows, StatusDot, Switch, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatDuration, formatRelative } from "@/lib/format";
 import { qk, usePlayers } from "@/lib/queries";
@@ -256,7 +256,14 @@ export function ServerPlayers() {
   const [tab, setTab] = useState<Tab>("players");
   const [dialog, setDialog] = useState<{ kind: "kick" | "ban"; name: string } | { kind: "ban_ip" } | { kind: "ban_name" } | null>(null);
 
-  if (isLoading) return <Spinner className="m-6" />;
+  if (isLoading)
+    return (
+      <PageBody className="max-w-5xl">
+        <Card>
+          <SkeletonRows rows={4} />
+        </Card>
+      </PageBody>
+    );
   if (!data) return <EmptyState title="Players are unavailable" description={error ? errorMessage(error) : undefined} />;
   const ro = !!data.readOnlyReason;
   const tabs: [Tab, string, number][] = [
@@ -326,7 +333,7 @@ export function ServerPlayers() {
               type="button"
               onClick={() => setTab(t)}
               className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors",
+                "-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors duration-150",
                 tab === t ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:text-fg",
               )}
             >
@@ -335,92 +342,94 @@ export function ServerPlayers() {
           ))}
         </div>
 
-        {tab === "players" &&
-          (data.known.length === 0 ? (
-            <EmptyState title="No players yet" description="Players who join, and players on the server's lists, appear here." />
-          ) : (
-            <table className="w-full text-[13px]">
-              <thead className="border-b border-border text-left text-xs text-muted">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Player</th>
-                  <th className="px-4 py-2 font-medium">Last seen</th>
-                  <th className="px-4 py-2 font-medium">Play time</th>
-                  <th className="w-10">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.known.map((p) => (
-                  <PlayerRow
-                    key={p.name}
-                    p={p}
-                    data={data}
-                    run={run}
-                    onKick={() => setDialog({ kind: "kick", name: p.name })}
-                    onBan={() => setDialog({ kind: "ban", name: p.name })}
-                  />
-                ))}
-              </tbody>
-            </table>
-          ))}
+        <div key={tab} className="animate-fade-in">
+          {tab === "players" &&
+            (data.known.length === 0 ? (
+              <EmptyState title="No players yet" description="Players who join, and players on the server's lists, appear here." />
+            ) : (
+              <table className="w-full text-[13px]">
+                <thead className="border-b border-border text-left text-xs text-muted">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Player</th>
+                    <th className="px-4 py-2 font-medium">Last seen</th>
+                    <th className="px-4 py-2 font-medium">Play time</th>
+                    <th className="w-10">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.known.map((p) => (
+                    <PlayerRow
+                      key={p.name}
+                      p={p}
+                      data={data}
+                      run={run}
+                      onKick={() => setDialog({ kind: "kick", name: p.name })}
+                      onBan={() => setDialog({ kind: "ban", name: p.name })}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            ))}
 
-        {tab === "whitelist" && (
-          <>
-            <NameForm label="Add" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "whitelist_add", name })} />
-            <SimpleList
-              rows={data.whitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid }))}
-              empty="Nobody is on the whitelist."
-              removeLabel="Remove"
-              disabled={ro || busy}
-              onRemove={(name) => void run({ action: "whitelist_remove", name })}
-            />
-          </>
-        )}
+          {tab === "whitelist" && (
+            <>
+              <NameForm label="Add" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "whitelist_add", name })} />
+              <SimpleList
+                rows={data.whitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid }))}
+                empty="Nobody is on the whitelist."
+                removeLabel="Remove"
+                disabled={ro || busy}
+                onRemove={(name) => void run({ action: "whitelist_remove", name })}
+              />
+            </>
+          )}
 
-        {tab === "operators" && (
-          <>
-            <NameForm label="Make operator" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "op", name })} />
-            <SimpleList
-              rows={data.operators.map((o) => ({
-                key: o.name,
-                main: o.name,
-                sub: `Level ${o.level}${o.bypassesPlayerLimit ? " · bypasses player limit" : ""}`,
-              }))}
-              empty="There are no operators."
-              removeLabel="Remove"
-              disabled={ro || busy}
-              onRemove={(name) => void run({ action: "deop", name })}
-            />
-          </>
-        )}
+          {tab === "operators" && (
+            <>
+              <NameForm label="Make operator" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "op", name })} />
+              <SimpleList
+                rows={data.operators.map((o) => ({
+                  key: o.name,
+                  main: o.name,
+                  sub: `Level ${o.level}${o.bypassesPlayerLimit ? " · bypasses player limit" : ""}`,
+                }))}
+                empty="There are no operators."
+                removeLabel="Remove"
+                disabled={ro || busy}
+                onRemove={(name) => void run({ action: "deop", name })}
+              />
+            </>
+          )}
 
-        {tab === "bans" && (
-          <>
-            <div className="flex gap-2 border-b border-border p-3">
-              <Button size="sm" variant="danger-outline" disabled={ro} onClick={() => setDialog({ kind: "ban_name" })}>
-                <Ban /> Ban player…
-              </Button>
-              <Button size="sm" variant="danger-outline" disabled={ro} onClick={() => setDialog({ kind: "ban_ip" })}>
-                <Ban /> Ban IP address…
-              </Button>
-            </div>
-            <SimpleList
-              rows={[...data.bans, ...data.ipBans].map((b) => ({
-                key: b.target,
-                main: b.target,
-                sub: [b.reason, b.source && `by ${b.source}`, b.expires ? `until ${b.expires}` : "permanent"].filter(Boolean).join(" · "),
-              }))}
-              empty="Nobody is banned."
-              removeLabel="Unban"
-              disabled={ro || busy}
-              onRemove={(target) => {
-                const isIp = data.ipBans.some((b) => b.target === target);
-                void run(isIp ? { action: "pardon_ip", ip: target } : { action: "pardon", name: target });
-              }}
-            />
-          </>
-        )}
+          {tab === "bans" && (
+            <>
+              <div className="flex gap-2 border-b border-border p-3">
+                <Button size="sm" variant="danger-outline" disabled={ro} onClick={() => setDialog({ kind: "ban_name" })}>
+                  <Ban /> Ban player…
+                </Button>
+                <Button size="sm" variant="danger-outline" disabled={ro} onClick={() => setDialog({ kind: "ban_ip" })}>
+                  <Ban /> Ban IP address…
+                </Button>
+              </div>
+              <SimpleList
+                rows={[...data.bans, ...data.ipBans].map((b) => ({
+                  key: b.target,
+                  main: b.target,
+                  sub: [b.reason, b.source && `by ${b.source}`, b.expires ? `until ${b.expires}` : "permanent"].filter(Boolean).join(" · "),
+                }))}
+                empty="Nobody is banned."
+                removeLabel="Unban"
+                disabled={ro || busy}
+                onRemove={(target) => {
+                  const isIp = data.ipBans.some((b) => b.target === target);
+                  void run(isIp ? { action: "pardon_ip", ip: target } : { action: "pardon", name: target });
+                }}
+              />
+            </>
+          )}
+        </div>
       </Card>
 
       {dialog?.kind === "kick" && (

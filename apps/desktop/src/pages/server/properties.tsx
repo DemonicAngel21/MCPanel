@@ -8,7 +8,7 @@ import { PageBody } from "@/app/app-shell";
 import { PropertyInput } from "@/components/property-input";
 import { validateProperty } from "@/lib/properties";
 import { Button } from "@/components/ui/button";
-import { Banner, Card, Input, Spinner, Tooltip } from "@/components/ui/primitives";
+import { Banner, Card, Input, SkeletonRows, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
@@ -115,8 +115,10 @@ export function ServerProperties() {
 
   if (isLoading)
     return (
-      <PageBody>
-        <Spinner />
+      <PageBody className="max-w-5xl">
+        <Card>
+          <SkeletonRows rows={6} />
+        </Card>
       </PageBody>
     );
   if (error || !data)

@@ -3,7 +3,7 @@ import { Blocks, Gauge, LayoutTemplate, Skull, Trees, Users } from "lucide-react
 import type { ReactNode } from "react";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { Button } from "@/components/ui/button";
-import { Badge, Card, Spinner } from "@/components/ui/primitives";
+import { Badge, Card, Skeleton } from "@/components/ui/primitives";
 import { useSoftware, useTemplates } from "@/lib/queries";
 
 const ICONS: Record<string, ReactNode> = {
@@ -29,10 +29,16 @@ export function TemplatesPage() {
         description="Start a new server from a preset. The create wizard is filled in from the template, and you can still change everything before creating the server."
       />
       <PageBody className="max-w-5xl">
-        {isLoading && <Spinner />}
+        {isLoading && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 5 }, (_, i) => (
+              <Skeleton key={i} className="h-40 rounded-lg" />
+            ))}
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {templates?.map((t) => (
-            <Card key={t.id} className="flex flex-col p-4">
+            <Card key={t.id} className="flex flex-col p-4 transition-colors duration-150 hover:border-border-strong">
               <div className="mb-2 flex items-center gap-2.5">
                 <span className="flex size-9 items-center justify-center rounded-md bg-accent-soft text-accent [&_svg]:size-5">
                   {ICONS[t.icon] ?? <LayoutTemplate />}

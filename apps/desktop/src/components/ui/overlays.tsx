@@ -31,12 +31,12 @@ export function DialogContent({
 }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/50" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/50 data-[state=closed]:animate-fade-out" />
       <DialogPrimitive.Content
         onEscapeKeyDown={onEscapeKeyDown}
         className={cn(
           "fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col",
-          "animate-slide-up rounded-xl border border-border-strong bg-surface shadow-2xl focus:outline-none",
+          "animate-dialog-in rounded-xl border border-border-strong bg-surface shadow-2xl focus:outline-none data-[state=closed]:animate-dialog-out",
           className,
         )}
       >
@@ -150,7 +150,7 @@ export function DropdownMenuContent({ children, align = "end" }: { children: Rea
       <DropdownPrimitive.Content
         align={align}
         sideOffset={4}
-        className="z-50 min-w-44 animate-fade-in rounded-lg border border-border-strong bg-surface-2 p-1 shadow-xl"
+        className="z-50 min-w-44 origin-(--radix-dropdown-menu-content-transform-origin) animate-pop-in rounded-lg border border-border-strong bg-surface-2 p-1 shadow-xl data-[state=closed]:animate-pop-out"
       >
         {children}
       </DropdownPrimitive.Content>
@@ -163,7 +163,7 @@ export const DropdownMenuItem = forwardRef<HTMLDivElement, DropdownPrimitive.Dro
     <DropdownPrimitive.Item
       ref={ref}
       className={cn(
-        "flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-[13px] outline-none select-none [&_svg]:size-4 [&_svg]:text-muted",
+        "flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-100 outline-none select-none [&_svg]:size-4 [&_svg]:text-muted",
         "data-[disabled]:opacity-40 data-[highlighted]:bg-surface-3",
         destructive && "text-danger [&_svg]:text-danger",
         className,
@@ -204,7 +204,7 @@ export function Select({
         id={id}
         aria-label={ariaLabel}
         className={cn(
-          "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-surface-2 px-2.5 text-left text-[13px] text-fg",
+          "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-surface-2 px-2.5 text-left text-[13px] text-fg transition-[border-color,box-shadow] duration-150",
           "focus:ring-2 focus:ring-ring/30 focus:outline-none disabled:opacity-50 data-[placeholder]:text-faint",
           className,
         )}
@@ -213,14 +213,14 @@ export function Select({
           <SelectPrimitive.Value placeholder={placeholder} />
         </span>
         <SelectPrimitive.Icon>
-          <ChevronDown className="size-4 text-muted" />
+          <ChevronDown className="size-4 text-muted transition-transform duration-150 [[data-state=open]_&]:rotate-180" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content
           position="popper"
           sideOffset={4}
-          className="z-50 max-h-80 min-w-[var(--radix-select-trigger-width)] animate-fade-in overflow-hidden rounded-lg border border-border-strong bg-surface-2 shadow-xl"
+          className="z-50 max-h-80 min-w-[var(--radix-select-trigger-width)] origin-(--radix-select-content-transform-origin) animate-pop-in overflow-hidden rounded-lg border border-border-strong bg-surface-2 shadow-xl data-[state=closed]:animate-pop-out"
         >
           <SelectPrimitive.Viewport className="p-1">
             {options.map((o) => (
@@ -228,7 +228,7 @@ export function Select({
                 key={o.value}
                 value={o.value}
                 disabled={o.disabled}
-                className="relative flex cursor-default items-center gap-2 rounded-md py-1.5 pr-2 pl-7 text-[13px] outline-none select-none data-[disabled]:opacity-40 data-[highlighted]:bg-surface-3"
+                className="relative flex cursor-default items-center gap-2 rounded-md py-1.5 pr-2 pl-7 text-[13px] transition-colors duration-100 outline-none select-none data-[disabled]:opacity-40 data-[highlighted]:bg-surface-3"
               >
                 <SelectPrimitive.ItemIndicator className="absolute left-2">
                   <Check className="size-3.5 text-accent" />

@@ -64,7 +64,7 @@ export function NotificationInbox() {
           side="right"
           align="end"
           sideOffset={8}
-          className="z-50 flex max-h-[70vh] w-96 animate-fade-in flex-col rounded-lg border border-border-strong bg-surface-2 shadow-xl"
+          className="z-50 flex max-h-[70vh] w-96 origin-(--radix-popover-content-transform-origin) animate-pop-in flex-col rounded-lg border border-border-strong bg-surface-2 shadow-xl data-[state=closed]:animate-pop-out"
         >
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-[13px] font-semibold text-fg">Notifications</span>
@@ -95,7 +95,7 @@ export function NotificationInbox() {
                 type="button"
                 onClick={() => openItem(n)}
                 className={cn(
-                  "flex w-full items-start gap-2.5 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-surface-3",
+                  "flex w-full items-start gap-2.5 border-b border-border px-3 py-2.5 text-left transition-colors duration-100 last:border-b-0 hover:bg-surface-3",
                   !n.read && "bg-accent-soft/40",
                 )}
               >

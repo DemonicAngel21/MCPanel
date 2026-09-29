@@ -33,6 +33,9 @@ if (root) {
           <Toaster
             position="bottom-right"
             theme="system"
+            gap={8}
+            visibleToasts={4}
+            offset={16}
             toastOptions={{
               classNames: {
                 toast: "!bg-surface-2 !border-border-strong !text-fg",
