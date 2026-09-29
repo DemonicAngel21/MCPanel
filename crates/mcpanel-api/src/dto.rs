@@ -2148,6 +2148,20 @@ pub struct CrashEventDto {
     pub restart_at: Option<i64>,
     pub crash_report: Option<String>,
     pub console_tail: Vec<String>,
+    /// Root-cause exception, if one was found.
+    pub exception: Option<String>,
+    /// Plugins/mods in the crashing code path, most likely first.
+    pub suspects: Vec<SuspectDto>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SuspectDto {
+    pub name: String,
+    pub file_name: String,
+    /// "loader" (the stack frame names the jar) | "package"
+    pub evidence: String,
 }
 
 impl From<CrashEvent> for CrashEventDto {
@@ -2163,6 +2177,17 @@ impl From<CrashEvent> for CrashEventDto {
             restart_at: e.restart_at.map(|t| t.millis()),
             crash_report: e.crash_report,
             console_tail: e.console_tail,
+            exception: e.analysis.exception,
+            suspects: e
+                .analysis
+                .suspects
+                .into_iter()
+                .map(|s| SuspectDto {
+                    name: s.name,
+                    file_name: s.file_name,
+                    evidence: s.evidence,
+                })
+                .collect(),
         }
     }
 }

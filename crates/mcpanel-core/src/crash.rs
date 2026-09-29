@@ -124,6 +124,9 @@ pub struct CrashEvent {
     /// Relative path of the crash report the server wrote, if any.
     pub crash_report: Option<String>,
     pub console_tail: Vec<String>,
+    /// Root cause and suspected plugins/mods.
+    #[serde(default)]
+    pub analysis: crate::diagnostics::CrashAnalysis,
 }
 
 /// What to do about a crash, given the policy and the previous crash.
@@ -194,6 +197,63 @@ pub fn find_crash_report(
         .find_map(|l| l.strip_prefix("Description: "))
         .map(|d| d.trim().to_string());
     Some((format!("crash-reports/{}", newest.1), description))
+}
+
+/// Console lines of the session that just ended (from its "Starting …" line on).
+fn session_lines(rt: &crate::server::runtime::ServerRuntime) -> Vec<String> {
+    let lines = rt.console.snapshot(None, usize::MAX);
+    let start = lines
+        .iter()
+        .rposition(|l| {
+            l.stream == crate::console::ConsoleStream::System && l.text.starts_with("Starting ")
+        })
+        .unwrap_or(0);
+    lines[start..].iter().map(|l| l.text.clone()).collect()
+}
+
+/// Installed plugin/mod jars of a server (active folders only).
+fn installed_jars(root: &Path) -> Vec<crate::diagnostics::JarInfo> {
+    let mut out = Vec::new();
+    for folder in ["plugins", "mods"] {
+        let Ok(entries) = std::fs::read_dir(root.join(folder)) else {
+            continue;
+        };
+        for e in entries.flatten().take(1000) {
+            let path = e.path();
+            let file_name = e.file_name().to_string_lossy().to_string();
+            if !file_name.to_ascii_lowercase().ends_with(".jar") || !path.is_file() {
+                continue;
+            }
+            let name = crate::content::descriptor::read(&path)
+                .ok()
+                .flatten()
+                .and_then(|d| d.name)
+                .unwrap_or_else(|| file_name.trim_end_matches(".jar").to_string());
+            out.push(crate::diagnostics::JarInfo {
+                file_name,
+                name,
+                path,
+            });
+        }
+    }
+    out
+}
+
+/// Analyse a crash from the crash report (if any) and the session's console output.
+fn analyze_crash(
+    root: &Path,
+    report: Option<&str>,
+    mut lines: Vec<String>,
+) -> crate::diagnostics::CrashAnalysis {
+    if let Some(rel) = report
+        && let Ok(bytes) = std::fs::read(root.join(rel))
+    {
+        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(1024 * 1024)]).to_string();
+        let mut r: Vec<String> = text.lines().map(String::from).collect();
+        r.append(&mut lines);
+        lines = r;
+    }
+    crate::diagnostics::analyze(&lines, &installed_jars(root))
 }
 
 pub struct CrashService {
@@ -327,6 +387,14 @@ impl CrashService {
             .into_iter()
             .map(|l| l.text)
             .collect();
+        let analysis = {
+            let session = session_lines(&rt);
+            let root = server.directory.clone();
+            let report = report.as_ref().map(|(p, _)| p.clone());
+            tokio::task::spawn_blocking(move || analyze_crash(&root, report.as_deref(), session))
+                .await
+                .unwrap_or_default()
+        };
         let event = CrashEvent {
             id: uuid::Uuid::new_v4().simple().to_string(),
             server_id,
@@ -340,6 +408,7 @@ impl CrashService {
                 .then(|| Timestamp(at.millis() + d.delay_secs as i64 * 1000)),
             crash_report: report.map(|(p, _)| p),
             console_tail: tail,
+            analysis,
         };
         self.repo.insert(&event).await?;
         self.events.publish(DomainEvent::CrashRecorded {
@@ -450,6 +519,7 @@ mod tests {
             restart_at: None,
             crash_report: None,
             console_tail: vec![],
+            analysis: Default::default(),
         }
     }
 

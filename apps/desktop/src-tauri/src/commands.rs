@@ -382,6 +382,19 @@ pub async fn crash_history(
     s.api.crash_history(&s.principal(), &server_id, limit).await
 }
 
+// ───────────────────────────── diagnostics ────────────────────────
+
+#[tauri::command]
+pub async fn diagnostics_export(
+    s: State<'_, AppState>,
+    server_id: String,
+    grant: String,
+) -> R<u32> {
+    s.api
+        .diagnostics_export(&s.principal(), &server_id, &grant)
+        .await
+}
+
 // ───────────────────────────── encryption ─────────────────────────
 
 #[tauri::command]

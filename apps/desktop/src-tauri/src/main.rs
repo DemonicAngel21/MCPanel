@@ -213,6 +213,7 @@ fn main() {
             commands::restart_policy_update,
             commands::crash_history,
             commands::tunnel_status,
+            commands::diagnostics_export,
             commands::encryption_status,
             commands::encryption_setup,
             commands::encryption_import,
