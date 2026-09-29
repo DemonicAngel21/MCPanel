@@ -96,6 +96,11 @@ their official installers (several minutes; run with `--test-threads 1`).
 The player test client supports only protocol versions whose packet ids were verified (currently
 26.3 / protocol 777). Online-mode logins need a Minecraft account and are not automated.
 
+## Accessibility check
+
+With `pnpm dev` running for CDP (see above): `node apps/desktop/scripts/cdp.mjs
+apps/desktop/scripts/a11y.mjs` runs axe-core on the main pages and prints violations.
+
 ## Live provider tests
 
 ```powershell

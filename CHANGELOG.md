@@ -134,7 +134,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Provider requests are retried on transient failures (connection errors, 5xx, 429).
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
+### Security
+
+- Launch settings: JVM arguments are allowlisted (no `-XX:OnOutOfMemoryError`,
+  `-javaagent`, `@argfiles`, `-jar`/`-cp`, code-loading system properties) and server
+  arguments cannot contain paths.
+- Key files (Floodgate key, Geyser tokens) can no longer be renamed, moved or copied
+  out of their protection; secrets in `server.properties` are hidden in the text editor
+  and redacted completely in diagnostics bundles (including the 1.21.9
+  management-server secret and keystore password).
+- MCPanel never creates folders or moves files through a linked `.mcpanel` folder or
+  other junctions (trash, unzip, restore, Bedrock config, diagnostics).
+- Downloads without a published hash are not redirected; provider responses are size
+  capped while streaming.
+
 ### Fixed
+
+- Adding a key to a `server.properties` that ended with a line-continuation backslash
+  merged the new key into the previous value (found by property-based tests).
+- Accessibility: labels, names, landmarks, heading order and 4.5:1 text contrast in both
+  themes (axe-core finds no violations on the main pages).
 
 - Paper watchdog shutdowns (exit code 70, "Stopping server" in the log) were recorded
   as normal stops, so no crash was handled and auto-restart never ran.
