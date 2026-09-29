@@ -167,6 +167,7 @@ impl Core {
             events.clone(),
         );
         notifications.spawn_listener();
+        notifications.spawn_disk_watch(Arc::clone(&deps.platform), Arc::clone(&backups));
         let bedrock = crate::bedrock::BedrockService::new(
             Arc::clone(&servers),
             Arc::clone(&content),

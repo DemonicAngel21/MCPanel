@@ -56,6 +56,8 @@ pub enum Category {
     /// Any other background task failed (install, restore, setup…).
     TaskFailed,
     PlayerJoined,
+    /// A drive with servers or backups is running out of space.
+    DiskLow,
 }
 
 impl Category {
@@ -65,6 +67,7 @@ impl Category {
             Self::BackupFailed => "backup_failed",
             Self::TaskFailed => "task_failed",
             Self::PlayerJoined => "player_joined",
+            Self::DiskLow => "disk_low",
         }
     }
 
@@ -74,6 +77,7 @@ impl Category {
             "backup_failed" => Some(Self::BackupFailed),
             "task_failed" => Some(Self::TaskFailed),
             "player_joined" => Some(Self::PlayerJoined),
+            "disk_low" => Some(Self::DiskLow),
             _ => None,
         }
     }
@@ -105,6 +109,7 @@ pub struct NotificationPrefs {
     pub backup_failed: Channels,
     pub task_failed: Channels,
     pub player_joined: Channels,
+    pub disk_low: Channels,
 }
 
 impl Default for NotificationPrefs {
@@ -125,6 +130,7 @@ impl Default for NotificationPrefs {
                 inbox: false,
                 desktop: false,
             },
+            disk_low: on,
         }
     }
 }
@@ -136,6 +142,7 @@ impl NotificationPrefs {
             Category::BackupFailed => self.backup_failed,
             Category::TaskFailed => self.task_failed,
             Category::PlayerJoined => self.player_joined,
+            Category::DiskLow => self.disk_low,
         }
     }
 }
@@ -182,6 +189,27 @@ pub fn crash_body(message: &str, action: CrashAction, delay: Option<i64>) -> Str
         format!("{message} {what}")
     } else {
         format!("{message}. {what}")
+    }
+}
+
+/// A drive is "low" below 5 GiB or 5 % free, and "fine" again above 6 GiB and 6 %.
+pub fn disk_low(total: u64, available: u64, was_low: bool) -> bool {
+    let (bytes, pct) = if was_low {
+        (6u64 << 30, 6)
+    } else {
+        (5u64 << 30, 5)
+    };
+    let below_pct = total > 0 && available.saturating_mul(100) < total.saturating_mul(pct);
+    available < bytes || below_pct
+}
+
+/// The drive a path is on (`C:`), used to report each drive once.
+fn drive_of(p: &std::path::Path) -> String {
+    match p.components().next() {
+        Some(std::path::Component::Prefix(pre)) => {
+            pre.as_os_str().to_string_lossy().to_ascii_uppercase()
+        }
+        _ => p.to_string_lossy().to_string(),
     }
 }
 
@@ -358,6 +386,71 @@ impl NotificationService {
         Ok(())
     }
 
+    /// Check the drives holding servers and backups every few minutes and notify once
+    /// per drive when it runs low (again after it recovered).
+    pub fn spawn_disk_watch(
+        self: &Arc<Self>,
+        platform: Arc<dyn crate::ports::Platform>,
+        backups: Arc<crate::backup::BackupService>,
+    ) {
+        let this = Arc::clone(self);
+        tokio::spawn(async move {
+            let mut low: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(300));
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tick.tick().await;
+                let mut dirs: Vec<(std::path::PathBuf, String)> = Vec::new();
+                if let Ok(d) = backups.backups_dir().await {
+                    dirs.push((d, "backups".into()));
+                }
+                if let Ok(list) = this.servers.list().await {
+                    for v in list {
+                        dirs.push((v.server.directory.clone(), v.server.name.clone()));
+                    }
+                }
+                let mut by_drive: std::collections::BTreeMap<
+                    String,
+                    (std::path::PathBuf, Vec<String>),
+                > = Default::default();
+                for (d, what) in dirs {
+                    let e = by_drive
+                        .entry(drive_of(&d))
+                        .or_insert((d.clone(), Vec::new()));
+                    if !e.1.contains(&what) {
+                        e.1.push(what);
+                    }
+                }
+                for (drive, (path, users)) in by_drive {
+                    let Ok(space) = platform.disk_space(&path) else {
+                        continue;
+                    };
+                    let was = low.contains(&drive);
+                    let now = disk_low(space.total_bytes, space.available_bytes, was);
+                    if now && !was {
+                        low.insert(drive.clone());
+                        let free_gb = space.available_bytes as f64 / (1u64 << 30) as f64;
+                        let d = Draft {
+                            server_id: None,
+                            category: Category::DiskLow,
+                            severity: Severity::Warning,
+                            title: format!("Drive {drive} is almost full ({free_gb:.1} GB free)"),
+                            body: format!(
+                                "Used by: {}. Servers cannot start below 512 MB free and backups need room; free up space or move backups to another drive.",
+                                users.join(", ")
+                            ),
+                        };
+                        if let Err(e) = this.deliver(d).await {
+                            tracing::warn!(target: "mcpanel::notify", "cannot deliver notification: {}", e.message);
+                        }
+                    } else if !now && was {
+                        low.remove(&drive);
+                    }
+                }
+            }
+        });
+    }
+
     pub fn spawn_listener(self: &Arc<Self>) {
         let this = Arc::clone(self);
         let mut rx = self.events.subscribe();
@@ -417,12 +510,25 @@ mod tests {
     }
 
     #[test]
+    fn low_disk_threshold_has_hysteresis() {
+        const G: u64 = 1 << 30;
+        assert!(disk_low(500 * G, 4 * G, false));
+        assert!(!disk_low(500 * G, 50 * G, false));
+        // 5 % of 1 TB is 50 GB.
+        assert!(disk_low(1000 * G, 45 * G, false));
+        // Recovers only above 6 GiB / 6 %.
+        assert!(disk_low(80 * G, (5 * G) + G / 2, true));
+        assert!(!disk_low(80 * G, 7 * G, true));
+    }
+
+    #[test]
     fn category_round_trip() {
         for c in [
             Category::Crash,
             Category::BackupFailed,
             Category::TaskFailed,
             Category::PlayerJoined,
+            Category::DiskLow,
         ] {
             assert_eq!(Category::parse(c.as_str()), Some(c));
         }

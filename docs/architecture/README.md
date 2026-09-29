@@ -170,7 +170,7 @@ Pipeline: request → OperationLock → consistency strategy → file selection 
 - Consistency: running server → `save-off` / `save-all flush` / wait for confirmation /
   archive / `save-on` (guaranteed in a finally path); pre-update and pre-restore backups
   stop the server.
-- Retention: GFS per destination; manual and pre-restore backups never auto-deleted
+- Retention: GFS per destination, plus an optional size cap (GiB) for scheduled backups; manual and pre-restore backups never auto-deleted
   unless configured.
 - Restore: stop → pre-restore backup → staged extraction with archive safety →
   manifest verification → diff (highlighting changed JARs) → atomic swap.

@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- Disk policy (v0.4): a notification when a drive with servers or backups drops below
+  5 GB or 5 % free (once per drive until it recovers); an optional size limit for a
+  server's scheduled backups (oldest removed first, newest always kept); a disk-usage
+  breakdown per server (worlds, plugins/mods, logs, other, backups, free space).
 - Crash diagnostics (v0.4): each crash records the root-cause exception and the
   plugins/mods that ran in the crashing code (from the jar named in stack frames, or
   from class packages unique to one installed jar); the crash history shows them. A

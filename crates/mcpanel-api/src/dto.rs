@@ -1193,6 +1193,8 @@ pub struct BackupPolicyDto {
     pub keep_daily: u32,
     pub keep_weekly: u32,
     pub keep_monthly: u32,
+    /// GiB; 0 = no cap.
+    pub max_total_gb: u32,
     pub last_run_at: Option<i64>,
     /// When the scheduler next considers this server (if enabled).
     pub next_run_at: Option<i64>,
@@ -1209,6 +1211,7 @@ impl From<BackupPolicy> for BackupPolicyDto {
             keep_daily: p.retention.keep_daily,
             keep_weekly: p.retention.keep_weekly,
             keep_monthly: p.retention.keep_monthly,
+            max_total_gb: p.max_total_gb,
             last_run_at: p.last_run_at.map(|t| t.millis()),
             next_run_at: p
                 .enabled
@@ -1232,6 +1235,8 @@ pub struct BackupPolicyUpdateDto {
     pub keep_daily: u32,
     pub keep_weekly: u32,
     pub keep_monthly: u32,
+    #[serde(default)]
+    pub max_total_gb: u32,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -1792,6 +1797,33 @@ fn other_file(k: &PendingKind) -> String {
     }
 }
 
+// ──────────────────────────────── disk ────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DiskUsageDto {
+    #[ts(type = "number")]
+    pub total_bytes: u64,
+    #[ts(type = "number")]
+    pub worlds_bytes: u64,
+    #[ts(type = "number")]
+    pub content_bytes: u64,
+    #[ts(type = "number")]
+    pub logs_bytes: u64,
+    #[ts(type = "number")]
+    pub other_bytes: u64,
+    /// This server's backups (all kinds).
+    #[ts(type = "number")]
+    pub backups_bytes: u64,
+    /// Free space on the server's drive.
+    #[ts(type = "number | null")]
+    pub drive_free_bytes: Option<u64>,
+    #[ts(type = "number | null")]
+    pub drive_total_bytes: Option<u64>,
+    pub truncated: bool,
+}
+
 // ───────────────────────────── encryption ─────────────────────────────
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -1871,6 +1903,7 @@ pub struct NotificationPrefsDto {
     pub backup_failed: ChannelsDto,
     pub task_failed: ChannelsDto,
     pub player_joined: ChannelsDto,
+    pub disk_low: ChannelsDto,
 }
 
 impl From<NotificationPrefs> for NotificationPrefsDto {
@@ -1884,6 +1917,7 @@ impl From<NotificationPrefs> for NotificationPrefsDto {
             backup_failed: c(p.backup_failed),
             task_failed: c(p.task_failed),
             player_joined: c(p.player_joined),
+            disk_low: c(p.disk_low),
         }
     }
 }
@@ -1899,6 +1933,7 @@ impl From<NotificationPrefsDto> for NotificationPrefs {
             backup_failed: c(p.backup_failed),
             task_failed: c(p.task_failed),
             player_joined: c(p.player_joined),
+            disk_low: c(p.disk_low),
         }
     }
 }

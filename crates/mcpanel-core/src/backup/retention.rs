@@ -15,6 +15,23 @@ use std::collections::HashSet;
 pub struct Candidate {
     pub id: BackupId,
     pub created_at: Timestamp,
+    pub size_bytes: u64,
+}
+
+/// Ids to remove so the remaining backups fit in `cap_bytes` (oldest first; the newest
+/// backup is always kept, even if it alone exceeds the cap).
+pub fn over_cap(candidates: &[Candidate], cap_bytes: u64) -> Vec<BackupId> {
+    let mut sorted: Vec<Candidate> = candidates.to_vec();
+    sorted.sort_by_key(|c| std::cmp::Reverse((c.created_at, c.id)));
+    let mut total = 0u64;
+    let mut out = Vec::new();
+    for (i, c) in sorted.iter().enumerate() {
+        total = total.saturating_add(c.size_bytes);
+        if i > 0 && total > cap_bytes {
+            out.push(c.id);
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,10 +100,26 @@ mod tests {
     const HOUR: i64 = 3_600_000;
     const DAY: i64 = 24 * HOUR;
 
+    #[test]
+    fn size_cap_removes_the_oldest_and_keeps_the_newest() {
+        let c: Vec<Candidate> = (0..4)
+            .map(|i| Candidate {
+                id: BackupId::new(),
+                created_at: Timestamp(MONDAY + i * HOUR),
+                size_bytes: 40,
+            })
+            .collect();
+        let gone = over_cap(&c, 100);
+        assert_eq!(gone, vec![c[1].id, c[0].id]);
+        // A single backup bigger than the cap stays.
+        assert!(over_cap(&c[3..], 10).is_empty());
+    }
+
     fn at(ms: i64) -> Candidate {
         Candidate {
             id: BackupId::new(),
             created_at: Timestamp(ms),
+            size_bytes: 0,
         }
     }
 

@@ -1040,6 +1040,51 @@ impl Api {
             .collect())
     }
 
+    // ──────────────────────────────── disk ────────────────────────────────
+
+    pub async fn server_disk_usage(&self, p: &Principal, server: &str) -> ApiResult<DiskUsageDto> {
+        p.authorize(Permission::ServersRead)?;
+        let id = server_id(server)?;
+        let s = self.core.servers.get(id).await?;
+        let dir = s.directory.clone();
+        let level = std::fs::read(dir.join("server.properties"))
+            .ok()
+            .and_then(|b| {
+                mcpanel_core::config::PropertiesDocument::parse(
+                    &mcpanel_core::config::properties::decode_bytes(&b),
+                )
+                .get("level-name")
+                .map(|v| v.trim().to_string())
+            })
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "world".into());
+        let d2 = dir.clone();
+        let u = tokio::task::spawn_blocking(move || mcpanel_core::disk::usage(&d2, &level))
+            .await
+            .map_err(|e| ApiError::new("INTERNAL", e.to_string()))?;
+        let backups_bytes = self
+            .core
+            .backups
+            .list(Some(id))
+            .await?
+            .iter()
+            .filter(|b| b.file_present)
+            .map(|b| b.backup.size_bytes)
+            .sum();
+        let space = self.core.platform.disk_space(&dir).ok();
+        Ok(DiskUsageDto {
+            total_bytes: u.total_bytes,
+            worlds_bytes: u.worlds_bytes,
+            content_bytes: u.content_bytes,
+            logs_bytes: u.logs_bytes,
+            other_bytes: u.other_bytes,
+            backups_bytes,
+            drive_free_bytes: space.map(|s| s.available_bytes),
+            drive_total_bytes: space.map(|s| s.total_bytes),
+            truncated: u.truncated,
+        })
+    }
+
     // ───────────────────────────── diagnostics ─────────────────────────────
 
     /// Write a support ZIP for a server to the save target; returns the entry count.
@@ -1632,6 +1677,7 @@ impl Api {
                         keep_weekly: u.keep_weekly,
                         keep_monthly: u.keep_monthly,
                     },
+                    max_total_gb: u.max_total_gb,
                     last_run_at: current.last_run_at,
                 },
                 p.actor(),
