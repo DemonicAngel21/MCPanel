@@ -3,6 +3,7 @@ import { FolderOpen, Shield } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
+import { CloudCard } from "@/components/cloud-card";
 import { EncryptionCard } from "@/components/encryption-card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
@@ -170,6 +171,8 @@ export function SettingsPage() {
         </Card>
 
         <EncryptionCard />
+
+        <CloudCard />
 
         <NotificationRules />
 

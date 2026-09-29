@@ -19,6 +19,8 @@ import type { BedrockEnableDto } from "@/bindings/BedrockEnableDto";
 import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
 import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
 import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
+import type { CloudFlowDto } from "@/bindings/CloudFlowDto";
+import type { CloudStatusDto } from "@/bindings/CloudStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
 import type { DiskUsageDto } from "@/bindings/DiskUsageDto";
 import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
@@ -197,6 +199,16 @@ export const api = {
   diagnostics: {
     /** Writes a support ZIP to the chosen file; returns the number of entries. */
     export: (serverId: string, grant: string) => call<number>("diagnostics_export", { serverId, grant }),
+  },
+  cloud: {
+    list: () => call<CloudStatusDto[]>("cloud_list"),
+    /** Opens the provider's sign-in in the browser; returns the flow id. */
+    connect: (provider: string) => call<string>("cloud_connect", { provider }),
+    flow: (flowId: string) => call<CloudFlowDto>("cloud_flow", { flowId }),
+    cancel: (flowId: string) => call<void>("cloud_cancel", { flowId }),
+    check: (provider: string) => call<CloudStatusDto>("cloud_check", { provider }),
+    /** "revoked" | "not_supported" */
+    disconnect: (provider: string) => call<string>("cloud_disconnect", { provider }),
   },
   encryption: {
     status: () => call<EncryptionStatusDto>("encryption_status"),

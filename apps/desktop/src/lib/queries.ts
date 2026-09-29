@@ -25,6 +25,7 @@ export const qk = {
   bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   tunnel: ["tunnel"] as const,
   encryption: ["encryption"] as const,
+  cloud: ["cloud"] as const,
   diskUsage: (serverId: string) => ["servers", serverId, "disk"] as const,
   notifications: ["notifications"] as const,
   unreadNotifications: ["notifications", "unread"] as const,
@@ -73,6 +74,7 @@ export const useUnreadNotifications = () => useQuery({ queryKey: qk.unreadNotifi
 export const useNotificationPrefs = () => useQuery({ queryKey: qk.notificationPrefs, queryFn: api.notifications.prefs });
 export const useDiskUsage = (serverId: string) =>
   useQuery({ queryKey: qk.diskUsage(serverId), queryFn: () => api.disk.usage(serverId), staleTime: 60_000 });
+export const useCloud = () => useQuery({ queryKey: qk.cloud, queryFn: api.cloud.list });
 export const useEncryption = () => useQuery({ queryKey: qk.encryption, queryFn: api.encryption.status });
 export const useTunnel = () => useQuery({ queryKey: qk.tunnel, queryFn: api.tunnels.status, staleTime: 15_000 });
 export const useBedrock = (serverId: string) => useQuery({ queryKey: qk.bedrock(serverId), queryFn: () => api.bedrock.status(serverId) });

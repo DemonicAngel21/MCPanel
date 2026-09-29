@@ -23,6 +23,7 @@ const ACTIONS: Record<string, string> = {
   "server.diagnostics_export": "Exported diagnostics",
   "encryption.setup": "Set up backup encryption",
   "encryption.import": "Imported a Recovery Kit",
+  "cloud.disconnect": "Disconnected cloud storage",
   "bedrock.configure": "Changed the Bedrock settings",
   "player.op": "Made a player operator",
   "player.deop": "Removed an operator",
