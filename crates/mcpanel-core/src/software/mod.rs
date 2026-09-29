@@ -216,11 +216,20 @@ pub struct ProviderRegistry {
     /// Catalog used as the authoritative Minecraft version list (Mojang).
     reference_catalog: Option<Arc<dyn SoftwareCatalog>>,
     content: Vec<Arc<dyn crate::content::ContentProvider>>,
+    cloud: Vec<Arc<dyn crate::cloud::CloudStorageProvider>>,
 }
 
 impl ProviderRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn register_cloud(&mut self, p: Arc<dyn crate::cloud::CloudStorageProvider>) {
+        self.cloud.push(p);
+    }
+
+    pub fn cloud_providers(&self) -> &[Arc<dyn crate::cloud::CloudStorageProvider>] {
+        &self.cloud
     }
 
     pub fn register_software(&mut self, provider: SoftwareProvider) {

@@ -101,6 +101,10 @@ pub enum DomainEvent {
     },
     /// Inbox entries were read or cleared.
     NotificationsChanged,
+    /// A cloud storage connection was made, checked or removed.
+    CloudChanged {
+        provider: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
