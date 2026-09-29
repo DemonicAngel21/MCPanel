@@ -83,6 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SHA-1 and each Fabric library by SHA-512 (Fabric's own installer does not verify
   libraries) — and launches Fabric Loader with the libraries on the class path. Mods
   from Modrinth on a Mods tab: client-only mods are hidden and refused.
+- Forge and NeoForge support (v0.3): the official installer (SHA-512 verified from the
+  Forge/NeoForge Maven) runs with the selected Java in the server folder and is removed
+  afterwards; 1.17+ servers start from the installer's argument file, older Forge from
+  its server jar. Forge picks the recommended build by default. Mods for both come from
+  Modrinth.
+- Provider requests are retried on transient failures (connection errors, 5xx, 429).
 - Job progress events carry the job kind, so every job shows a meaningful toast.
 
 ### Fixed

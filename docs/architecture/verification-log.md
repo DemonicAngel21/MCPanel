@@ -180,12 +180,28 @@ result. If the finding contradicts the specification, the spec is updated in the
   excluded); a jar whose `fabric.mod.json` says `"environment": "client"` is refused
   (verified with Sodium for 26.3). Fabric API and Lithium installed and loaded.
 
+## 2026-09-29 — Forge and NeoForge
+
+- NeoForge Maven (`maven.neoforged.net/releases/net/neoforged/neoforge`): metadata
+  versions `21.4.157` (= 1.21.4), `26.3.0.31-beta` (= 26.3); installers with
+  `.sha1/.sha256/.sha512`. Installer CLI (`--help`): `--install-server [dir]`, hash
+  checks on unless `--skip-hash-check`. Output: `libraries/net/neoforged/neoforge/<v>/
+  win_args.txt` (`-p … --add-modules … <main>`), `run.bat` = `java @user_jvm_args.txt
+  @…/win_args.txt`.
+- Forge: `promotions_slim.json` (`<mc>-recommended|latest`), Maven metadata
+  `<mc>-<forge>`, installers with `.sha512`; `--installServer`. 1.16.5 and 1.12.2
+  installers (run on JDK 25) write `forge-<mc>-<forge>.jar` + the vanilla jar and log
+  "Checksum Validated" for downloads.
+- Real servers through MCPanel: NeoForge 1.21.4 (install ~155–180 s, boot ~12 s,
+  FerriteCore from Modrinth loaded) and Forge 1.20.1 (install ~127 s, boot ~31 s), both
+  on JDK 25. Old Forge (1.12.2/1.16.5) needs Java 8 to *run*; not run here (no Java 8
+  installed).
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
 | Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
-| Forge / NeoForge installer & argfile layout per version | v0.3 |
 | CurseForge API key terms and distribution flags | v0.3+ |
 | Playit agent interfaces / supported tunnel management | v0.3 spike |
 | GeyserMC download API, config schema, Forge support status | v0.3 |

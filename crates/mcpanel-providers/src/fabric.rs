@@ -463,6 +463,7 @@ impl LaunchResolver for FabricLauncher {
             jar: installed.jar.clone(),
             main_class: Some(main),
             class_path,
+            arg_files: Vec::new(),
             server_args: vec!["nogui".into()],
         })
     }

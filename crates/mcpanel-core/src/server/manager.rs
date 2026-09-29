@@ -517,19 +517,33 @@ impl ServerManager {
         ]);
         args.extend(server.launch.jvm_args.iter().cloned());
         args.extend(launch_args.jvm_args);
-        match launch_args.main_class {
-            Some(main) => {
-                // Class-path launch: every entry must stay inside the server root.
-                for entry in &launch_args.class_path {
-                    root.resolve(entry)?.ensure_no_reparse_points()?;
+        if !launch_args.arg_files.is_empty() {
+            for f in &launch_args.arg_files {
+                let file = root.resolve(f)?;
+                file.ensure_no_reparse_points()?;
+                if !file.absolute().is_file() {
+                    return Err(CoreError::new(
+                        ErrorCode::PathNotFound,
+                        format!("The launch arguments file '{f}' is missing"),
+                    ));
                 }
-                args.push("-cp".to_string());
-                args.push(launch_args.class_path.join(";"));
-                args.push(main);
+                args.push(format!("@{f}"));
             }
-            None => {
-                args.push("-jar".to_string());
-                args.push(launch_args.jar);
+        } else {
+            match launch_args.main_class {
+                Some(main) => {
+                    // Class-path launch: every entry must stay inside the server root.
+                    for entry in &launch_args.class_path {
+                        root.resolve(entry)?.ensure_no_reparse_points()?;
+                    }
+                    args.push("-cp".to_string());
+                    args.push(launch_args.class_path.join(";"));
+                    args.push(main);
+                }
+                None => {
+                    args.push("-jar".to_string());
+                    args.push(launch_args.jar);
+                }
             }
         }
         args.extend(launch_args.server_args);

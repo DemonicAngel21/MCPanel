@@ -94,7 +94,8 @@ impl Core {
             events: events.clone(),
             audit: Arc::clone(&audit),
             paths: deps.paths.clone(),
-            executor: PlanExecutor::new(Arc::clone(&deps.downloader)),
+            executor: PlanExecutor::new(Arc::clone(&deps.downloader))
+                .with_platform(Arc::clone(&deps.platform)),
             console_capacity: app_settings.console_buffer_lines as usize,
         });
         servers.initialize().await?;

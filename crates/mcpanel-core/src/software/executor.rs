@@ -4,12 +4,13 @@ use super::{InstallPlan, InstallStep, SoftwareDescriptor};
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::files::SafeRoot;
 use crate::jobs::JobContext;
-use crate::ports::{DownloadRequest, Downloader};
+use crate::ports::{DownloadRequest, Downloader, Platform};
 use std::path::Path;
 use std::sync::Arc;
 
 pub struct PlanExecutor {
     downloader: Arc<dyn Downloader>,
+    platform: Option<Arc<dyn Platform>>,
 }
 
 pub(crate) fn host_of(url: &str) -> Option<&str> {
@@ -24,7 +25,16 @@ pub(crate) fn host_of(url: &str) -> Option<&str> {
 
 impl PlanExecutor {
     pub fn new(downloader: Arc<dyn Downloader>) -> Self {
-        Self { downloader }
+        Self {
+            downloader,
+            platform: None,
+        }
+    }
+
+    /// Needed for plans with `RunJava` steps.
+    pub fn with_platform(mut self, platform: Arc<dyn Platform>) -> Self {
+        self.platform = Some(platform);
+        self
     }
 
     /// Validate a plan against the provider's declared download hosts.
@@ -50,6 +60,27 @@ impl PlanExecutor {
                     }
                     crate::files::safepath::parse_relative(dest)?;
                 }
+                InstallStep::RunJava {
+                    jar,
+                    args,
+                    remove_after,
+                    ..
+                } => {
+                    crate::files::safepath::parse_relative(jar)?;
+                    for r in remove_after {
+                        crate::files::safepath::parse_relative(r)?;
+                    }
+                    // Arguments are passed as argv (never a shell); no absolute paths.
+                    if args
+                        .iter()
+                        .any(|a| a.contains(':') || a.contains('\\') || a.starts_with('/'))
+                    {
+                        return Err(CoreError::new(
+                            ErrorCode::ProviderError,
+                            "Installer arguments must not contain paths",
+                        ));
+                    }
+                }
                 InstallStep::WriteFile { dest, contents, .. } => {
                     crate::files::safepath::parse_relative(dest)?;
                     if contents.len() > 1024 * 1024 {
@@ -74,6 +105,7 @@ impl PlanExecutor {
         staging: &Path,
         ctx: &JobContext,
         progress_range: (f32, f32),
+        java: Option<&Path>,
     ) -> CoreResult<()> {
         tokio::fs::create_dir_all(staging)
             .await
@@ -89,6 +121,68 @@ impl PlanExecutor {
                 } => {
                     ctx.progress(None, description.clone());
                     write_generated(root, dest, contents).await?;
+                }
+                InstallStep::RunJava {
+                    jar,
+                    args,
+                    timeout_secs,
+                    remove_after,
+                    description,
+                } => {
+                    let (lo, hi) = progress_range;
+                    let span = (hi - lo) / total_steps;
+                    ctx.progress(Some(lo + span * i as f32), description.clone());
+                    let platform = self
+                        .platform
+                        .as_ref()
+                        .ok_or_else(|| CoreError::internal("installer steps need a platform"))?;
+                    let java = java.ok_or_else(|| {
+                        CoreError::internal("installer steps need a Java runtime")
+                    })?;
+                    let target = root.resolve(jar)?;
+                    target.ensure_no_reparse_points()?;
+                    let mut argv = vec!["-jar".to_string(), jar.clone()];
+                    argv.extend(args.iter().cloned());
+                    let out = platform
+                        .run_capture(
+                            java,
+                            &argv,
+                            Some(root.path()),
+                            std::time::Duration::from_secs(*timeout_secs),
+                        )
+                        .await?;
+                    if out.timed_out || out.code != Some(0) {
+                        let text = String::from_utf8_lossy(&out.stdout).to_string()
+                            + &String::from_utf8_lossy(&out.stderr);
+                        let tail: Vec<&str> = text
+                            .lines()
+                            .rev()
+                            .take(12)
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                            .rev()
+                            .collect();
+                        return Err(CoreError::new(
+                            ErrorCode::ProviderError,
+                            if out.timed_out {
+                                format!(
+                                    "The installer did not finish within {} minutes",
+                                    timeout_secs / 60
+                                )
+                            } else {
+                                format!(
+                                    "The installer failed (exit code {:?}):\n{}",
+                                    out.code,
+                                    tail.join("\n")
+                                )
+                            },
+                        ));
+                    }
+                    for r in remove_after {
+                        if let Ok(p) = root.resolve(r) {
+                            let _ = tokio::fs::remove_file(p.absolute()).await;
+                        }
+                    }
                 }
                 InstallStep::Download {
                     url,
