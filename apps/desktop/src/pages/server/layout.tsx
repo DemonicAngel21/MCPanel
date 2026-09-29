@@ -149,7 +149,10 @@ export function ServerLayout() {
             <ServerControls server={server} />
           </div>
         </div>
-        <nav aria-label="Server sections" className="-mb-px flex gap-1">
+        <nav
+          aria-label="Server sections"
+          className="-mb-px flex [scrollbar-width:none] gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] pr-6"
+        >
           {tabs.map((t) => {
             const to = `${base}${t.to}`;
             const active =
@@ -158,8 +161,9 @@ export function ServerLayout() {
               <Link
                 key={t.label}
                 to={to}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "border-b-2 px-3 py-2 text-[13px] transition-colors duration-150",
+                  "shrink-0 border-b-2 px-3 py-2 text-[13px] whitespace-nowrap transition-colors duration-150",
                   active ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:border-border-strong hover:text-fg",
                 )}
               >

@@ -63,7 +63,7 @@ function ServerList() {
   const { data: servers, isLoading } = useServers();
   const path = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-surface xl:w-60">
       <div className="flex h-12 items-center justify-between border-b border-border px-3">
         <span className="text-xs font-semibold tracking-wide text-muted uppercase">Servers</span>
         <Tooltip content="New server">
