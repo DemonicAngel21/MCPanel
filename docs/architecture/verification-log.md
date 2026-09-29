@@ -299,6 +299,16 @@ result. If the finding contradicts the specification, the spec is updated in the
   is 74 bytes. Round trip tested against the real Credential Manager with a temporary
   test entry that the test deletes.
 
+## 2026-09-29 — Paper watchdog and crash analysis
+
+- Paper 1.21.11 with a test plugin blocking the server thread (spigot.yml
+  `timeout-time: 15`): after 10 s "--- DO NOT REPORT THIS TO PAPER - THIS IS NOT A BUG OR
+  A CRASH ---" dumps; at the timeout "The server has stopped responding! This is
+  (probably) not a Paper bug.", a "Server thread dump" with frames like
+  `CrashTest.jar//com.example.mcpaneltest.CrashTest.blockServerThread(CrashTest.java:14)`
+  (class-loader name = plugin jar), then "Stopping server", world saving and exit code
+  70. No crash-reports file is written.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
