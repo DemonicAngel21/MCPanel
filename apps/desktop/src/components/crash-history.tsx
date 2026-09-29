@@ -39,6 +39,9 @@ function Row({ c }: { c: CrashEventDto }) {
             {c.action === "restart" && c.attempt > 1 && <Badge>attempt {c.attempt}</Badge>}
           </div>
           <p className="truncate text-xs text-muted">{c.message}</p>
+          {c.suspects.length > 0 && (
+            <p className="mt-0.5 truncate text-xs text-warning">Likely involved: {c.suspects.map((s) => `${s.name} (${s.fileName})`).join(", ")}</p>
+          )}
         </div>
         <span className="shrink-0 text-xs text-muted" title={formatDateTime(c.occurredAt)}>
           {formatRelative(c.occurredAt)}
@@ -46,6 +49,17 @@ function Row({ c }: { c: CrashEventDto }) {
       </button>
       {open && (
         <div className="space-y-2 px-10 pb-3 text-xs">
+          {c.exception && (
+            <p className="text-muted">
+              Root cause: <span className="selectable font-mono text-fg">{c.exception}</span>
+            </p>
+          )}
+          {c.suspects.length > 0 && (
+            <p className="text-muted">
+              {c.suspects.length === 1 ? "This plugin/mod" : "These plugins/mods"} ran in the crashing code:{" "}
+              {c.suspects.map((s) => s.name).join(", ")}. Check for an update, or disable {c.suspects.length === 1 ? "it" : "them"} to test.
+            </p>
+          )}
           <p className="text-muted">
             Exit code {c.exitCode ?? "unknown"}
             {c.crashReport && (
