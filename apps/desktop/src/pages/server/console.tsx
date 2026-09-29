@@ -333,6 +333,7 @@ export function ServerConsole() {
           <Input className="pl-8" placeholder="Filter output" value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
         <Select
+          aria-label="Log level"
           className="w-36"
           value={level}
           onValueChange={setLevel}

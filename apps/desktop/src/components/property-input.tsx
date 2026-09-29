@@ -23,6 +23,7 @@ export function PropertyInput({
     case "enum":
       return (
         <Select
+          id={id}
           value={value || undefined}
           onValueChange={onChange}
           placeholder={schema.default ?? "Select"}

@@ -16,10 +16,11 @@
   --border-strong: #2f3b4c;
   --fg: #e6edf3;
   --muted: #95a1b1;
-  --faint: #5f6b7a;
+  --faint: #8b97a6;
   --accent: #4ade80;
   --accent-strong: #22c55e;
   --accent-fg: #052e14;
+  --accent-text: #4ade80;
   --accent-soft: rgb(74 222 128 / 0.12);
   --danger: #f87171;
   --danger-soft: rgb(248 113 113 / 0.12);
@@ -41,10 +42,11 @@
   --border-strong: #c9d1dc;
   --fg: #0f1720;
   --muted: #566271;
-  --faint: #8a95a3;
-  --accent: #16a34a;
-  --accent-strong: #15803d;
+  --faint: #5f6b7a;
+  --accent: #15803d;
+  --accent-strong: #166534;
   --accent-fg: #ffffff;
+  --accent-text: #166534;
   --accent-soft: rgb(22 163 74 / 0.1);
   --danger: #dc2626;
   --danger-soft: rgb(220 38 38 / 0.08);
@@ -53,7 +55,7 @@
   --info: #2563eb;
   --info-soft: rgb(37 99 235 / 0.08);
   --console-bg: #fbfcfd;
-  --ring: rgb(22 163 74 / 0.4);
+  --ring: rgb(21 128 61 / 0.4);
 }
 
 @theme inline {
@@ -69,6 +71,7 @@
   --color-accent: var(--accent);
   --color-accent-strong: var(--accent-strong);
   --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);

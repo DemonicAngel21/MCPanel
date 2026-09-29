@@ -130,6 +130,7 @@ function InstallDialog({
         <div className="space-y-3 text-xs">
           <div className="flex items-center gap-3">
             <Select
+              aria-label="Version"
               className="w-64"
               value={version ?? "latest"}
               onValueChange={(v) => setVersion(v === "latest" ? null : v)}
@@ -222,6 +223,7 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
           <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Search ${list.kind}s…`} className="pl-8" aria-label="Search" />
         </div>
         <Select
+          aria-label="Sort results"
           className="w-40"
           value={sort}
           onValueChange={setSort}
@@ -429,7 +431,9 @@ export function ServerContent() {
                 <th className="px-4 py-2 font-medium">Version</th>
                 <th className="px-4 py-2 font-medium">Source</th>
                 <th className="px-4 py-2 font-medium">Size</th>
-                <th className="w-10" />
+                <th className="w-10">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>

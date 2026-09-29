@@ -76,7 +76,9 @@ export function JavaPage() {
                   <th className="px-4 py-2 font-medium">Vendor</th>
                   <th className="px-4 py-2 font-medium">Location</th>
                   <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2" />
+                  <th className="px-4 py-2">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

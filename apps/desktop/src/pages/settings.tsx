@@ -75,11 +75,11 @@ function Row({ label, description, children }: { label: string; description?: st
   );
 }
 
-function NumberSetting({ value, onSave }: { value: number; onSave: (n: number) => void }) {
+function NumberSetting({ value, onSave, label }: { value: number; onSave: (n: number) => void; label: string }) {
   const [text, setText] = useState(String(value));
   return (
     <div className="flex items-center gap-2">
-      <Input className="w-24" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value.replace(/\D/g, ""))} />
+      <Input className="w-24" inputMode="numeric" aria-label={label} value={text} onChange={(e) => setText(e.target.value.replace(/\D/g, ""))} />
       <Button size="sm" onClick={() => onSave(Number(text))} disabled={Number(text) === value || text === ""}>
         Save
       </Button>
@@ -110,6 +110,7 @@ export function SettingsPage() {
           <CardHeader title="Appearance" />
           <Row label="Theme" description="Follow Windows, or always use dark or light.">
             <Select
+              aria-label="Theme"
               className="w-40"
               value={settings?.theme}
               onValueChange={(theme) => update({ theme })}
@@ -140,6 +141,7 @@ export function SettingsPage() {
                   key={settings.quitStopTimeoutSecs}
                   value={settings.quitStopTimeoutSecs}
                   onSave={(n) => update({ quitStopTimeoutSecs: n })}
+                  label="Stop timeout when quitting (seconds)"
                 />
               )}
             </Row>
@@ -160,6 +162,7 @@ export function SettingsPage() {
                   key={settings.consoleBufferLines}
                   value={settings.consoleBufferLines}
                   onSave={(n) => update({ consoleBufferLines: n })}
+                  label="Console buffer (lines)"
                 />
               )}
             </Row>

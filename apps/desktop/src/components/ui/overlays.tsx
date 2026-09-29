@@ -186,6 +186,8 @@ export function Select({
   placeholder,
   className,
   disabled,
+  id,
+  "aria-label": ariaLabel,
 }: {
   value: string | undefined;
   onValueChange: (v: string) => void;
@@ -193,10 +195,14 @@ export function Select({
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  id?: string;
+  "aria-label"?: string;
 }) {
   return (
     <SelectPrimitive.Root value={value} onValueChange={onValueChange} disabled={disabled}>
       <SelectPrimitive.Trigger
+        id={id}
+        aria-label={ariaLabel}
         className={cn(
           "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-surface-2 px-2.5 text-left text-[13px] text-fg",
           "focus:ring-2 focus:ring-ring/30 focus:outline-none disabled:opacity-50 data-[placeholder]:text-faint",
