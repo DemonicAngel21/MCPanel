@@ -841,6 +841,30 @@ impl ServerManager {
         })
     }
 
+    /// Send one of MCPanel's own queries (not echoed to the console; running servers only).
+    pub(crate) async fn send_probe(&self, id: ServerId, command: &str) -> CoreResult<()> {
+        let rt = self.runtime(id);
+        let stdin = {
+            let i = rt.lock();
+            if i.state != LifecycleState::Running {
+                return Err(CoreError::new(
+                    ErrorCode::ServerNotRunning,
+                    "The server is not running",
+                ));
+            }
+            i.stdin.clone()
+        };
+        let Some(tx) = stdin else {
+            return Err(CoreError::new(
+                ErrorCode::ServerNotRunning,
+                "The console is not connected",
+            ));
+        };
+        tx.send(command.to_string()).await.map_err(|_| {
+            CoreError::new(ErrorCode::ServerNotRunning, "The console is not connected")
+        })
+    }
+
     pub fn console(&self, id: ServerId) -> Arc<crate::console::ConsoleHub> {
         Arc::clone(&self.runtime(id).console)
     }
