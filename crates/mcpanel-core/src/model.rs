@@ -88,14 +88,142 @@ impl LaunchConfig {
         }
         for arg in &self.jvm_args {
             let lower = arg.to_ascii_lowercase();
-            if lower.starts_with("-xmx") || lower.starts_with("-xms") {
+            if lower.starts_with("-xmx")
+                || lower.starts_with("-xms")
+                || lower.starts_with("-xx:maxheapsize")
+                || lower.starts_with("-xx:initialheapsize")
+                || lower.starts_with("-xx:minheapsize")
+            {
                 return Err(CoreError::invalid(
                     "Set memory with the memory fields, not -Xmx/-Xms JVM arguments",
                 ));
             }
+            check_jvm_arg(arg)?;
+        }
+        for arg in &self.server_args {
+            check_server_arg(arg)?;
         }
         Ok(())
     }
+}
+
+/// `-XX` options that run programs, write or read files elsewhere, or load code.
+const BLOCKED_XX: &[&str] = &[
+    "onoutofmemoryerror",
+    "onerror",
+    "errorfile",
+    "logfile",
+    "heapdumppath",
+    "vmoptionsfile",
+    "flags",
+    "compilecommandfile",
+    "replaydatafile",
+    "inlinedatafile",
+    "startflightrecording",
+    "flightrecorderoptions",
+    "jvmcilibpath",
+    "jvmcilibdumpjnconfig",
+    "enablejvmci",
+    "usejvmcicompiler",
+    "sharedarchivefile",
+    "archiveclassesatexit",
+    "sharedclasslistfile",
+];
+
+/// System properties that make the JVM or the server load code or configuration from
+/// another place.
+const BLOCKED_PROPERTIES: &[&str] = &[
+    "java.system.class.loader",
+    "java.library.path",
+    "java.class.path",
+    "java.ext.dirs",
+    "java.security.manager",
+    "java.security.policy",
+    "jdk.module.path",
+    "log4j.configurationfile",
+    "log4j2.configurationfile",
+    "log4j.configuration",
+    "fabric.addmods",
+    "loader.addmods",
+    "fabric.gamejarpath",
+    "loader.gamejarpath",
+    "fabric.classpathgroups",
+    "java.home",
+];
+
+/// JVM options are allowlisted: `-D` properties, `-XX` flags and a few `-X`/module options.
+/// Anything that could start other programs or load code from elsewhere is rejected.
+fn check_jvm_arg(arg: &str) -> crate::error::CoreResult<()> {
+    use crate::error::CoreError;
+    let reject = |why: &str| {
+        Err(CoreError::invalid(format!(
+            "The JVM argument \"{arg}\" is not allowed: {why}"
+        )))
+    };
+    let lower = arg.to_ascii_lowercase();
+    if let Some(prop) = arg.strip_prefix("-D") {
+        let key = prop.split('=').next().unwrap_or_default();
+        let ok_key = !key.is_empty()
+            && key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+        if !ok_key {
+            return reject("invalid property name");
+        }
+        if BLOCKED_PROPERTIES.contains(&key.to_ascii_lowercase().as_str()) {
+            return reject("this property loads code or files from elsewhere");
+        }
+        return Ok(());
+    }
+    if let Some(flag) = lower.strip_prefix("-xx:") {
+        let name = flag
+            .trim_start_matches(['+', '-'])
+            .split('=')
+            .next()
+            .unwrap_or_default();
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return reject("invalid -XX option");
+        }
+        if BLOCKED_XX.contains(&name) || name.starts_with("on") {
+            return reject("this option can run programs or write files");
+        }
+        return Ok(());
+    }
+    let x_ok = ["-xss", "-xmn", "-xshare:", "-xnoclassgc", "-xincgc"]
+        .iter()
+        .any(|p| lower.starts_with(p));
+    let module_ok = [
+        "--add-opens=",
+        "--add-exports=",
+        "--add-modules=",
+        "--enable-native-access=",
+        "--sun-misc-unsafe-memory-access=",
+    ]
+    .iter()
+    .any(|p| lower.starts_with(p))
+        || matches!(
+            lower.as_str(),
+            "--enable-preview" | "-server" | "-ea" | "-da" | "-esa" | "-dsa"
+        );
+    if x_ok || module_ok {
+        return Ok(());
+    }
+    reject("only -D properties, -XX options, -Xss/-Xmn and module options are accepted")
+}
+
+/// Server arguments must not point at files or folders (they could make the server load
+/// plugins or worlds from outside its folder).
+fn check_server_arg(arg: &str) -> crate::error::CoreResult<()> {
+    let bad = arg.starts_with('@')
+        || arg.contains(['/', '\\'])
+        || arg.contains("..")
+        || arg.as_bytes().get(1) == Some(&b':');
+    if bad {
+        return Err(crate::error::CoreError::invalid(format!(
+            "The server argument \"{arg}\" is not allowed: arguments cannot contain paths"
+        )));
+    }
+    Ok(())
 }
 
 /// Persisted process bookkeeping, used for orphan detection after an MCPanel crash.
@@ -189,4 +317,85 @@ pub struct AuditQuery {
     pub server_id: Option<ServerId>,
     pub before: Option<Timestamp>,
     pub limit: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn launch(jvm: &[&str], server: &[&str]) -> LaunchConfig {
+        LaunchConfig {
+            java_runtime_id: None,
+            min_memory_mb: 512,
+            max_memory_mb: 1024,
+            jvm_args: jvm.iter().map(|s| s.to_string()).collect(),
+            server_args: server.iter().map(|s| s.to_string()).collect(),
+            stop_timeout_secs: 60,
+        }
+    }
+
+    #[test]
+    fn aikars_flags_are_accepted() {
+        let flags = [
+            "-XX:+UseG1GC",
+            "-XX:+ParallelRefProcEnabled",
+            "-XX:MaxGCPauseMillis=200",
+            "-XX:+UnlockExperimentalVMOptions",
+            "-XX:+DisableExplicitGC",
+            "-XX:+AlwaysPreTouch",
+            "-XX:G1NewSizePercent=30",
+            "-XX:G1HeapRegionSize=8M",
+            "-XX:InitiatingHeapOccupancyPercent=15",
+            "-Dusing.aikars.flags=https://mcflags.emc.gs",
+            "-Daikars.new.flags=true",
+            "-Xss2M",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-Dfile.encoding=UTF-8",
+        ];
+        launch(&flags, &["--nogui", "nogui", "--forceUpgrade"])
+            .validate()
+            .unwrap();
+    }
+
+    #[test]
+    fn dangerous_jvm_arguments_are_rejected() {
+        for bad in [
+            "-XX:OnOutOfMemoryError=cmd /c calc",
+            "-XX:OnError=calc",
+            "-XX:ErrorFile=C:/x.log",
+            "-javaagent:evil.jar",
+            "-agentpath:C:/x.dll",
+            "@C:/args.txt",
+            "-jar",
+            "other.jar",
+            "-cp",
+            "-classpath",
+            "--class-path=x",
+            "-XX:MaxHeapSize=64G",
+            "-Xmx4G",
+            "-Djava.system.class.loader=Evil",
+            "-Dlog4j2.configurationFile=http://x",
+            "-Dfabric.addMods=C:/mods",
+            "-XX:+StartFlightRecording",
+            "-verbose",
+        ] {
+            assert!(launch(&[bad], &[]).validate().is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn server_arguments_cannot_contain_paths() {
+        for bad in [
+            "--plugins=C:/evil",
+            "C:\\x",
+            "../world",
+            "@args",
+            "--world-dir=/tmp",
+        ] {
+            assert!(launch(&[], &[bad]).validate().is_err(), "{bad}");
+        }
+        launch(&[], &["--port", "25570", "--safeMode"])
+            .validate()
+            .unwrap();
+    }
 }
