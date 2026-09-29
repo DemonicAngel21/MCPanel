@@ -286,6 +286,19 @@ result. If the finding contradicts the specification, the spec is updated in the
 - Through MCPanel: LuckPerms (28140) from Spiget installed on Paper 1.21.11 (plan warned
   "unverified"), descriptor LuckPerms 5.5.71, Paper enabled it.
 
+## 2026-09-29 — Backup encryption
+
+- `age` crate 0.12.1 (MIT OR Apache-2.0, str4d/rage): `x25519::Identity::generate`,
+  `Encryptor::with_recipients` / `with_user_passphrase` (scrypt), `Decryptor`,
+  `armor::ArmoredWriter`/`ArmoredReader`. Round trips, wrong-key and tamper detection
+  covered by unit tests; encrypted backup → verify → restore → key loss → Recovery Kit
+  import covered end to end (`backups.rs`).
+- Windows Credential Manager (`CREDENTIALW` docs): generic credentials,
+  `CredentialBlobSize` ≤ `CRED_MAX_CREDENTIAL_BLOB_SIZE` (5×512 = 2560 bytes);
+  `CRED_PERSIST_LOCAL_MACHINE` = this user, this computer, not roaming. An age identity
+  is 74 bytes. Round trip tested against the real Credential Manager with a temporary
+  test entry that the test deletes.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
@@ -294,4 +307,3 @@ result. If the finding contradicts the specification, the spec is updated in the
 | OneDrive (Graph), Dropbox, Google Drive APIs + app verification | v0.4 |
 | Adoptium API (Java downloader) | later |
 | Tauri NSIS per-user install directory default | v0.5 |
-| Credential Manager blob size limit | v0.4 |

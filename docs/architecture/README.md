@@ -201,6 +201,11 @@ e.g. `plugins/floodgate/key.pem` and loader equivalents). Highly sensitive files
   during encryption setup.
 - **Cloud copy of the passphrase-wrapped key: opt-in, off by default**, with a clear
   explanation of the trade-off.
+- Implemented in v0.4 for local backups: global "encrypt new backups" switch, `.zip.age`
+  files, `backups.encrypted` column; the Recovery Kit is an armored scrypt age file with
+  a short plain-text header. Decrypted copies for verify/restore are written next to the
+  archive as `.mcpanel-plain-*` and removed afterwards (and on the next start after a
+  crash). The manifest HMAC below arrives with cloud destinations.
 - Manifests carry an HMAC (key derived from the identity via HKDF) to defeat forged
   backups; verified before restore.
 - **Cloud backups are encrypted by default.** Disabling encryption is an explicit

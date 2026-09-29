@@ -15,6 +15,8 @@ Functional bugs are fixed immediately and do not belong here.
 - Playit: MCPanel could start/stop the playit agent with `playit start|stop` (the
   installer allows it without elevation). Not built: it publishes the user's tunnels,
   and testing it needs the user's playit account. Needs an explicit decision.
+- Encryption: there is no "change passphrase" (create a new Recovery Kit from the key)
+  or "remove the key from this computer" action yet. Decide whether both are wanted.
 - Bedrock: MCPanel does not add Windows Firewall rules for the UDP port (that needs
   administrator rights); Windows prompts for Java on first use. Decide whether an
   elevated "Allow through firewall" action is wanted.
