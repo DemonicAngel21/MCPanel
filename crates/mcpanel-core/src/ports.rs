@@ -62,6 +62,14 @@ pub trait JobRepository: Send + Sync {
     async fn mark_interrupted(&self, at: Timestamp) -> CoreResult<u64>;
 }
 
+/// OS secret storage (Windows Credential Manager). Values never leave it except to the
+/// code that needs them; they are not logged or serialised.
+pub trait SecretStore: Send + Sync {
+    fn get(&self, name: &str) -> CoreResult<Option<secrecy::SecretString>>;
+    fn set(&self, name: &str, value: &secrecy::SecretString) -> CoreResult<()>;
+    fn delete(&self, name: &str) -> CoreResult<()>;
+}
+
 #[async_trait]
 pub trait SettingsRepository: Send + Sync {
     async fn get(&self, key: &str) -> CoreResult<Option<serde_json::Value>>;
