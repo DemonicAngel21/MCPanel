@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
 import { Banner, Card, CardHeader } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, formatCount } from "@/lib/format";
 import { LOCATION_WARNING_TEXT } from "@/lib/location";
 import { qk, useBackupLocation, useBackups, useServers } from "@/lib/queries";
 import { hasProcess } from "@/lib/server-state";
@@ -95,7 +95,7 @@ export function BackupsPage() {
       <PageBody className="max-w-5xl space-y-5">
         <LocationCard />
         <Card>
-          <CardHeader title={`${backups?.length ?? 0} backups`} description={formatBytes(total)} />
+          <CardHeader title={formatCount(backups?.length ?? 0, "backup")} description={formatBytes(total)} />
           <BackupList backups={backups} showServer isRunning={(id) => !!id && running.has(id)} />
         </Card>
       </PageBody>

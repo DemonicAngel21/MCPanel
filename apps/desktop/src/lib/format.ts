@@ -50,3 +50,8 @@ export function formatPercent(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return `${v.toFixed(v < 10 ? 1 : 0)}%`;
 }
+
+/** "1 backup", "3 backups". */
+export function formatCount(n: number, singular: string, plural = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}

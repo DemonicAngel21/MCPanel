@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, Select } from "@/components/ui/overlays";
 import { Card, CardHeader, Checkbox, Field, Input, Spinner, Switch } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { formatBytes, formatDateTime } from "@/lib/format";
+import { formatBytes, formatCount, formatDateTime } from "@/lib/format";
 import { qk, useBackupLocation, useBackupPolicy, useBackups, useDiskUsage, useServer } from "@/lib/queries";
 import { hasProcess } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
@@ -251,7 +251,7 @@ export function ServerBackups() {
           description={
             location && (
               <>
-                {backups?.length ?? 0} backups · {formatBytes(total)} ·{" "}
+                {formatCount(backups?.length ?? 0, "backup")} · {formatBytes(total)} ·{" "}
                 <Link
                   to="/backups"
                   title="Change the backups folder on the Backups page"
