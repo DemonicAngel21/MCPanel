@@ -384,7 +384,7 @@ TypeScript, Vitest, production build on windows-latest. Security CI: cargo-deny,
 pnpm audit, gitleaks, CodeQL, Dependabot, secret scanning + push protection; actions
 pinned by SHA with minimal permissions.
 
-Public repository; license **MIT OR Apache-2.0**.
+Private repository (for now); license **MIT** (Copyright © 2026 Rakshit Arora).
 
 ## 25. Roadmap
 
@@ -401,7 +401,7 @@ Public repository; license **MIT OR Apache-2.0**.
 
 | # | Decision |
 |---|---|
-| 1 | MIT OR Apache-2.0; public GitHub repository |
+| 1 | MIT License (changed from MIT OR Apache-2.0 on 2026-09-30); GitHub repository |
 | 2 | Close window → tray; quitting with running servers asks, default graceful stop |
 | 3 | No kill-on-close; detect orphans on next launch; user chooses wait or force stop |
 | 4 | Default servers folder `%USERPROFILE%\MCPanel\Servers` |

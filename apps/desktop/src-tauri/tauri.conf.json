@@ -45,8 +45,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "The MCPanel Contributors",
-    "copyright": "Copyright (c) 2026 The MCPanel Contributors. MIT OR Apache-2.0.",
+    "publisher": "Rakshit Arora",
+    "copyright": "Copyright © 2026 Rakshit Arora. MIT License.",
     "category": "Utility",
     "shortDescription": "Desktop control panel for local Minecraft Java servers",
     "longDescription": "MCPanel manages local Minecraft Java servers: create, start, stop, console, files and configuration.",

@@ -16,7 +16,7 @@ ignore = [
 
 [licenses]
 version = 2
-# Licenses compatible with distributing MCPanel under MIT OR Apache-2.0.
+# Dependency licenses compatible with distributing MCPanel under the MIT License.
 allow = [
   "MIT",
   "Apache-2.0",

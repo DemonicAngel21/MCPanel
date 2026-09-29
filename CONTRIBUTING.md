@@ -97,5 +97,5 @@ necessary.
 ## Licensing of contributions
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for
-inclusion in MCPanel by you, as defined in the Apache-2.0 license, shall be dual licensed
-under MIT OR Apache-2.0, without any additional terms or conditions.
+inclusion in MCPanel by you shall be licensed under the MIT License (see
+[LICENSE](LICENSE)), without any additional terms or conditions.
