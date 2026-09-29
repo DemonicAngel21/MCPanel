@@ -102,6 +102,9 @@ pub struct BackupRecord {
     pub live: bool,
     /// Contains highly sensitive files (e.g. the Floodgate key) — decision #6.
     pub contains_sensitive: bool,
+    /// The archive is age-encrypted with the Backup Master Key (`.zip.age`).
+    #[serde(default)]
+    pub encrypted: bool,
     pub software_id: String,
     pub game_version: String,
     pub note: Option<String>,

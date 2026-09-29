@@ -1130,6 +1130,8 @@ pub struct BackupDto {
     pub file_count: u64,
     pub live: bool,
     pub contains_sensitive: bool,
+    /// Age-encrypted with the Backup Master Key.
+    pub encrypted: bool,
     pub software_id: String,
     pub game_version: String,
     pub note: Option<String>,
@@ -1161,6 +1163,7 @@ impl From<BackupView> for BackupDto {
             file_count: b.file_count,
             live: b.live,
             contains_sensitive: b.contains_sensitive,
+            encrypted: b.encrypted,
             software_id: b.software_id,
             game_version: b.game_version,
             note: b.note,
@@ -1786,6 +1789,35 @@ fn other_file(k: &PendingKind) -> String {
         PendingKind::Remove { file_name }
         | PendingKind::Disable { file_name }
         | PendingKind::Enable { file_name } => file_name.clone(),
+    }
+}
+
+// ───────────────────────────── encryption ─────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EncryptionStatusDto {
+    pub configured: bool,
+    /// Public key (`age1…`); identifies which Recovery Kit belongs to it.
+    pub recipient: Option<String>,
+    #[ts(type = "number | null")]
+    pub created_at: Option<i64>,
+    pub encrypt_backups: bool,
+    pub key_available: bool,
+    pub min_passphrase_chars: u32,
+}
+
+impl From<mcpanel_core::crypto::EncryptionStatus> for EncryptionStatusDto {
+    fn from(s: mcpanel_core::crypto::EncryptionStatus) -> Self {
+        Self {
+            configured: s.configured,
+            recipient: s.recipient,
+            created_at: s.created_at.map(|t| t.millis()),
+            encrypt_backups: s.encrypt_backups,
+            key_available: s.key_available,
+            min_passphrase_chars: mcpanel_core::crypto::MIN_PASSPHRASE_CHARS as u32,
+        }
     }
 }
 

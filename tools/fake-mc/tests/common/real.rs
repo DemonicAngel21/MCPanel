@@ -95,6 +95,7 @@ impl RealServer {
             profiles: Arc::new(mcpanel_providers::MojangProfiles::new(
                 mcpanel_providers::http_client().unwrap(),
             )),
+            secrets: Arc::new(mcpanel_core::crypto::MemorySecretStore::default()),
             repos: db.repositories(),
         })
         .await

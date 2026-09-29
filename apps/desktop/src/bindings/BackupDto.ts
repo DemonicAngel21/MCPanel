@@ -9,4 +9,8 @@ kind: string,
 /**
  * "creating" | "ready" | "failed"
  */
-status: string, path: string, fileName: string, filePresent: boolean, createdAt: number, finishedAt: number | null, sizeBytes: number, contentBytes: number, fileCount: number, live: boolean, containsSensitive: boolean, softwareId: string, gameVersion: string, note: string | null, protected: boolean, skipped: Array<SkippedFileDto>, errorMessage: string | null, };
+status: string, path: string, fileName: string, filePresent: boolean, createdAt: number, finishedAt: number | null, sizeBytes: number, contentBytes: number, fileCount: number, live: boolean, containsSensitive: boolean, 
+/**
+ * Age-encrypted with the Backup Master Key.
+ */
+encrypted: boolean, softwareId: string, gameVersion: string, note: string | null, protected: boolean, skipped: Array<SkippedFileDto>, errorMessage: string | null, };

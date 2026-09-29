@@ -382,6 +382,57 @@ pub async fn crash_history(
     s.api.crash_history(&s.principal(), &server_id, limit).await
 }
 
+// ───────────────────────────── encryption ─────────────────────────
+
+#[tauri::command]
+pub async fn encryption_status(s: State<'_, AppState>) -> R<EncryptionStatusDto> {
+    s.api.encryption_status(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn encryption_setup(
+    s: State<'_, AppState>,
+    passphrase: String,
+    kit_grant: String,
+) -> R<EncryptionStatusDto> {
+    s.api
+        .encryption_setup(&s.principal(), passphrase, &kit_grant)
+        .await
+}
+
+#[tauri::command]
+pub async fn encryption_import(
+    s: State<'_, AppState>,
+    kit_grant: String,
+    passphrase: String,
+) -> R<EncryptionStatusDto> {
+    s.api
+        .encryption_import(&s.principal(), &kit_grant, passphrase)
+        .await
+}
+
+#[tauri::command]
+pub async fn encryption_set_enabled(
+    s: State<'_, AppState>,
+    enabled: bool,
+) -> R<EncryptionStatusDto> {
+    s.api.encryption_set_enabled(&s.principal(), enabled).await
+}
+
+/// Pick one existing file (e.g. a Recovery Kit).
+#[tauri::command]
+pub async fn dialog_pick_file(
+    app: AppHandle,
+    s: State<'_, AppState>,
+    title: String,
+) -> R<Option<GrantDto>> {
+    let a = app.clone();
+    let picked = blocking(move || a.dialog().file().set_title(title).blocking_pick_file()).await?;
+    Ok(picked
+        .and_then(|p| p.into_path().ok())
+        .map(|p| s.api.grants.issue(GrantKind::Source, p)))
+}
+
 // ──────────────────────────── notifications ───────────────────────
 
 #[tauri::command]

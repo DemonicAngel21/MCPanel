@@ -3,6 +3,7 @@ import { FolderOpen, Shield } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
+import { EncryptionCard } from "@/components/encryption-card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
 import { Card, CardHeader, Checkbox, Field, Input, Switch } from "@/components/ui/primitives";
@@ -164,6 +165,8 @@ export function SettingsPage() {
           </div>
         </Card>
 
+        <EncryptionCard />
+
         <NotificationRules />
 
         <Card>
@@ -173,7 +176,8 @@ export function SettingsPage() {
             <p>
               MCPanel has <span className="text-fg">no telemetry</span>. It contacts the internet only for what you ask it to do: server software and
               version information from the official providers (Mojang, PaperMC, PurpurMC, FabricMC, QuiltMC, NeoForged, MinecraftForge), plugins and
-              mods from Modrinth, Hangar, GeyserMC and SpigotMC (through the Spiget API), and player profiles from Mojang. It does not open any network port.
+              mods from Modrinth, Hangar, GeyserMC and SpigotMC (through the Spiget API), and player profiles from Mojang. It does not open any
+              network port.
             </p>
           </div>
         </Card>

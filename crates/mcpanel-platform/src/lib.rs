@@ -5,8 +5,12 @@
 
 mod common;
 #[cfg(windows)]
+mod secrets;
+#[cfg(windows)]
 mod windows;
 
+#[cfg(windows)]
+pub use crate::secrets::CredentialStore as NativeSecretStore;
 #[cfg(windows)]
 pub use crate::windows::WindowsPlatform as NativePlatform;
 

@@ -1040,6 +1040,76 @@ impl Api {
             .collect())
     }
 
+    // ───────────────────────────── encryption ─────────────────────────────
+
+    pub async fn encryption_status(&self, p: &Principal) -> ApiResult<EncryptionStatusDto> {
+        p.authorize(Permission::BackupsRead)?;
+        Ok(self.core.encryption.status().await?.into())
+    }
+
+    /// Create the Backup Master Key; the Recovery Kit is written to the save target.
+    pub async fn encryption_setup(
+        &self,
+        p: &Principal,
+        passphrase: String,
+        kit_grant: &str,
+    ) -> ApiResult<EncryptionStatusDto> {
+        p.authorize(Permission::BackupsManage)?;
+        let passphrase = secrecy::SecretString::from(passphrase);
+        let dest = self.grants.take(kit_grant, GrantKind::SaveTarget)?;
+        let status = self.core.encryption.setup(passphrase, &dest).await?;
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                "encryption.setup",
+                None,
+                status.recipient.clone(),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({}),
+            )
+            .await;
+        Ok(status.into())
+    }
+
+    pub async fn encryption_import(
+        &self,
+        p: &Principal,
+        kit_grant: &str,
+        passphrase: String,
+    ) -> ApiResult<EncryptionStatusDto> {
+        p.authorize(Permission::BackupsManage)?;
+        let passphrase = secrecy::SecretString::from(passphrase);
+        let path = self.grants.take(kit_grant, GrantKind::Source)?;
+        let status = self.core.encryption.import(&path, passphrase).await?;
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                "encryption.import",
+                None,
+                status.recipient.clone(),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({}),
+            )
+            .await;
+        Ok(status.into())
+    }
+
+    pub async fn encryption_set_enabled(
+        &self,
+        p: &Principal,
+        enabled: bool,
+    ) -> ApiResult<EncryptionStatusDto> {
+        p.authorize(Permission::BackupsManage)?;
+        Ok(self
+            .core
+            .encryption
+            .set_encrypt_backups(enabled)
+            .await?
+            .into())
+    }
+
     // ──────────────────────────── notifications ────────────────────────────
 
     pub async fn notifications_list(

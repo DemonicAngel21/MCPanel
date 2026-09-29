@@ -13,6 +13,7 @@ pub mod console;
 pub mod content;
 pub mod core;
 pub mod crash;
+pub mod crypto;
 pub mod error;
 pub mod events;
 pub mod files;

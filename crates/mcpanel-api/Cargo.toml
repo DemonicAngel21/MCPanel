@@ -9,6 +9,7 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+secrecy.workspace = true
 mcpanel-core.workspace = true
 tokio.workspace = true
 serde.workspace = true

@@ -114,6 +114,8 @@ pub struct Harness {
     pub java_id: mcpanel_core::ids::JavaRuntimeId,
     /// Files served by the TestHub content provider (and download count).
     pub content: Arc<std::sync::Mutex<Store>>,
+    /// The core's secret store (in memory).
+    pub secrets: Arc<mcpanel_core::crypto::MemorySecretStore>,
 }
 
 pub fn free_port() -> u16 {
@@ -129,12 +131,14 @@ pub async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> 
         .await
         .unwrap();
     let content = Arc::new(std::sync::Mutex::new(Store::default()));
+    let secrets = Arc::new(mcpanel_core::crypto::MemorySecretStore::default());
     let core = Core::start(CoreDeps {
         paths: AppPaths::new(data.path().to_path_buf(), servers.path().to_path_buf()),
         platform: Arc::new(mcpanel_platform::NativePlatform::new()),
         downloader: Arc::new(MemDownloader(Arc::clone(&content))),
         registry: registry_with_content(&content),
         profiles: Arc::new(TestProfiles),
+        secrets: Arc::clone(&secrets) as Arc<dyn mcpanel_core::ports::SecretStore>,
         repos: db.repositories(),
     })
     .await
@@ -156,6 +160,7 @@ pub async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> 
         servers,
         java_id: rt.id,
         content,
+        secrets,
     }
 }
 

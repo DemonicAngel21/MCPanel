@@ -1,4 +1,4 @@
-import { AlertTriangle, ArchiveRestore, FolderSearch, KeyRound, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, ArchiveRestore, FolderSearch, KeyRound, Lock, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -183,6 +183,13 @@ export function BackupList({
                     {b.live && (
                       <Tooltip content="Taken while the server was running (saving paused)">
                         <Badge tone="success">Live</Badge>
+                      </Tooltip>
+                    )}
+                    {b.encrypted && (
+                      <Tooltip content="Encrypted with your backup key. Opening it elsewhere needs the Recovery Kit and its passphrase.">
+                        <Badge tone="info">
+                          <Lock className="size-3" /> Encrypted
+                        </Badge>
                       </Tooltip>
                     )}
                     {b.containsSensitive && (
