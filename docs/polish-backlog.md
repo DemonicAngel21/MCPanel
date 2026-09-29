@@ -37,6 +37,11 @@ Functional bugs are fixed immediately and do not belong here.
 | Server stop | Stopping a server while it is still *Starting* (e.g. Paper's first-run patching, which ignores `stop`) waits the full graceful timeout (60 s) before terminating it; the UI only shows "Stopping". Consider saying it will be terminated after N s. | v0.4 installer test |
 | Installer | The per-user install directory is the data directory (`%LOCALAPPDATA%\MCPanel`). Upgrades and uninstall only touch their own files, so data is safe, but the mix is untidy. | v0.4 installer test |
 | Motion | Route/tab fade-ins re-run when the same page is re-selected; harmless but could be skipped. | v0.4 animations |
+| Overview | Metric cards keep their chart height (dashed baseline) while the server is stopped; they could collapse. | v0.5 UI pass |
+| Dashboard | The Servers stat card has no chart, so it is mostly empty next to CPU and memory. | v0.5 UI pass |
+| Activity | On a server's Activity tab, details equal to the server name still show (no name map there). | v0.5 UI pass |
+| Server tabs | At narrow widths the active tab is not scrolled into view automatically. | v0.5 UI pass |
+| playit | The saved public address is not checked against playit.gg (no public API); a wrong address is only noticed by players. | v0.5 playit |
 
 Resolved in v0.4 animations: toast spacing, restore-preview and plugin-search loading
 states (skeletons), inbox popover fade (now a 140 ms scale-in from its anchor).
