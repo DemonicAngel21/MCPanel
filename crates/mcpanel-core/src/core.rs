@@ -63,6 +63,7 @@ pub struct Core {
     pub crashes: Arc<CrashService>,
     pub templates: Arc<TemplateService>,
     pub bedrock: Arc<crate::bedrock::BedrockService>,
+    pub tunnels: Arc<crate::tunnels::PlayitTunnel>,
 }
 
 impl Core {
@@ -160,6 +161,9 @@ impl Core {
             Arc::clone(&versions),
         );
 
+        let tunnels = Arc::new(crate::tunnels::PlayitTunnel::new(Arc::clone(
+            &deps.platform,
+        )));
         Ok(Arc::new(Core {
             paths: deps.paths,
             events,
@@ -178,6 +182,7 @@ impl Core {
             crashes,
             templates,
             bedrock,
+            tunnels,
         }))
     }
 }

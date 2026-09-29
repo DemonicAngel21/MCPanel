@@ -206,6 +206,7 @@ fn main() {
             commands::restart_policy,
             commands::restart_policy_update,
             commands::crash_history,
+            commands::tunnel_status,
             commands::bedrock_status,
             commands::bedrock_enable,
             commands::bedrock_configure,

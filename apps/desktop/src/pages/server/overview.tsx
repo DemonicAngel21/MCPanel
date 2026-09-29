@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, Cpu, MemoryStick, Timer, Users } from "lucide-react";
+import { Copy, Cpu, ExternalLink, Globe, MemoryStick, Timer, Users } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
@@ -7,11 +7,49 @@ import { ActivityList } from "@/components/activity-list";
 import { CrashHistory } from "@/components/crash-history";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, Tooltip } from "@/components/ui/primitives";
+import { Badge, Card, CardHeader, Tooltip } from "@/components/ui/primitives";
+import { api } from "@/lib/api";
 import { formatBytes, formatDuration, formatPercent } from "@/lib/format";
-import { useAudit, useJava, useServer, useServerMetrics } from "@/lib/queries";
+import { useAudit, useJava, useServer, useServerMetrics, useTunnel } from "@/lib/queries";
 import { hasProcess } from "@/lib/server-state";
+import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
+
+function InternetAccess({ port }: { port: number }) {
+  const { data: t } = useTunnel();
+  if (!t) return null;
+  const open = (url: string) => api.app.openExternal(url).catch((e) => toast.error(errorMessage(e)));
+  const state = !t.installed
+    ? { tone: "neutral" as const, label: "Not installed" }
+    : t.agentRunning
+      ? { tone: "success" as const, label: t.phase ? `Agent ${t.phase}` : "Agent running" }
+      : t.agentRunning === false
+        ? { tone: "neutral" as const, label: "Agent stopped" }
+        : { tone: "warning" as const, label: "State unknown" };
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-[13px] font-medium text-fg">
+          <Globe className="size-4 text-muted" /> Internet access with {t.displayName}
+          {t.version && <span className="font-mono text-[11px] text-faint">{t.version}</span>}
+        </span>
+        <Badge tone={state.tone}>{state.label}</Badge>
+      </div>
+      <p className="text-xs text-muted">
+        {t.installed
+          ? `Start the playit program, then create a "Minecraft Java" tunnel to 127.0.0.1:${port} in the playit.gg dashboard (and a "Minecraft Bedrock" UDP tunnel if you use Geyser). MCPanel cannot create tunnels for you: playit.gg offers no supported API for that.`
+          : "Friends outside your network can join through a free playit.gg tunnel. Install the playit program from its official site, then create a tunnel in the playit.gg dashboard."}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {t.links.map((l) => (
+          <Button key={l.url} size="sm" variant="ghost" onClick={() => open(l.url)}>
+            {l.label} <ExternalLink />
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Metric({
   icon,
@@ -98,8 +136,9 @@ export function ServerOverview() {
             </div>
             <p className="text-xs text-muted">
               Other devices on your network use this computer's LAN IP address with port {server.port ?? 25565}. Windows may ask to allow Java through
-              the firewall the first time the server starts. Internet access through tunnels (Playit.gg) comes in a later version.
+              the firewall the first time the server starts.
             </p>
+            <InternetAccess port={server.port ?? 25565} />
           </div>
         </Card>
         <Card>

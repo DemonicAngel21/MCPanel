@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- Internet access card (v0.3): detects an installed playit.gg agent and shows its
+  version and state through the official `playit` CLI, with links to the playit.gg
+  download page and dashboard. Tunnels are created in the dashboard (no supported API
+  exists; ADR-0007).
 - Server start hooks can be chained (content changes, then the Bedrock port check).
 - Provider requests are retried on transient failures (connection errors, 5xx, 429).
 - Job progress events carry the job kind, so every job shows a meaningful toast.

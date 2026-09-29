@@ -1039,6 +1039,13 @@ impl Api {
             .collect())
     }
 
+    // ───────────────────────────── tunnels ─────────────────────────────
+
+    pub async fn tunnel_status(&self, p: &Principal) -> ApiResult<TunnelStatusDto> {
+        p.authorize(Permission::SystemRead)?;
+        Ok(self.core.tunnels.status().await?.into())
+    }
+
     // ───────────────────────────── bedrock ─────────────────────────────
 
     pub async fn bedrock_status(&self, p: &Principal, server: &str) -> ApiResult<BedrockStatusDto> {
