@@ -240,13 +240,28 @@ result. If the finding contradicts the specification, the spec is updated in the
   (Geyser-Fabric 2.11.3 + Floodgate-Fabric 2.2.6 + Fabric API) both answered the ping on
   the configured port with Floodgate authentication.
 
+## 2026-09-29 — Playit.gg spike
+
+- Source: github.com/playit-cloud/playit-agent @ 4c27794 (v1.0.10, BSD-2-Clause);
+  winget `DevelopedMethods.playit` 1.0.10 (Developed Methods LLC). Windows install:
+  `C:\Program Files\playit_ggin\playit.exe` + service `playitd` (pipe
+  `\.\pipe\playitd-system`; the installer grants authenticated users start/stop).
+- CLI (`playit --help`, run locally): version, attach, start, stop, status, reset,
+  secret-path, setup, account login-url, claim generate|url|exchange. `playit status`
+  prints "The playit service is not running." or "playit service status:" followed by
+  `Phase: <running|starting|waiting for secret|invalid secret|disabled over limit|
+  stopping|error>`, `Secret configured: <bool>` and other lines (source:
+  `packages/playit-cli/src/client.rs`). Verified locally: version `1.0.10`, status
+  "not running". The agent was not started or claimed.
+- Tunnel creation exists only in the agent's internal API client (`api_client`, e.g.
+  `v1_tunnels_create`); playit.gg documents no third-party API. Decision: ADR-0007.
+
 ## Pending (verify before the dependent phase)
 
 | Item | Phase |
 |---|---|
 | Vanilla `/tick query` output format; Paper `tps`/`mspt` output | v0.4 |
 | CurseForge API key terms and distribution flags | v0.3+ |
-| Playit agent interfaces / supported tunnel management | v0.3 spike |
 | OneDrive (Graph), Dropbox, Google Drive APIs + app verification | v0.4 |
 | Adoptium API (Java downloader) | later |
 | Tauri NSIS per-user install directory default | v0.5 |

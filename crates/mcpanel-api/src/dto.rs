@@ -25,6 +25,7 @@ use mcpanel_core::server::ServerView;
 use mcpanel_core::settings::{AppSettings, ThemePreference};
 use mcpanel_core::software::{GameVersion, SoftwareBuild, SoftwareDescriptor};
 use mcpanel_core::templates::{ResolvedTemplate, Template, TemplatePlugin};
+use mcpanel_core::tunnels::TunnelStatus;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -1717,6 +1718,54 @@ fn other_file(k: &PendingKind) -> String {
         PendingKind::Remove { file_name }
         | PendingKind::Disable { file_name }
         | PendingKind::Enable { file_name } => file_name.clone(),
+    }
+}
+
+// ─────────────────────────────── tunnels ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TunnelLinkDto {
+    pub label: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TunnelStatusDto {
+    pub provider: String,
+    pub display_name: String,
+    pub installed: bool,
+    pub version: Option<String>,
+    pub agent_running: Option<bool>,
+    pub phase: Option<String>,
+    pub secret_configured: Option<bool>,
+    pub can_create_via_api: bool,
+    pub links: Vec<TunnelLinkDto>,
+}
+
+impl From<TunnelStatus> for TunnelStatusDto {
+    fn from(s: TunnelStatus) -> Self {
+        Self {
+            provider: s.provider,
+            display_name: s.display_name,
+            installed: s.installed,
+            version: s.version,
+            agent_running: s.agent_running,
+            phase: s.phase,
+            secret_configured: s.secret_configured,
+            can_create_via_api: s.caps.can_create_via_api,
+            links: s
+                .links
+                .into_iter()
+                .map(|l| TunnelLinkDto {
+                    label: l.label,
+                    url: l.url,
+                })
+                .collect(),
+        }
     }
 }
 

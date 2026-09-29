@@ -20,6 +20,7 @@ import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
 import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
 import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
+import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
 import type { FileEntryDto } from "@/bindings/FileEntryDto";
 import type { FileOpResultDto } from "@/bindings/FileOpResultDto";
@@ -184,6 +185,9 @@ export const api = {
     policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),
     updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
     history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
+  },
+  tunnels: {
+    status: () => call<TunnelStatusDto>("tunnel_status"),
   },
   bedrock: {
     status: (serverId: string) => call<BedrockStatusDto>("bedrock_status", { serverId }),

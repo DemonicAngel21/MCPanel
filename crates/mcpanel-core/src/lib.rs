@@ -31,6 +31,7 @@ pub mod settings;
 pub mod software;
 pub mod templates;
 pub mod time;
+pub mod tunnels;
 
 pub use crate::core::{Core, CoreDeps, Repositories};
 pub use error::{CoreError, CoreResult, ErrorCode};

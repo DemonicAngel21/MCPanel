@@ -382,6 +382,13 @@ pub async fn crash_history(
     s.api.crash_history(&s.principal(), &server_id, limit).await
 }
 
+// ───────────────────────────── tunnels ────────────────────────────
+
+#[tauri::command]
+pub async fn tunnel_status(s: State<'_, AppState>) -> R<TunnelStatusDto> {
+    s.api.tunnel_status(&s.principal()).await
+}
+
 // ───────────────────────────── bedrock ────────────────────────────
 
 #[tauri::command]
@@ -650,8 +657,14 @@ pub fn open_external(app: AppHandle, url: String) -> R<()> {
         "https://www.minecraft.net/eula",
         "https://github.com/mcpanel/mcpanel",
     ];
-    // Project pages of the content providers (HTTPS, exact host, no credentials).
-    const ALLOWED_HOSTS: &[&str] = &["modrinth.com", "hangar.papermc.io"];
+    // Project pages of the content providers and the tunnel provider's site (HTTPS,
+    // exact host, no credentials).
+    const ALLOWED_HOSTS: &[&str] = &[
+        "modrinth.com",
+        "hangar.papermc.io",
+        "geysermc.org",
+        "playit.gg",
+    ];
     let host_ok = tauri::Url::parse(&url).is_ok_and(|u| {
         u.scheme() == "https"
             && u.username().is_empty()

@@ -12,6 +12,9 @@ Functional bugs are fixed immediately and do not belong here.
 - Provider-recommended JVM flags are applied as published; JDK 26 already deprecates
   `ParallelRefProcEnabled`. MCPanel diagnoses a rejected flag, but could also test flags
   against the chosen Java when a server is created.
+- Playit: MCPanel could start/stop the playit agent with `playit start|stop` (the
+  installer allows it without elevation). Not built: it publishes the user's tunnels,
+  and testing it needs the user's playit account. Needs an explicit decision.
 - Bedrock: MCPanel does not add Windows Firewall rules for the UDP port (that needs
   administrator rights); Windows prompts for Java on first use. Decide whether an
   elevated "Allow through firewall" action is wanted.
