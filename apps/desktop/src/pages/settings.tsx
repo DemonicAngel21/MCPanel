@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Card, CardHeader, Checkbox, Field, Input } from "@/components/ui/primitives";
+import { Card, CardHeader, Checkbox, Field, Input, Switch } from "@/components/ui/primitives";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import { api } from "@/lib/api";
 import { qk, useAppInfo, useNotificationPrefs, useSettings } from "@/lib/queries";
@@ -139,6 +139,14 @@ export function SettingsPage() {
                   value={settings.quitStopTimeoutSecs}
                   onSave={(n) => update({ quitStopTimeoutSecs: n })}
                 />
+              )}
+            </Row>
+            <Row
+              label="Collect TPS and MSPT"
+              description="Every 15 seconds MCPanel asks running servers for their tick times (tick query, or tps/mspt on Paper). The replies are hidden from the console but appear in the server's own log file."
+            >
+              {settings && (
+                <Switch checked={settings.tickSampling} onCheckedChange={(v) => void update({ tickSampling: v })} aria-label="Collect TPS and MSPT" />
               )}
             </Row>
             <Row
