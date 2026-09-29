@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Geyser config (port, sign-in method) without touching other options; refuses to start
   when another program holds the Bedrock UDP port; tests the listener with a RakNet
   ping. The Floodgate key is only reported as present, never read.
+- Notifications (v0.3): an inbox (bell in the rail, unread count, mark read, clear) and
+  Windows desktop notifications for crashes (with what the restart policy did), failed
+  backups, other failed tasks and — opt-in — player joins. Settings has a rule per
+  category for inbox and desktop. Replaces the fixed crash-only desktop notification.
 - Internet access card (v0.3): detects an installed playit.gg agent and shows its
   version and state through the official `playit` CLI, with links to the playit.gg
   download page and dashboard. Tunnels are created in the dashboard (no supported API
