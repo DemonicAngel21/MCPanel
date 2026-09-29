@@ -20,6 +20,7 @@ import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
 import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
 import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
+import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
 import type { NotificationDto } from "@/bindings/NotificationDto";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
@@ -110,6 +111,7 @@ export const api = {
     pickJava: () => call<GrantDto | null>("dialog_pick_java"),
     pickImport: (folder: boolean) => call<GrantDto[]>("dialog_pick_import", { folder }),
     saveFile: (defaultName: string) => call<GrantDto | null>("dialog_save_file", { defaultName }),
+    pickFile: (title: string) => call<GrantDto | null>("dialog_pick_file", { title }),
   },
   java: {
     list: () => call<JavaRuntimeDto[]>("java_list"),
@@ -187,6 +189,12 @@ export const api = {
     policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),
     updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
     history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
+  },
+  encryption: {
+    status: () => call<EncryptionStatusDto>("encryption_status"),
+    setup: (passphrase: string, kitGrant: string) => call<EncryptionStatusDto>("encryption_setup", { passphrase, kitGrant }),
+    import: (kitGrant: string, passphrase: string) => call<EncryptionStatusDto>("encryption_import", { kitGrant, passphrase }),
+    setEnabled: (enabled: boolean) => call<EncryptionStatusDto>("encryption_set_enabled", { enabled }),
   },
   notifications: {
     list: (limit: number) => call<NotificationDto[]>("notifications_list", { limit }),

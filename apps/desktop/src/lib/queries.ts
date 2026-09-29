@@ -24,6 +24,7 @@ export const qk = {
   content: (serverId: string) => ["servers", serverId, "content"] as const,
   bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   tunnel: ["tunnel"] as const,
+  encryption: ["encryption"] as const,
   notifications: ["notifications"] as const,
   unreadNotifications: ["notifications", "unread"] as const,
   notificationPrefs: ["notifications", "prefs"] as const,
@@ -69,6 +70,7 @@ export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.re
 export const useNotifications = (enabled: boolean) => useQuery({ queryKey: qk.notifications, queryFn: () => api.notifications.list(100), enabled });
 export const useUnreadNotifications = () => useQuery({ queryKey: qk.unreadNotifications, queryFn: api.notifications.unread });
 export const useNotificationPrefs = () => useQuery({ queryKey: qk.notificationPrefs, queryFn: api.notifications.prefs });
+export const useEncryption = () => useQuery({ queryKey: qk.encryption, queryFn: api.encryption.status });
 export const useTunnel = () => useQuery({ queryKey: qk.tunnel, queryFn: api.tunnels.status, staleTime: 15_000 });
 export const useBedrock = (serverId: string) => useQuery({ queryKey: qk.bedrock(serverId), queryFn: () => api.bedrock.status(serverId) });
 export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });
