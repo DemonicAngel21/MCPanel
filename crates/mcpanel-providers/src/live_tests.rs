@@ -142,3 +142,28 @@ async fn hangar_search_versions_and_version_by_name() {
     assert_eq!(h.version(&via.id, &v.id).await.unwrap().id, v.id);
     assert_eq!(h.project(&via.id).await.unwrap().slug, "ViaVersion");
 }
+
+#[tokio::test]
+async fn geysermc_latest_builds_download_and_match_their_hash() {
+    use mcpanel_core::content::ContentProvider;
+    use mcpanel_core::ports::HashAlgorithm;
+    use sha2::Digest;
+    let http = crate::http_client().unwrap();
+    let g = crate::geysermc::GeyserMc::new(http.clone());
+    let target = paper_target("1.21.4");
+    assert!(g.supports(&target));
+    assert!(!g.supports(&paper_target("1.20.4")));
+    for project in ["geyser", "floodgate"] {
+        let versions = g.versions(project, &target).await.unwrap();
+        let v = versions.first().unwrap();
+        assert_eq!(g.version(project, &v.id).await.unwrap().id, v.id);
+        let file = v.file.as_ref().unwrap();
+        assert!(file.file_name.to_lowercase().contains("spigot"));
+        let hash = file.hash.as_ref().unwrap();
+        assert_eq!(hash.algorithm, HashAlgorithm::Sha256);
+        if project == "floodgate" {
+            let bytes = http.get_bytes(&file.url, 64 << 20).await.unwrap();
+            assert_eq!(hex::encode(sha2::Sha256::digest(&bytes)), hash.hex);
+        }
+    }
+}
