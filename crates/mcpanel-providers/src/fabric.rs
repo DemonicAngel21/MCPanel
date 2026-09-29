@@ -28,7 +28,7 @@ use mcpanel_core::software::{
     InstallStep, JavaRequirement, ReleaseChannel, SoftwareBuild, SoftwareCaps, SoftwareCatalog,
     SoftwareDescriptor, SoftwareDetector, SoftwareInstaller, SoftwareProvider,
 };
-use mcpanel_core::software::{LaunchArgs, LaunchResolver};
+use mcpanel_core::software::{LaunchArgs, LaunchResolver, TpsSource};
 use serde::Deserialize;
 use std::io::Write;
 use std::path::Path;
@@ -251,7 +251,7 @@ impl FabricProvider {
                 stop_command: "stop".into(),
                 eula_required: true,
                 requires_build_step: false,
-                tps_source: None,
+                tps_source: Some(TpsSource::VanillaTickQuery),
             },
             download_hosts: hosts,
         }

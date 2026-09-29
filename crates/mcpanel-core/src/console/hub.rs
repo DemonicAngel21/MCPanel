@@ -44,7 +44,31 @@ pub struct ConsoleBatch {
 /// Maximum characters stored per line (protects memory against pathological output).
 pub const MAX_LINE_CHARS: usize = 16 * 1024;
 
+/// Decides whether an output line is a reply MCPanel is waiting for.
+pub type TapFilter = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+
+struct Tap {
+    id: u64,
+    filter: TapFilter,
+    deadline: std::time::Instant,
+    tx: mpsc::UnboundedSender<String>,
+}
+
+/// Removes its tap when dropped.
+pub struct TapGuard {
+    hub: Arc<ConsoleHub>,
+    id: u64,
+}
+
+impl Drop for TapGuard {
+    fn drop(&mut self) {
+        self.hub.lock().taps.retain(|t| t.id != self.id);
+    }
+}
+
 struct Inner {
+    taps: Vec<Tap>,
+    next_tap: u64,
     ring: VecDeque<ConsoleLine>,
     capacity: usize,
     next_seq: u64,
@@ -63,6 +87,8 @@ impl ConsoleHub {
         let (tx, _) = broadcast::channel(4096);
         Arc::new(Self {
             inner: Mutex::new(Inner {
+                taps: Vec::new(),
+                next_tap: 1,
                 ring: VecDeque::with_capacity(capacity.min(4096)),
                 capacity: capacity.max(100),
                 next_seq: 1,
@@ -120,6 +146,33 @@ impl ConsoleHub {
         self.lock().capture = None;
     }
 
+    /// Divert matching server output (for at most `ttl`) to the returned receiver
+    /// instead of the console: used for MCPanel's own periodic queries so their replies
+    /// do not flood the console view. The tap ends when the guard is dropped.
+    pub fn tap(
+        self: &Arc<Self>,
+        filter: TapFilter,
+        ttl: Duration,
+    ) -> (TapGuard, mpsc::UnboundedReceiver<String>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let mut inner = self.lock();
+        let id = inner.next_tap;
+        inner.next_tap += 1;
+        inner.taps.push(Tap {
+            id,
+            filter,
+            deadline: std::time::Instant::now() + ttl,
+            tx,
+        });
+        (
+            TapGuard {
+                hub: Arc::clone(self),
+                id,
+            },
+            rx,
+        )
+    }
+
     /// Append a line. Never blocks on subscribers or disk.
     pub fn push(&self, stream: ConsoleStream, raw: &str) -> ConsoleLine {
         let mut text: String = raw.trim_end_matches(['\r', '\n']).to_string();
@@ -132,6 +185,21 @@ impl ConsoleHub {
             text.push_str(" …[truncated]");
         }
         let mut inner = self.lock();
+        if stream == ConsoleStream::Stdout && !inner.taps.is_empty() {
+            let now = std::time::Instant::now();
+            inner.taps.retain(|t| t.deadline > now && !t.tx.is_closed());
+            if let Some(tap) = inner.taps.iter().find(|t| (t.filter)(&text)) {
+                let _ = tap.tx.send(text.clone());
+                // Not recorded: a diverted reply has no place in the console.
+                return ConsoleLine {
+                    seq: 0,
+                    at: Timestamp::now(),
+                    stream,
+                    level: None,
+                    text,
+                };
+            }
+        }
         let level = match stream {
             ConsoleStream::Stdout | ConsoleStream::Stderr => {
                 let parsed = parse_line(&text).level;

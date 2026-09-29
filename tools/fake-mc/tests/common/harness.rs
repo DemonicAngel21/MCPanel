@@ -57,9 +57,25 @@ impl mcpanel_core::ports::ProfileLookup for TestProfiles {
 
 pub fn registry() -> ProviderRegistry {
     let mut r = ProviderRegistry::new();
-    r.register_software(SoftwareProvider {
+    r.register_software(fake_software("fake", None));
+    r.register_software(fake_software(
+        "fake-paper",
+        Some(mcpanel_core::software::TpsSource::PaperCommands),
+    ));
+    r.register_software(fake_software(
+        "fake-vanilla",
+        Some(mcpanel_core::software::TpsSource::VanillaTickQuery),
+    ));
+    r
+}
+
+fn fake_software(
+    id: &str,
+    tps_source: Option<mcpanel_core::software::TpsSource>,
+) -> SoftwareProvider {
+    SoftwareProvider {
         descriptor: SoftwareDescriptor {
-            id: "fake".into(),
+            id: id.into(),
             display_name: "Fake".into(),
             description: "test".into(),
             caps: SoftwareCaps {
@@ -72,7 +88,7 @@ pub fn registry() -> ProviderRegistry {
                 stop_command: "stop".into(),
                 eula_required: true,
                 requires_build_step: false,
-                tps_source: None,
+                tps_source,
             },
             download_hosts: vec![],
         },
@@ -80,8 +96,7 @@ pub fn registry() -> ProviderRegistry {
         installer: Arc::new(NoCatalog),
         launcher: Arc::new(SingleJarLauncher::default()),
         detector: None,
-    });
-    r
+    }
 }
 
 /// The registry plus the TestHub content provider backed by `store`.
@@ -170,6 +185,17 @@ pub async fn add_server(
     eula: bool,
     stop_timeout: u32,
 ) -> (ServerId, u16) {
+    add_server_as(h, name, "fake", fake_cfg, eula, stop_timeout).await
+}
+
+pub async fn add_server_as(
+    h: &Harness,
+    name: &str,
+    software_id: &str,
+    fake_cfg: &str,
+    eula: bool,
+    stop_timeout: u32,
+) -> (ServerId, u16) {
     let dir = h.servers.path().join(name);
     std::fs::create_dir_all(&dir).unwrap();
     let port = free_port();
@@ -188,7 +214,7 @@ pub async fn add_server(
         name: name.into(),
         directory: dir,
         software: InstalledSoftware {
-            software_id: "fake".into(),
+            software_id: software_id.into(),
             game_version: "1.21.4".into(),
             build: None,
             jar: "server.jar".into(),

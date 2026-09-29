@@ -33,6 +33,8 @@ struct Config {
     system_chat: bool,
     /// `crash` also writes a vanilla-style `crash-reports/` file.
     crash_report: bool,
+    /// Behave like a server without the performance commands (they are unknown).
+    no_perf_commands: bool,
 }
 
 fn log(level: &str, msg: &str) {
@@ -107,6 +109,27 @@ fn main() {
                 log("INFO", "Stopping the server");
                 log("INFO", "Saving worlds");
                 std::process::exit(0);
+            }
+            // Paper-style performance commands and vanilla `tick query`.
+            "tps" | "mspt" | "tick" if cfg.no_perf_commands => {
+                log("INFO", &format!("Unknown command: {cmd}"))
+            }
+            "tps" => log("INFO", "TPS from last 1m, 5m, 15m: *20.0, 19.5, 19.0"),
+            "mspt" => {
+                log(
+                    "INFO",
+                    "Server tick times (avg/min/max) from last 5s, 10s, 1m:",
+                );
+                log("INFO", "\u{25f4} 2.5/1.0/9.5, 2.0/1.0/9.5, 2.0/1.0/9.5");
+            }
+            "tick" if rest == "query" => {
+                log("INFO", "The game is running normally");
+                log("INFO", "Target tick rate: 20.0 per second.");
+                println!("Average time per tick: 2.5ms (Target: 50.0ms)");
+                log(
+                    "INFO",
+                    "Percentiles: P50: 2.0ms P95: 4.0ms P99: 9.0ms. Sample: 100",
+                );
             }
             "watchdog" => {
                 log(

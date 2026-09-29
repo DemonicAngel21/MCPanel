@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, Cpu, ExternalLink, Globe, MemoryStick, Timer, Users } from "lucide-react";
+import { Copy, Cpu, ExternalLink, Gauge, Globe, MemoryStick, Timer, Users } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
@@ -7,6 +7,7 @@ import { ActivityList } from "@/components/activity-list";
 import { CrashHistory } from "@/components/crash-history";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
+import type { TickSampleDto } from "@/bindings/TickSampleDto";
 import { Badge, Card, CardHeader, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatDuration, formatPercent } from "@/lib/format";
@@ -14,6 +15,59 @@ import { useAudit, useJava, useServer, useServerMetrics, useTunnel } from "@/lib
 import { hasProcess } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
+
+function TickMetrics({
+  source,
+  tick,
+  tps,
+  mspt,
+  alive,
+}: {
+  source: string | null;
+  tick: TickSampleDto | null;
+  tps: [number, number][];
+  mspt: [number, number][];
+  alive: boolean;
+}) {
+  if (!source) {
+    return (
+      <p className="-mt-2 text-[11px] text-faint">
+        {alive
+          ? "TPS and MSPT are not available for this server (its software or Minecraft version has no supported command). MCPanel never estimates them."
+          : "TPS and MSPT appear while the server runs (on software that supports them)."}
+      </p>
+    );
+  }
+  const label = source === "paper_commands" ? "tps / mspt command" : "tick query";
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Metric
+        icon={<Gauge />}
+        label={tick?.tpsCalculated ? "TPS (calculated)" : "TPS"}
+        source={label}
+        value={tick?.tps != null ? tick.tps.toFixed(1) : "—"}
+      >
+        <Sparkline points={tps} max={20} color="var(--accent)" format={(v) => v.toFixed(1)} />
+        <p className="text-[11px] text-faint">
+          {tick?.tpsCalculated
+            ? "Vanilla reports no TPS; shown as min(target rate, 1000 ÷ MSPT)."
+            : source === "paper_commands"
+              ? "Average of the last minute, as reported by the server."
+              : " "}
+          {tick?.status && tick.status !== "The game is running normally" ? ` ${tick.status}.` : ""}
+        </p>
+      </Metric>
+      <Metric icon={<Timer />} label="MSPT" source={label} value={tick?.mspt != null ? `${tick.mspt.toFixed(1)} ms` : "—"}>
+        <Sparkline points={mspt} max={Math.max(50, ...mspt.map((p) => p[1]))} color="var(--info)" format={(v) => `${v.toFixed(1)} ms`} />
+        <p className="text-[11px] text-faint">
+          {tick?.msptHigh != null
+            ? `${source === "paper_commands" ? "Max (5 s)" : "P95"}: ${tick.msptHigh.toFixed(1)} ms · 50 ms is the limit for 20 TPS.`
+            : "Milliseconds per tick; 50 ms is the limit for 20 TPS."}
+        </p>
+      </Metric>
+    </div>
+  );
+}
 
 function InternetAccess({ port }: { port: number }) {
   const { data: t } = useTunnel();
@@ -90,6 +144,8 @@ export function ServerOverview() {
   const { data: audit } = useAudit(id, 8);
   const cpu = useMemo(() => (metrics?.history ?? []).map((p) => [p.at, p.cpuPercent] as [number, number]), [metrics]);
   const mem = useMemo(() => (metrics?.history ?? []).map((p) => [p.at, p.memoryBytes] as [number, number]), [metrics]);
+  const tps = useMemo(() => (metrics?.tickHistory ?? []).flatMap((t) => (t.tps != null ? [[t.at, t.tps] as [number, number]] : [])), [metrics]);
+  const mspt = useMemo(() => (metrics?.tickHistory ?? []).flatMap((t) => (t.mspt != null ? [[t.at, t.mspt] as [number, number]] : [])), [metrics]);
   if (!server) return null;
   const runtime = java?.find((j) => j.id === server.launch.javaRuntimeId);
   const address = `localhost:${server.port ?? 25565}`;
@@ -115,9 +171,7 @@ export function ServerOverview() {
           </p>
         </Metric>
       </div>
-      <p className="-mt-2 text-[11px] text-faint">
-        TPS and MSPT are not shown yet: they need a Minecraft-level metrics source, which arrives in a later version. MCPanel never estimates them.
-      </p>
+      <TickMetrics source={metrics?.tickSource ?? null} tick={alive ? (metrics?.tick ?? null) : null} tps={tps} mspt={mspt} alive={alive} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_380px]">
         <Card>
