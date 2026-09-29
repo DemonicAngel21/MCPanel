@@ -18,6 +18,7 @@ use mcpanel_core::java::JavaCompatibility;
 use mcpanel_core::jobs::JobRecord;
 use mcpanel_core::model::{AuditEntry, JavaRuntime, LaunchConfig};
 use mcpanel_core::monitoring::{ServerMetrics, SystemMetrics};
+use mcpanel_core::notify::{Channels, Notification, NotificationPrefs};
 use mcpanel_core::players::lists::Ban;
 use mcpanel_core::players::{ActionOutcome, PlayerAction, ServerPlayers};
 use mcpanel_core::ports::{LocationWarning, PortStatus, SystemSnapshot};
@@ -922,6 +923,16 @@ pub enum EventDto {
     JavaRuntimesChanged,
     SettingsChanged,
     AuditRecorded,
+    NotificationCreated {
+        id: String,
+        server_id: Option<String>,
+        severity: String,
+        title: String,
+        body: String,
+        desktop: bool,
+        inbox: bool,
+    },
+    NotificationsChanged,
     BackupsChanged {
         server_id: Option<String>,
         backup_id: String,
@@ -1020,6 +1031,24 @@ impl From<&EventEnvelope> for EventDto {
             D::JavaRuntimesChanged { .. } => Self::JavaRuntimesChanged,
             D::SettingsChanged { .. } => Self::SettingsChanged,
             D::AuditRecorded => Self::AuditRecorded,
+            D::NotificationCreated {
+                id,
+                server_id,
+                severity,
+                title,
+                body,
+                desktop,
+                inbox,
+            } => Self::NotificationCreated {
+                id: id.clone(),
+                server_id: server_id.map(|s| s.to_string()),
+                severity: severity.clone(),
+                title: title.clone(),
+                body: body.clone(),
+                desktop: *desktop,
+                inbox: *inbox,
+            },
+            D::NotificationsChanged => Self::NotificationsChanged,
             D::BackupsChanged {
                 server_id,
                 backup_id,
@@ -1718,6 +1747,88 @@ fn other_file(k: &PendingKind) -> String {
         PendingKind::Remove { file_name }
         | PendingKind::Disable { file_name }
         | PendingKind::Enable { file_name } => file_name.clone(),
+    }
+}
+
+// ──────────────────────────── notifications ───────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NotificationDto {
+    pub id: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    pub server_id: Option<String>,
+    /// "crash" | "backup_failed" | "task_failed" | "player_joined"
+    pub category: String,
+    /// "info" | "success" | "warning" | "error"
+    pub severity: String,
+    pub title: String,
+    pub body: String,
+    pub read: bool,
+}
+
+impl From<Notification> for NotificationDto {
+    fn from(n: Notification) -> Self {
+        Self {
+            id: n.id,
+            created_at: n.created_at.millis(),
+            server_id: n.server_id.map(|s| s.to_string()),
+            category: n.category.as_str().into(),
+            severity: n.severity.as_str().into(),
+            title: n.title,
+            body: n.body,
+            read: n.read,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChannelsDto {
+    pub inbox: bool,
+    pub desktop: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NotificationPrefsDto {
+    pub crash: ChannelsDto,
+    pub backup_failed: ChannelsDto,
+    pub task_failed: ChannelsDto,
+    pub player_joined: ChannelsDto,
+}
+
+impl From<NotificationPrefs> for NotificationPrefsDto {
+    fn from(p: NotificationPrefs) -> Self {
+        let c = |c: Channels| ChannelsDto {
+            inbox: c.inbox,
+            desktop: c.desktop,
+        };
+        Self {
+            crash: c(p.crash),
+            backup_failed: c(p.backup_failed),
+            task_failed: c(p.task_failed),
+            player_joined: c(p.player_joined),
+        }
+    }
+}
+
+impl From<NotificationPrefsDto> for NotificationPrefs {
+    fn from(p: NotificationPrefsDto) -> Self {
+        let c = |c: ChannelsDto| Channels {
+            inbox: c.inbox,
+            desktop: c.desktop,
+        };
+        Self {
+            crash: c(p.crash),
+            backup_failed: c(p.backup_failed),
+            task_failed: c(p.task_failed),
+            player_joined: c(p.player_joined),
+        }
     }
 }
 

@@ -34,6 +34,7 @@ pub struct Repositories {
     pub players: Arc<dyn PlayerRepository>,
     pub content: Arc<dyn ContentRepository>,
     pub crashes: Arc<dyn CrashRepository>,
+    pub notifications: Arc<dyn crate::ports::NotificationRepository>,
 }
 
 pub struct CoreDeps {
@@ -64,6 +65,7 @@ pub struct Core {
     pub templates: Arc<TemplateService>,
     pub bedrock: Arc<crate::bedrock::BedrockService>,
     pub tunnels: Arc<crate::tunnels::PlayitTunnel>,
+    pub notifications: Arc<crate::notify::NotificationService>,
 }
 
 impl Core {
@@ -83,7 +85,10 @@ impl Core {
             deps.repos.java,
             events.clone(),
         ));
-        let settings = Arc::new(SettingsService::new(deps.repos.settings, events.clone()));
+        let settings = Arc::new(SettingsService::new(
+            Arc::clone(&deps.repos.settings),
+            events.clone(),
+        ));
         let app_settings = settings.get().await?;
 
         let servers = ServerManager::new(ServerManagerDeps {
@@ -145,6 +150,14 @@ impl Core {
             events.clone(),
         );
         crashes.spawn_listener();
+        let notifications = crate::notify::NotificationService::new(
+            deps.repos.notifications,
+            Arc::clone(&deps.repos.settings),
+            Arc::clone(&servers),
+            Arc::clone(&crashes),
+            events.clone(),
+        );
+        notifications.spawn_listener();
         let bedrock = crate::bedrock::BedrockService::new(
             Arc::clone(&servers),
             Arc::clone(&content),
@@ -183,6 +196,7 @@ impl Core {
             templates,
             bedrock,
             tunnels,
+            notifications,
         }))
     }
 }

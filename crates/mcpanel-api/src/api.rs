@@ -1039,6 +1039,63 @@ impl Api {
             .collect())
     }
 
+    // ──────────────────────────── notifications ────────────────────────────
+
+    pub async fn notifications_list(
+        &self,
+        p: &Principal,
+        limit: u32,
+    ) -> ApiResult<Vec<NotificationDto>> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self
+            .core
+            .notifications
+            .list(limit)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn notifications_unread(&self, p: &Principal) -> ApiResult<u32> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self.core.notifications.unread_count().await?)
+    }
+
+    /// `ids = None` marks everything read.
+    pub async fn notifications_mark_read(
+        &self,
+        p: &Principal,
+        ids: Option<Vec<String>>,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self.core.notifications.mark_read(ids).await?)
+    }
+
+    pub async fn notifications_clear(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self.core.notifications.clear().await?)
+    }
+
+    pub async fn notification_prefs(&self, p: &Principal) -> ApiResult<NotificationPrefsDto> {
+        p.authorize(Permission::ActivityRead)?;
+        Ok(self.core.notifications.prefs().await?.into())
+    }
+
+    pub async fn notification_prefs_update(
+        &self,
+        p: &Principal,
+        prefs: NotificationPrefsDto,
+    ) -> ApiResult<NotificationPrefsDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        Ok(self
+            .core
+            .notifications
+            .set_prefs(prefs.into())
+            .await?
+            .into())
+    }
+
     // ───────────────────────────── tunnels ─────────────────────────────
 
     pub async fn tunnel_status(&self, p: &Principal) -> ApiResult<TunnelStatusDto> {

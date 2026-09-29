@@ -7,6 +7,7 @@
 mod backup_repo;
 mod content_repo;
 mod crash_repo;
+mod notification_repo;
 mod player_repo;
 mod repos;
 
@@ -194,7 +195,8 @@ impl Database {
             backups: r.clone(),
             players: r.clone(),
             content: r.clone(),
-            crashes: r,
+            crashes: r.clone(),
+            notifications: r,
         }
     }
 
