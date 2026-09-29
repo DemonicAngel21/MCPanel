@@ -20,6 +20,8 @@ import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
 import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
 import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
+import type { NotificationDto } from "@/bindings/NotificationDto";
+import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
 import type { FileEntryDto } from "@/bindings/FileEntryDto";
@@ -185,6 +187,15 @@ export const api = {
     policy: (serverId: string) => call<RestartPolicyDto>("restart_policy", { serverId }),
     updatePolicy: (serverId: string, policy: RestartPolicyDto) => call<RestartPolicyDto>("restart_policy_update", { serverId, policy }),
     history: (serverId: string, limit: number) => call<CrashEventDto[]>("crash_history", { serverId, limit }),
+  },
+  notifications: {
+    list: (limit: number) => call<NotificationDto[]>("notifications_list", { limit }),
+    unread: () => call<number>("notifications_unread"),
+    /** `null` marks everything read. */
+    markRead: (ids: string[] | null) => call<void>("notifications_mark_read", { ids }),
+    clear: () => call<void>("notifications_clear"),
+    prefs: () => call<NotificationPrefsDto>("notification_prefs"),
+    updatePrefs: (prefs: NotificationPrefsDto) => call<NotificationPrefsDto>("notification_prefs_update", { prefs }),
   },
   tunnels: {
     status: () => call<TunnelStatusDto>("tunnel_status"),

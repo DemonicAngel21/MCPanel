@@ -3,6 +3,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Activity, Archive, Coffee, LayoutDashboard, LayoutTemplate, Plus, Search, Server, Settings } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { CommandPalette } from "@/components/command-palette";
+import { NotificationInbox } from "@/components/notification-inbox";
 import { JobToasts } from "@/components/job-toasts";
 import { QuitDialog } from "@/components/quit-dialog";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,7 @@ export function AppShell() {
         <RailLink to="/templates" icon={<LayoutTemplate />} label="Templates" />
         <RailLink to="/activity" icon={<Activity />} label="Activity" />
         <div className="flex-1" />
+        <NotificationInbox />
         <RailLink to="/settings" icon={<Settings />} label="Settings" />
       </nav>
       <ServerList />
