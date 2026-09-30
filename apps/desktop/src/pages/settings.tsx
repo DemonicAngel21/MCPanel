@@ -217,7 +217,7 @@ export function SettingsPage() {
               </div>
             </Field>
             <p className="text-xs text-faint">
-              MCPanel by Rakshit Arora · Copyright © 2026 Rakshit Arora · MIT License. Not affiliated with Mojang Studios or Microsoft.
+              MCPanel by DemonicAngel21 · Copyright © 2026 DemonicAngel21 · MIT License. Not affiliated with Mojang Studios or Microsoft.
             </p>
           </div>
         </Card>

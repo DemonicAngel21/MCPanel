@@ -387,7 +387,7 @@ TypeScript, Vitest, production build on windows-latest. Security CI: cargo-deny,
 pnpm audit, gitleaks, CodeQL, Dependabot, secret scanning + push protection; actions
 pinned by SHA with minimal permissions.
 
-Private repository (for now); license **MIT** (Copyright © 2026 Rakshit Arora).
+Private repository (for now); license **MIT** (Copyright © 2026 DemonicAngel21).
 
 ## 25. Roadmap
 

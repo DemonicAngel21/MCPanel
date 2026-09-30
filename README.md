@@ -103,8 +103,8 @@ MCPanel is not affiliated with Mojang Studios or Microsoft.
 
 ## License
 
-MCPanel is created by Rakshit Arora and licensed under the [MIT License](LICENSE).
-Copyright © 2026 Rakshit Arora.
+MCPanel is created by DemonicAngel21 and licensed under the [MIT License](LICENSE).
+Copyright © 2026 DemonicAngel21.
 
 Third-party dependencies keep their own licenses (for example MIT, Apache-2.0 or
 BSD); see each dependency.

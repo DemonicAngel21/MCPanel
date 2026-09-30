@@ -45,8 +45,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "Rakshit Arora",
-    "copyright": "Copyright © 2026 Rakshit Arora. MIT License.",
+    "publisher": "DemonicAngel21",
+    "copyright": "Copyright © 2026 DemonicAngel21. MIT License.",
     "category": "Utility",
     "shortDescription": "Desktop control panel for local Minecraft Java servers",
     "longDescription": "MCPanel manages local Minecraft Java servers: create, start, stop, console, files and configuration.",

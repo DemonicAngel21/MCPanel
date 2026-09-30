@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OneDrive is no longer offered as cloud storage (postponed); Google Drive and Dropbox
   remain supported.
 - MCPanel is now licensed under the MIT License only (previously MIT OR Apache-2.0).
-  Copyright © 2026 Rakshit Arora. Dependency licenses are unchanged.
+  Copyright © 2026 DemonicAngel21. Dependency licenses are unchanged.
 
 ### Added
 
