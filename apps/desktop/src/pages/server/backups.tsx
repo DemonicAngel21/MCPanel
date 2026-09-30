@@ -244,7 +244,7 @@ export function ServerBackups() {
   const total = (backups ?? []).filter((b) => b.status === "ready").reduce((n, b) => n + b.sizeBytes, 0);
 
   return (
-    <PageBody className="max-w-5xl space-y-5">
+    <PageBody className="space-y-5">
       <Card>
         <CardHeader
           title="Backups"

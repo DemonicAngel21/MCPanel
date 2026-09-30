@@ -45,6 +45,12 @@ pub fn open_logs_folder(s: State<'_, AppState>) -> R<()> {
         .map_err(|e| ApiError::new("IO", format!("Cannot open folder: {e}")))
 }
 
+/// The Windows accent color (`#rrggbb`), for "match system accent".
+#[tauri::command]
+pub fn app_accent_color() -> Option<String> {
+    mcpanel_platform::system_accent_color()
+}
+
 /// Quit MCPanel. `mode`: "stop" = stop servers gracefully first; "leave" = leave them
 /// running (they will be detected as detached on next launch).
 #[tauri::command]

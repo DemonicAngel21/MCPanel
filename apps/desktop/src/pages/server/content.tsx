@@ -375,7 +375,7 @@ export function ServerContent() {
 
   if (isLoading)
     return (
-      <PageBody className="max-w-5xl">
+      <PageBody>
         <Card>
           <SkeletonRows rows={5} />
         </Card>
@@ -401,7 +401,7 @@ export function ServerContent() {
   };
 
   return (
-    <PageBody className="max-w-5xl space-y-4">
+    <PageBody className="space-y-4">
       {list.running && list.pending.length > 0 && (
         <Banner
           tone="info"

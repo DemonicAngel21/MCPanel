@@ -92,7 +92,7 @@ export function BackupsPage() {
           />
         }
       />
-      <PageBody className="max-w-5xl space-y-5">
+      <PageBody className="space-y-5">
         <LocationCard />
         <Card>
           <CardHeader title={formatCount(backups?.length ?? 0, "backup")} description={formatBytes(total)} />

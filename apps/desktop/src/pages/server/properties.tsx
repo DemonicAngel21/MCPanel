@@ -115,7 +115,7 @@ export function ServerProperties() {
 
   if (isLoading)
     return (
-      <PageBody className="max-w-5xl">
+      <PageBody>
         <Card>
           <SkeletonRows rows={6} />
         </Card>

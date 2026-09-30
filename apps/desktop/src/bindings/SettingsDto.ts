@@ -4,4 +4,8 @@ export type SettingsDto = {
 /**
  * "system" | "dark" | "light"
  */
-theme: string, trayNoticeShown: boolean, consoleBufferLines: number, quitStopTimeoutSecs: number, tickSampling: boolean, };
+theme: string, trayNoticeShown: boolean, consoleBufferLines: number, quitStopTimeoutSecs: number, tickSampling: boolean, 
+/**
+ * Preset name, "system" or "#rrggbb".
+ */
+accent: string, onboardingCompleted: boolean, };

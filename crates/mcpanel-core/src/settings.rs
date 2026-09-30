@@ -29,6 +29,22 @@ pub struct AppSettings {
     pub backups_dir: Option<String>,
     /// Query running servers for TPS/MSPT (their replies appear in the server's log).
     pub tick_sampling: bool,
+    /// Accent color: a preset name, "system" (the Windows accent) or `#rrggbb`.
+    pub accent: String,
+    /// The first-time setup was finished or skipped.
+    pub onboarding_completed: bool,
+}
+
+/// Accent presets offered in Settings (green is MCPanel's own).
+pub const ACCENT_PRESETS: &[&str] = &[
+    "green", "emerald", "teal", "blue", "violet", "rose", "orange", "amber",
+];
+
+/// A preset, "system" or a `#rrggbb` color.
+pub fn valid_accent(s: &str) -> bool {
+    s == "system"
+        || ACCENT_PRESETS.contains(&s)
+        || (s.len() == 7 && s.starts_with('#') && s[1..].bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
 impl Default for AppSettings {
@@ -40,6 +56,8 @@ impl Default for AppSettings {
             quit_stop_timeout_secs: 90,
             backups_dir: None,
             tick_sampling: true,
+            accent: "green".into(),
+            onboarding_completed: false,
         }
     }
 }
@@ -55,6 +73,10 @@ pub struct AppSettingsPatch {
     /// Persisted form only; ignored by [`SettingsService::update`].
     #[serde(default)]
     pub backups_dir: Option<String>,
+    #[serde(default)]
+    pub accent: Option<String>,
+    #[serde(default)]
+    pub onboarding_completed: Option<bool>,
 }
 
 pub struct SettingsService {
@@ -144,5 +166,13 @@ fn apply(s: &mut AppSettings, p: AppSettingsPatch) {
     }
     if p.backups_dir.is_some() {
         s.backups_dir = p.backups_dir;
+    }
+    if let Some(v) = p.accent
+        && valid_accent(&v)
+    {
+        s.accent = v;
+    }
+    if let Some(v) = p.onboarding_completed {
+        s.onboarding_completed = v;
     }
 }

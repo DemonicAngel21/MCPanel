@@ -9,6 +9,8 @@ import { QuitDialog } from "@/components/quit-dialog";
 import { Button } from "@/components/ui/button";
 import { Kbd, StatusDot, Tooltip } from "@/components/ui/primitives";
 import { startEventBridge } from "@/lib/events";
+import { accentVars, applyAccent } from "@/lib/accent";
+import { api } from "@/lib/api";
 import { useServers, useSettings } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
 import { cn } from "@/lib/utils";
@@ -17,16 +19,38 @@ import { useUi } from "@/stores/ui";
 function useThemeSync() {
   const { data } = useSettings();
   const pref = data?.theme ?? "system";
+  const accent = data?.accent ?? "green";
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    let system: string | null = null;
+    let alive = true;
     const apply = () => {
       const resolved = pref === "system" ? (mq.matches ? "dark" : "light") : pref;
       document.documentElement.dataset.theme = resolved;
+      applyAccent(accentVars(accent, resolved as "dark" | "light", system));
+    };
+    // The Windows accent can change while MCPanel runs; re-read it on focus.
+    const refreshSystem = () => {
+      if (accent !== "system") return;
+      api.app
+        .accentColor()
+        .then((c) => {
+          if (!alive) return;
+          system = c;
+          apply();
+        })
+        .catch(() => {});
     };
     apply();
+    refreshSystem();
     mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, [pref]);
+    window.addEventListener("focus", refreshSystem);
+    return () => {
+      alive = false;
+      mq.removeEventListener("change", apply);
+      window.removeEventListener("focus", refreshSystem);
+    };
+  }, [pref, accent]);
 }
 
 function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; label: string; exact?: boolean }) {
@@ -198,7 +222,7 @@ export function PageHeader({
   );
 }
 
-/** The scrolling page area. `className` styles the content column (e.g. `max-w-5xl`), so
+/** The scrolling page area. `className` styles the content column, so
  * the scrollbar stays at the window edge however narrow the content is. */
 export function PageBody({ children, className }: { children: ReactNode; className?: string }) {
   return (

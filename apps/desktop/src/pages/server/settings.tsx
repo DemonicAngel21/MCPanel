@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ServerDto } from "@/bindings/ServerDto";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
+import { MemoryRange } from "@/components/memory-slider";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Select } from "@/components/ui/overlays";
 import { Banner, Card, CardHeader, Checkbox, Field, Input, Spinner, Textarea } from "@/components/ui/primitives";
@@ -75,7 +76,7 @@ function ServerSettingsForm({ server }: { server: ServerDto }) {
   };
 
   return (
-    <PageBody className="max-w-3xl space-y-5">
+    <PageBody className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       {running && (
         <Banner tone="info" title="The server is running">
           Launch settings apply the next time it starts.
@@ -114,12 +115,18 @@ function ServerSettingsForm({ server }: { server: ServerDto }) {
               }))}
             />
           </Field>
-          <Field label="Minimum memory (MB)">
-            <Input inputMode="numeric" value={minMem} onChange={(e) => setMinMem(Number(e.target.value.replace(/\D/g, "")) || 0)} />
-          </Field>
-          <Field label="Maximum memory (MB)" hint={totalMb ? `This computer has ${totalMb} MB.` : undefined}>
-            <Input inputMode="numeric" value={maxMem} onChange={(e) => setMaxMem(Number(e.target.value.replace(/\D/g, "")) || 0)} />
-          </Field>
+          <div className="col-span-full space-y-1.5">
+            <p className="text-xs font-medium text-muted">Memory</p>
+            <MemoryRange
+              minMb={minMem}
+              maxMb={maxMem}
+              totalMb={totalMb}
+              onChange={(lo, hi) => {
+                setMinMem(lo);
+                setMaxMem(hi);
+              }}
+            />
+          </div>
           <Field
             label="Additional JVM arguments"
             hint="One argument per line. Set memory with the fields above, not -Xmx/-Xms."

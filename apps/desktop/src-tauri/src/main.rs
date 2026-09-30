@@ -218,6 +218,7 @@ fn main() {
             commands::restart_policy_update,
             commands::crash_history,
             commands::tunnel_status,
+            commands::app_accent_color,
             commands::tunnel_start_agent,
             commands::tunnel_stop_agent,
             commands::tunnel_link,

@@ -6,12 +6,13 @@ import { toast } from "sonner";
 import type { GrantDto } from "@/bindings/GrantDto";
 import type { JavaCompatibilityDto } from "@/bindings/JavaCompatibilityDto";
 import { PageBody, PageHeader } from "@/app/app-shell";
+import { MemoryRange } from "@/components/memory-slider";
 import { PropertyInput } from "@/components/property-input";
 import { LOCATION_WARNING_TEXT } from "@/lib/location";
 import { validateProperty } from "@/lib/properties";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Badge, Banner, Card, Checkbox, Field, Input, Progress, Spinner, Switch } from "@/components/ui/primitives";
+import { Badge, Banner, Card, CardHeader, Checkbox, Field, Input, Progress, Spinner, Switch } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { qk, useJava, useServers, useSoftware, useSystemMetrics, useTemplates } from "@/lib/queries";
@@ -238,326 +239,361 @@ export function CreateServerPage() {
         </ol>
       </PageHeader>
       <PageBody>
-        <div className="max-w-3xl space-y-5">
-          {template && !jobId && (
-            <Banner
-              tone="info"
-              icon={<LayoutTemplate />}
-              title={`Template: ${template.name}`}
-              actions={
-                <Button asChild size="sm" variant="ghost">
-                  <Link to="/servers/new">Start without template</Link>
-                </Button>
-              }
-            >
-              {template.description} The settings below are filled in from the template; you can change them.
-            </Banner>
-          )}
-          {jobId ? (
-            <Card className="space-y-3 p-6">
-              <p className="text-sm font-medium text-fg">{jobFailed ? `Could not create ${name}` : `Creating ${name}…`}</p>
-              <Progress value={job?.progress ?? null} />
-              <p className={jobFailed ? "text-xs text-danger" : "text-xs text-muted"}>{job?.message ?? "Preparing"}</p>
-              {jobFailed && (
-                <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => setJobId(null)}>
-                    Back to the wizard
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-5">
+            {template && !jobId && (
+              <Banner
+                tone="info"
+                icon={<LayoutTemplate />}
+                title={`Template: ${template.name}`}
+                actions={
+                  <Button asChild size="sm" variant="ghost">
+                    <Link to="/servers/new">Start without template</Link>
                   </Button>
-                </div>
-              )}
-            </Card>
-          ) : (
-            <>
-              {step === 0 && (
-                <Card className="space-y-4 p-5">
-                  <Field label="Server name">
-                    <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} autoFocus />
-                  </Field>
-                  <Field
-                    label="Location"
-                    error={location.isError ? errorMessage(location.error) : undefined}
-                    hint="A new folder is created here for the server. By default MCPanel uses your user folder, not Documents (which is often synced by OneDrive)."
-                  >
-                    <div className="flex gap-2">
-                      <Input readOnly value={location.data?.directory ?? ""} className="font-mono text-xs" />
-                      <Button
-                        variant="outline"
-                        onClick={async () => {
-                          const g = await api.dialog.pickFolder("Choose where to create the server folder").catch((e) => {
-                            toast.error(errorMessage(e));
-                            return null;
-                          });
-                          if (g) setParent(g);
-                        }}
-                      >
-                        <FolderOpen /> Change
-                      </Button>
-                    </div>
-                  </Field>
-                  {location.data?.warnings.map((w) => (
-                    <Banner key={w} tone="warning" icon={<AlertTriangle />} title="Check this location">
-                      {LOCATION_WARNING_TEXT[w] ?? w}
-                    </Banner>
-                  ))}
-                </Card>
-              )}
-
-              {step === 1 && (
-                <Card className="space-y-4 p-5">
-                  <Field label="Server software">
-                    <div className="grid grid-cols-3 gap-2">
-                      {software?.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => setSoftwareId(s.id)}
-                          className={cn(
-                            "rounded-lg border p-3 text-left transition-colors",
-                            softwareId === s.id ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong",
-                          )}
-                        >
-                          <p className="text-[13px] font-semibold text-fg">{s.displayName}</p>
-                          <p className="mt-1 text-xs text-muted">{s.description}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Minecraft version" error={versions.isError ? errorMessage(versions.error) : undefined}>
-                      <Select
-                        value={version}
-                        onValueChange={setVersion}
-                        placeholder={versions.isLoading ? "Loading…" : "Select version"}
-                        options={(versions.data ?? []).map((v) => ({
-                          value: v.id,
-                          label: v.id,
-                          hint: v.kind !== "release" ? v.kind.replace("_", " ") : undefined,
-                        }))}
-                      />
-                    </Field>
-                    <Field label="Build" hint={sw?.id === "vanilla" ? "Vanilla has no separate builds." : undefined}>
-                      <Select
-                        value={build}
-                        onValueChange={setBuild}
-                        disabled={sw?.id === "vanilla" || !builds.data?.length}
-                        options={[
-                          { value: "latest", label: "Latest stable" },
-                          ...(builds.data ?? [])
-                            .slice(0, 50)
-                            .map((b) => ({ value: b.id, label: `#${b.id}`, hint: b.channel !== "stable" ? b.channel : undefined })),
-                        ]}
-                      />
-                    </Field>
+                }
+              >
+                {template.description} The settings below are filled in from the template; you can change them.
+              </Banner>
+            )}
+            {jobId ? (
+              <Card className="space-y-3 p-6">
+                <p className="text-sm font-medium text-fg">{jobFailed ? `Could not create ${name}` : `Creating ${name}…`}</p>
+                <Progress value={job?.progress ?? null} />
+                <p className={jobFailed ? "text-xs text-danger" : "text-xs text-muted"}>{job?.message ?? "Preparing"}</p>
+                {jobFailed && (
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={() => setJobId(null)}>
+                      Back to the wizard
+                    </Button>
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-muted">
-                    <Switch checked={snapshots} onCheckedChange={setSnapshots} /> Show snapshots and pre-releases
-                  </label>
-                </Card>
-              )}
-
-              {step === 2 && (
-                <Card className="space-y-4 p-5">
-                  {preview.isLoading && (
-                    <p className="flex items-center gap-2 text-xs text-muted">
-                      <Spinner /> Resolving {sw?.displayName} {version}…
-                    </p>
-                  )}
-                  {preview.isError && (
-                    <Banner tone="danger" title="Could not resolve this version">
-                      {errorMessage(preview.error)}
-                    </Banner>
-                  )}
-                  {preview.data && (
-                    <>
-                      <p className="text-xs text-muted">
-                        {sw?.displayName} {version} {preview.data.build ? `build #${preview.data.build}` : ""} requires{" "}
-                        <span className="font-medium text-fg">Java {preview.data.javaMinMajor} or newer</span>.
-                      </p>
-                      <Field label="Java runtime">
-                        <div className="space-y-1.5">
-                          {java
-                            ?.filter((j) => j.valid)
-                            .map((j) => {
-                              const c = compatLabel(compat[j.id]);
-                              return (
-                                <button
-                                  key={j.id}
-                                  type="button"
-                                  disabled={c.tone === "danger"}
-                                  onClick={() => setJavaId(j.id)}
-                                  className={cn(
-                                    "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left disabled:opacity-50",
-                                    javaId === j.id ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong",
-                                  )}
-                                >
-                                  <span className="font-semibold text-fg">Java {j.major}</span>
-                                  <span className="min-w-0 flex-1 truncate text-xs text-muted">
-                                    {j.vendor} · {j.path}
-                                  </span>
-                                  <Badge tone={c.tone}>{c.text}</Badge>
-                                </button>
-                              );
-                            })}
-                          {java?.filter((j) => j.valid).length === 0 && (
-                            <Banner tone="warning" title="No usable Java runtime">
-                              Install Java {preview.data.javaMinMajor}+ and detect it on the Java page.
-                            </Banner>
-                          )}
-                        </div>
-                      </Field>
-                    </>
-                  )}
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Minimum memory (MB)">
-                      <Input inputMode="numeric" value={minMem} onChange={(e) => setMinMem(Number(e.target.value.replace(/\D/g, "")) || 0)} />
+                )}
+              </Card>
+            ) : (
+              <>
+                {step === 0 && (
+                  <Card className="space-y-4 p-5">
+                    <Field label="Server name">
+                      <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} autoFocus />
                     </Field>
                     <Field
-                      label="Maximum memory (MB)"
-                      error={!memOk ? "Maximum must be at least 512 MB, not below the minimum, and fit in this computer's memory." : undefined}
-                      hint={totalMb ? `This computer has ${formatBytes(totalMb * 1024 * 1024)} of memory.` : undefined}
+                      label="Location"
+                      error={location.isError ? errorMessage(location.error) : undefined}
+                      hint="A new folder is created here for the server. By default MCPanel uses your user folder, not Documents (which is often synced by OneDrive)."
                     >
-                      <Input inputMode="numeric" value={maxMem} onChange={(e) => setMaxMem(Number(e.target.value.replace(/\D/g, "")) || 0)} />
-                    </Field>
-                  </div>
-                  {preview.data && preview.data.recommendedJvmFlags.length > 0 && (
-                    <label className="flex items-start gap-2 text-xs text-muted">
-                      <Checkbox checked={useFlags} onCheckedChange={(c) => setUseFlags(c === true)} className="mt-0.5" />
-                      <span>
-                        Use the JVM flags recommended by {sw?.displayName} ({preview.data.recommendedJvmFlags.length} G1GC tuning flags). You can edit
-                        them later.
-                      </span>
-                    </label>
-                  )}
-                </Card>
-              )}
-
-              {step === 3 && (
-                <Card className="grid grid-cols-2 gap-4 p-5">
-                  {schema.isLoading && <Spinner />}
-                  {wizardKeys.map((k) => {
-                    const s = schemaByKey[k] ?? null;
-                    const err = validateProperty(s, value(k));
-                    const wide = s?.kind === "text" || k === "level-seed";
-                    return (
-                      <Field
-                        key={k}
-                        label={s?.label ?? k}
-                        className={wide ? "col-span-2" : undefined}
-                        error={
-                          err ??
-                          (k === "server-port" && portInUse ? `Port also used by "${portInUse.name}" — both cannot run at the same time.` : undefined)
-                        }
-                        hint={s?.description ?? undefined}
-                      >
-                        <PropertyInput id={`p-${k}`} schema={s} value={value(k)} onChange={(v) => setProps((p) => ({ ...p, [k]: v }))} />
-                      </Field>
-                    );
-                  })}
-                </Card>
-              )}
-
-              {step === 4 && (
-                <Card className="space-y-4 p-5">
-                  {template && (
-                    <div className="space-y-2 rounded-lg border border-border bg-surface-2 p-3 text-xs">
-                      <p className="font-medium text-fg">From the {template.name} template</p>
-                      {templateExtras.length > 0 && (
-                        <p className="text-muted">Also sets: {templateExtras.map((p) => `${p.key}=${p.value}`).join(", ")}</p>
-                      )}
-                      <p className="text-muted">
-                        {template.backupIntervalMinutes
-                          ? `Backups every ${template.backupIntervalMinutes >= 60 ? `${template.backupIntervalMinutes / 60} hours` : `${template.backupIntervalMinutes} minutes`}`
-                          : "No backup schedule"}
-                        {" · "}
-                        {template.autoRestart ? "restart after a crash" : "no automatic restart"}
-                      </p>
-                      {(resolved.data?.plugins ?? []).map((p) => (
-                        <label key={p.project} className="flex items-start gap-2 text-fg">
-                          <Checkbox
-                            className="mt-0.5"
-                            checked={!pluginsOff.includes(p.project)}
-                            onCheckedChange={(c) => setPluginsOff((off) => (c === true ? off.filter((x) => x !== p.project) : [...off, p.project]))}
-                          />
-                          <span>
-                            Install {p.name} <span className="text-muted">— {p.reason}</span>
-                          </span>
-                        </label>
-                      ))}
-                      {resolved.data?.notes.map((n) => (
-                        <p key={n} className="text-warning">
-                          {n}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  <dl className="grid grid-cols-[160px_1fr] gap-x-4 gap-y-2 text-[13px]">
-                    <dt className="text-muted">Name</dt>
-                    <dd className="text-fg">{name}</dd>
-                    <dt className="text-muted">Folder</dt>
-                    <dd className="selectable font-mono text-xs text-fg">{location.data?.directory}</dd>
-                    <dt className="text-muted">Software</dt>
-                    <dd className="text-fg">
-                      {sw?.displayName} {version} {preview.data?.build ? `#${preview.data.build}` : ""}
-                      {preview.data?.buildChannel && preview.data.buildChannel !== "stable" && (
-                        <Badge tone="warning" className="ml-2">
-                          {preview.data.buildChannel}
-                        </Badge>
-                      )}
-                    </dd>
-                    <dt className="text-muted">Java</dt>
-                    <dd className="text-fg">
-                      Java {selectedJava?.major} ({selectedJava?.vendor})
-                    </dd>
-                    <dt className="text-muted">Memory</dt>
-                    <dd className="text-fg">
-                      {minMem} – {maxMem} MB
-                    </dd>
-                    <dt className="text-muted">Download</dt>
-                    <dd className="flex items-center gap-1.5 text-fg">
-                      {preview.data?.hashStrong ? <ShieldCheck className="size-4 text-accent" /> : <ShieldAlert className="size-4 text-warning" />}
-                      {preview.data?.hashAlgorithm ? `Checked with ${preview.data.hashAlgorithm.toUpperCase()}` : "No checksum available"}
-                      {preview.data?.downloadBytes ? ` · ${formatBytes(preview.data.downloadBytes)}` : ""}
-                    </dd>
-                  </dl>
-                  {preview.data?.notes.map((n) => (
-                    <p key={n} className="text-xs text-muted">
-                      {n}
-                    </p>
-                  ))}
-                  <div className="rounded-lg border border-border bg-surface-2 p-3">
-                    <label className="flex items-start gap-2.5 text-[13px] text-fg">
-                      <Checkbox checked={eula} onCheckedChange={(c) => setEula(c === true)} className="mt-0.5" />
-                      <span>
-                        I have read and accept the{" "}
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-0.5 text-accent hover:underline"
-                          onClick={() => api.app.openExternal("https://aka.ms/MinecraftEULA").catch((e) => toast.error(errorMessage(e)))}
+                      <div className="flex gap-2">
+                        <Input readOnly value={location.data?.directory ?? ""} className="font-mono text-xs" />
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            const g = await api.dialog.pickFolder("Choose where to create the server folder").catch((e) => {
+                              toast.error(errorMessage(e));
+                              return null;
+                            });
+                            if (g) setParent(g);
+                          }}
                         >
-                          Minecraft End User License Agreement <ExternalLink className="size-3" />
-                        </button>
-                        . MCPanel records your acceptance in the server's eula.txt.
-                      </span>
-                    </label>
-                  </div>
-                </Card>
-              )}
-
-              <div className="flex justify-between">
-                <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-                  Back
-                </Button>
-                {step < STEPS.length - 1 ? (
-                  <Button variant="primary" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
-                    Continue
-                  </Button>
-                ) : (
-                  <Button variant="primary" disabled={!canNext || !javaId || !version} onClick={create}>
-                    Create server
-                  </Button>
+                          <FolderOpen /> Change
+                        </Button>
+                      </div>
+                    </Field>
+                    {location.data?.warnings.map((w) => (
+                      <Banner key={w} tone="warning" icon={<AlertTriangle />} title="Check this location">
+                        {LOCATION_WARNING_TEXT[w] ?? w}
+                      </Banner>
+                    ))}
+                  </Card>
                 )}
-              </div>
-            </>
+
+                {step === 1 && (
+                  <Card className="space-y-4 p-5">
+                    <Field label="Server software">
+                      <div className="grid grid-cols-3 gap-2">
+                        {software?.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setSoftwareId(s.id)}
+                            className={cn(
+                              "rounded-lg border p-3 text-left transition-colors",
+                              softwareId === s.id ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong",
+                            )}
+                          >
+                            <p className="text-[13px] font-semibold text-fg">{s.displayName}</p>
+                            <p className="mt-1 text-xs text-muted">{s.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Minecraft version" error={versions.isError ? errorMessage(versions.error) : undefined}>
+                        <Select
+                          value={version}
+                          onValueChange={setVersion}
+                          placeholder={versions.isLoading ? "Loading…" : "Select version"}
+                          options={(versions.data ?? []).map((v) => ({
+                            value: v.id,
+                            label: v.id,
+                            hint: v.kind !== "release" ? v.kind.replace("_", " ") : undefined,
+                          }))}
+                        />
+                      </Field>
+                      <Field label="Build" hint={sw?.id === "vanilla" ? "Vanilla has no separate builds." : undefined}>
+                        <Select
+                          value={build}
+                          onValueChange={setBuild}
+                          disabled={sw?.id === "vanilla" || !builds.data?.length}
+                          options={[
+                            { value: "latest", label: "Latest stable" },
+                            ...(builds.data ?? [])
+                              .slice(0, 50)
+                              .map((b) => ({ value: b.id, label: `#${b.id}`, hint: b.channel !== "stable" ? b.channel : undefined })),
+                          ]}
+                        />
+                      </Field>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-muted">
+                      <Switch checked={snapshots} onCheckedChange={setSnapshots} /> Show snapshots and pre-releases
+                    </label>
+                  </Card>
+                )}
+
+                {step === 2 && (
+                  <Card className="space-y-4 p-5">
+                    {preview.isLoading && (
+                      <p className="flex items-center gap-2 text-xs text-muted">
+                        <Spinner /> Resolving {sw?.displayName} {version}…
+                      </p>
+                    )}
+                    {preview.isError && (
+                      <Banner tone="danger" title="Could not resolve this version">
+                        {errorMessage(preview.error)}
+                      </Banner>
+                    )}
+                    {preview.data && (
+                      <>
+                        <p className="text-xs text-muted">
+                          {sw?.displayName} {version} {preview.data.build ? `build #${preview.data.build}` : ""} requires{" "}
+                          <span className="font-medium text-fg">Java {preview.data.javaMinMajor} or newer</span>.
+                        </p>
+                        <Field label="Java runtime">
+                          <div className="space-y-1.5">
+                            {java
+                              ?.filter((j) => j.valid)
+                              .map((j) => {
+                                const c = compatLabel(compat[j.id]);
+                                return (
+                                  <button
+                                    key={j.id}
+                                    type="button"
+                                    disabled={c.tone === "danger"}
+                                    onClick={() => setJavaId(j.id)}
+                                    className={cn(
+                                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left disabled:opacity-50",
+                                      javaId === j.id ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong",
+                                    )}
+                                  >
+                                    <span className="font-semibold text-fg">Java {j.major}</span>
+                                    <span className="min-w-0 flex-1 truncate text-xs text-muted">
+                                      {j.vendor} · {j.path}
+                                    </span>
+                                    <Badge tone={c.tone}>{c.text}</Badge>
+                                  </button>
+                                );
+                              })}
+                            {java?.filter((j) => j.valid).length === 0 && (
+                              <Banner tone="warning" title="No usable Java runtime">
+                                Install Java {preview.data.javaMinMajor}+ and detect it on the Java page.
+                              </Banner>
+                            )}
+                          </div>
+                        </Field>
+                      </>
+                    )}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted">Memory</p>
+                      <MemoryRange
+                        minMb={minMem}
+                        maxMb={maxMem}
+                        totalMb={totalMb}
+                        onChange={(lo, hi) => {
+                          setMinMem(lo);
+                          setMaxMem(hi);
+                        }}
+                      />
+                      {!memOk && (
+                        <p className="text-xs text-danger">
+                          Maximum must be at least 512 MB, not below the minimum, and fit in this computer's memory.
+                        </p>
+                      )}
+                    </div>
+                    {preview.data && preview.data.recommendedJvmFlags.length > 0 && (
+                      <label className="flex items-start gap-2 text-xs text-muted">
+                        <Checkbox checked={useFlags} onCheckedChange={(c) => setUseFlags(c === true)} className="mt-0.5" />
+                        <span>
+                          Use the JVM flags recommended by {sw?.displayName} ({preview.data.recommendedJvmFlags.length} G1GC tuning flags). You can
+                          edit them later.
+                        </span>
+                      </label>
+                    )}
+                  </Card>
+                )}
+
+                {step === 3 && (
+                  <Card className="grid grid-cols-2 gap-4 p-5">
+                    {schema.isLoading && <Spinner />}
+                    {wizardKeys.map((k) => {
+                      const s = schemaByKey[k] ?? null;
+                      const err = validateProperty(s, value(k));
+                      const wide = s?.kind === "text" || k === "level-seed";
+                      return (
+                        <Field
+                          key={k}
+                          label={s?.label ?? k}
+                          className={wide ? "col-span-2" : undefined}
+                          error={
+                            err ??
+                            (k === "server-port" && portInUse
+                              ? `Port also used by "${portInUse.name}" — both cannot run at the same time.`
+                              : undefined)
+                          }
+                          hint={s?.description ?? undefined}
+                        >
+                          <PropertyInput id={`p-${k}`} schema={s} value={value(k)} onChange={(v) => setProps((p) => ({ ...p, [k]: v }))} />
+                        </Field>
+                      );
+                    })}
+                  </Card>
+                )}
+
+                {step === 4 && (
+                  <Card className="space-y-4 p-5">
+                    {template && (
+                      <div className="space-y-2 rounded-lg border border-border bg-surface-2 p-3 text-xs">
+                        <p className="font-medium text-fg">From the {template.name} template</p>
+                        {templateExtras.length > 0 && (
+                          <p className="text-muted">Also sets: {templateExtras.map((p) => `${p.key}=${p.value}`).join(", ")}</p>
+                        )}
+                        <p className="text-muted">
+                          {template.backupIntervalMinutes
+                            ? `Backups every ${template.backupIntervalMinutes >= 60 ? `${template.backupIntervalMinutes / 60} hours` : `${template.backupIntervalMinutes} minutes`}`
+                            : "No backup schedule"}
+                          {" · "}
+                          {template.autoRestart ? "restart after a crash" : "no automatic restart"}
+                        </p>
+                        {(resolved.data?.plugins ?? []).map((p) => (
+                          <label key={p.project} className="flex items-start gap-2 text-fg">
+                            <Checkbox
+                              className="mt-0.5"
+                              checked={!pluginsOff.includes(p.project)}
+                              onCheckedChange={(c) => setPluginsOff((off) => (c === true ? off.filter((x) => x !== p.project) : [...off, p.project]))}
+                            />
+                            <span>
+                              Install {p.name} <span className="text-muted">— {p.reason}</span>
+                            </span>
+                          </label>
+                        ))}
+                        {resolved.data?.notes.map((n) => (
+                          <p key={n} className="text-warning">
+                            {n}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    <dl className="grid grid-cols-[160px_1fr] gap-x-4 gap-y-2 text-[13px]">
+                      <dt className="text-muted">Name</dt>
+                      <dd className="text-fg">{name}</dd>
+                      <dt className="text-muted">Folder</dt>
+                      <dd className="selectable font-mono text-xs text-fg">{location.data?.directory}</dd>
+                      <dt className="text-muted">Software</dt>
+                      <dd className="text-fg">
+                        {sw?.displayName} {version} {preview.data?.build ? `#${preview.data.build}` : ""}
+                        {preview.data?.buildChannel && preview.data.buildChannel !== "stable" && (
+                          <Badge tone="warning" className="ml-2">
+                            {preview.data.buildChannel}
+                          </Badge>
+                        )}
+                      </dd>
+                      <dt className="text-muted">Java</dt>
+                      <dd className="text-fg">
+                        Java {selectedJava?.major} ({selectedJava?.vendor})
+                      </dd>
+                      <dt className="text-muted">Memory</dt>
+                      <dd className="text-fg">
+                        {minMem} – {maxMem} MB
+                      </dd>
+                      <dt className="text-muted">Download</dt>
+                      <dd className="flex items-center gap-1.5 text-fg">
+                        {preview.data?.hashStrong ? <ShieldCheck className="size-4 text-accent" /> : <ShieldAlert className="size-4 text-warning" />}
+                        {preview.data?.hashAlgorithm ? `Checked with ${preview.data.hashAlgorithm.toUpperCase()}` : "No checksum available"}
+                        {preview.data?.downloadBytes ? ` · ${formatBytes(preview.data.downloadBytes)}` : ""}
+                      </dd>
+                    </dl>
+                    {preview.data?.notes.map((n) => (
+                      <p key={n} className="text-xs text-muted">
+                        {n}
+                      </p>
+                    ))}
+                    <div className="rounded-lg border border-border bg-surface-2 p-3">
+                      <label className="flex items-start gap-2.5 text-[13px] text-fg">
+                        <Checkbox checked={eula} onCheckedChange={(c) => setEula(c === true)} className="mt-0.5" />
+                        <span>
+                          I have read and accept the{" "}
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-0.5 text-accent hover:underline"
+                            onClick={() => api.app.openExternal("https://aka.ms/MinecraftEULA").catch((e) => toast.error(errorMessage(e)))}
+                          >
+                            Minecraft End User License Agreement <ExternalLink className="size-3" />
+                          </button>
+                          . MCPanel records your acceptance in the server's eula.txt.
+                        </span>
+                      </label>
+                    </div>
+                  </Card>
+                )}
+
+                <div className="flex justify-between">
+                  <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
+                    Back
+                  </Button>
+                  {step < STEPS.length - 1 ? (
+                    <Button variant="primary" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
+                      Continue
+                    </Button>
+                  ) : (
+                    <Button variant="primary" disabled={!canNext || !javaId || !version} onClick={create}>
+                      Create server
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          {!jobId && (
+            <Card className="sticky top-0 hidden xl:block">
+              <CardHeader title="Summary" description="Updates as you go." />
+              <dl className="grid grid-cols-[88px_1fr] gap-x-3 gap-y-2.5 p-4 text-xs">
+                <dt className="text-muted">Name</dt>
+                <dd className="truncate text-fg">{name || "—"}</dd>
+                <dt className="text-muted">Folder</dt>
+                <dd className="font-mono text-[11px] break-all text-fg">{location.data?.directory ?? "—"}</dd>
+                <dt className="text-muted">Software</dt>
+                <dd className="text-fg">{sw?.displayName ?? "—"}</dd>
+                <dt className="text-muted">Version</dt>
+                <dd className="text-fg">
+                  {version ?? "—"}
+                  {version && build !== "latest" ? ` · build ${build}` : ""}
+                </dd>
+                <dt className="text-muted">Java</dt>
+                <dd className="text-fg">{selectedJava ? `Java ${selectedJava.major}` : "—"}</dd>
+                <dt className="text-muted">Memory</dt>
+                <dd className="text-fg tabular-nums">
+                  {minMem} – {maxMem} MB
+                </dd>
+                <dt className="text-muted">Template</dt>
+                <dd className="text-fg">{template?.name ?? "None"}</dd>
+              </dl>
+            </Card>
           )}
         </div>
       </PageBody>

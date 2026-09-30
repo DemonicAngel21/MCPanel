@@ -73,7 +73,7 @@ export function ImportServerPage() {
     <>
       <PageHeader title="Import server" description="Add a server folder you already have. MCPanel does not move or modify files when importing." />
       <PageBody>
-        <div className="max-w-3xl space-y-5">
+        <div className="space-y-5">
           <Card className="flex items-center justify-between gap-4 p-5">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-fg">{grant ? grant.displayPath : "No folder selected"}</p>

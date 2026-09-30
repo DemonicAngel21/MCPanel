@@ -27,7 +27,7 @@ export function PlayitPage() {
           </Button>
         }
       />
-      <PageBody className="max-w-5xl space-y-5">
+      <PageBody className="space-y-5">
         <PlayitAgentCard />
 
         <Card>

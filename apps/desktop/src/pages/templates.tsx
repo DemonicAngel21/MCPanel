@@ -28,7 +28,7 @@ export function TemplatesPage() {
         title="Templates"
         description="Start a new server from a preset. The create wizard is filled in from the template, and you can still change everything before creating the server."
       />
-      <PageBody className="max-w-5xl">
+      <PageBody>
         {isLoading && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 5 }, (_, i) => (

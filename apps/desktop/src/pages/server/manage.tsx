@@ -20,12 +20,27 @@ const RANGES = [
   { label: "30 min", ms: 30 * 60_000 },
 ] as const;
 
-function Tile({ icon, label, value, sub, source }: { icon: React.ReactNode; label: string; value: string; sub?: string; source: string }) {
+function Tile({
+  icon,
+  label,
+  value,
+  sub,
+  source,
+  tint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  source: string;
+  /** Text color class of the category, e.g. "text-tint-cpu". */
+  tint: string;
+}) {
   return (
     <Card className="flex flex-col gap-1 p-4">
       <div className="flex items-center justify-between gap-2 text-xs text-muted">
-        <span className="flex items-center gap-2 [&_svg]:size-4">
-          {icon}
+        <span className="flex items-center gap-2">
+          <span className={cn("flex size-6 items-center justify-center rounded-md bg-current/12 [&_svg]:size-3.5", tint)}>{icon}</span>
           {label}
         </span>
         <Tooltip content={`Source: ${source}`}>
@@ -127,10 +142,18 @@ export function ServerManage() {
       </Card>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
-        <Tile icon={<Cpu />} label="CPU" source="OS process" value={cur ? formatPercent(cur.cpuPercent) : "—"} sub="of this computer" />
+        <Tile
+          icon={<Cpu />}
+          label="CPU"
+          tint="text-tint-cpu"
+          source="OS process"
+          value={cur ? formatPercent(cur.cpuPercent) : "—"}
+          sub="of this computer"
+        />
         <Tile
           icon={<MemoryStick />}
           label="Memory"
+          tint="text-tint-memory"
           source="OS process"
           value={cur ? formatBytes(cur.memoryBytes) : "—"}
           sub={`Java heap limit ${maxMb} MB`}
@@ -138,6 +161,7 @@ export function ServerManage() {
         <Tile
           icon={<Users />}
           label="Players"
+          tint="text-tint-players"
           source="console log"
           value={alive ? `${online.length}${players?.maxPlayers != null ? ` / ${players.maxPlayers}` : ""}` : "—"}
           sub={alive ? online.join(", ") || "Nobody online" : "Server not running"}
@@ -145,6 +169,7 @@ export function ServerManage() {
         <Tile
           icon={<Gauge />}
           label={tick?.tpsCalculated ? "TPS (calculated)" : "TPS"}
+          tint="text-accent"
           source={tickSource ? tickLabel : "not available"}
           value={tick?.tps != null ? tick.tps.toFixed(1) : "—"}
           sub="20 is full speed"
@@ -152,6 +177,7 @@ export function ServerManage() {
         <Tile
           icon={<Timer />}
           label="MSPT"
+          tint="text-tint-mspt"
           source={tickSource ? tickLabel : "not available"}
           value={tick?.mspt != null ? `${tick.mspt.toFixed(1)} ms` : "—"}
           sub="Limit 50 ms per tick"
@@ -190,7 +216,14 @@ export function ServerManage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2">
             <ChartCard title="CPU" value={cur ? formatPercent(cur.cpuPercent) : "—"}>
-              <TimeChart label="CPU usage over time" points={cpu} windowMs={range} max={100} format={(v) => `${v.toFixed(0)}%`} />
+              <TimeChart
+                label="CPU usage over time"
+                color="var(--tint-cpu)"
+                points={cpu}
+                windowMs={range}
+                max={100}
+                format={(v) => `${v.toFixed(0)}%`}
+              />
             </ChartCard>
             <ChartCard title="Memory" value={cur ? formatBytes(cur.memoryBytes) : "—"}>
               <TimeChart
@@ -199,7 +232,7 @@ export function ServerManage() {
                 windowMs={range}
                 max={Math.max(maxMb * 1.1, ...mem.map((p) => p[1]))}
                 threshold={maxMb}
-                color="var(--info)"
+                color="var(--tint-memory)"
                 format={(v) => (v >= 1024 ? `${(v / 1024).toFixed(1)} GB` : `${v.toFixed(0)} MB`)}
               />
             </ChartCard>
@@ -214,7 +247,7 @@ export function ServerManage() {
                     points={mspt}
                     windowMs={range}
                     threshold={50}
-                    color="var(--warning)"
+                    color="var(--tint-mspt)"
                     format={(v) => `${v.toFixed(0)} ms`}
                   />
                 </ChartCard>

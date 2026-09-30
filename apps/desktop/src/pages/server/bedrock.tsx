@@ -197,7 +197,7 @@ export function ServerBedrock() {
   const { data: status, isLoading, error, refetch, isFetching } = useBedrock(id);
   if (isLoading) {
     return (
-      <PageBody className="max-w-3xl">
+      <PageBody>
         <Card>
           <SkeletonRows rows={3} />
         </Card>
@@ -210,7 +210,7 @@ export function ServerBedrock() {
     );
   if (!status.supported) {
     return (
-      <PageBody className="max-w-3xl">
+      <PageBody>
         <EmptyState
           icon={<Smartphone />}
           title="Bedrock crossplay is not available for this server"
@@ -221,7 +221,7 @@ export function ServerBedrock() {
   }
   const installed = status.geyser != null;
   return (
-    <PageBody className="max-w-3xl space-y-4">
+    <PageBody className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       {status.restartRequired && (
         <Banner tone="warning" icon={<RefreshCw />} title="Restart the server to apply the Bedrock settings">
           Geyser is listening on port {status.activePort}; the saved port is {status.settings.port}.

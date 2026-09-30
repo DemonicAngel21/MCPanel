@@ -222,6 +222,9 @@ pub struct SettingsDto {
     pub console_buffer_lines: u32,
     pub quit_stop_timeout_secs: u32,
     pub tick_sampling: bool,
+    /// Preset name, "system" or "#rrggbb".
+    pub accent: String,
+    pub onboarding_completed: bool,
 }
 
 impl From<AppSettings> for SettingsDto {
@@ -232,6 +235,8 @@ impl From<AppSettings> for SettingsDto {
             console_buffer_lines: s.console_buffer_lines,
             quit_stop_timeout_secs: s.quit_stop_timeout_secs,
             tick_sampling: s.tick_sampling,
+            accent: s.accent,
+            onboarding_completed: s.onboarding_completed,
         }
     }
 }
@@ -245,6 +250,8 @@ pub struct SettingsPatchDto {
     pub console_buffer_lines: Option<u32>,
     pub quit_stop_timeout_secs: Option<u32>,
     pub tick_sampling: Option<bool>,
+    pub accent: Option<String>,
+    pub onboarding_completed: Option<bool>,
 }
 
 pub(crate) fn parse_theme(s: &str) -> Option<ThemePreference> {

@@ -124,6 +124,11 @@ impl Api {
             Some(t) => Some(parse_theme(t).ok_or_else(|| ApiError::invalid("Unknown theme"))?),
             None => None,
         };
+        if let Some(a) = &patch.accent
+            && !mcpanel_core::settings::valid_accent(a)
+        {
+            return Err(ApiError::invalid("Unknown accent color"));
+        }
         Ok(self
             .core
             .settings
@@ -134,6 +139,8 @@ impl Api {
                 quit_stop_timeout_secs: patch.quit_stop_timeout_secs,
                 tick_sampling: patch.tick_sampling,
                 backups_dir: None,
+                accent: patch.accent,
+                onboarding_completed: patch.onboarding_completed,
             })
             .await?
             .into())

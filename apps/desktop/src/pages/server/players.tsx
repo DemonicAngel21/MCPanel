@@ -258,7 +258,7 @@ export function ServerPlayers() {
 
   if (isLoading)
     return (
-      <PageBody className="max-w-5xl">
+      <PageBody>
         <Card>
           <SkeletonRows rows={4} />
         </Card>
@@ -277,7 +277,7 @@ export function ServerPlayers() {
   ];
 
   return (
-    <PageBody className="max-w-5xl space-y-4">
+    <PageBody className="space-y-4">
       <Card>
         <CardHeader
           title={

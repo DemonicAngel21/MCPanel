@@ -101,6 +101,8 @@ export const api = {
     quit: (mode: "stop" | "leave") => call<void>("app_quit", { mode }),
     openLogsFolder: () => call<void>("open_logs_folder"),
     openExternal: (url: string) => call<void>("open_external", { url }),
+    /** The Windows accent color ("#rrggbb"), `null` if unavailable. */
+    accentColor: () => call<string | null>("app_accent_color"),
   },
   system: {
     metrics: () => call<SystemMetricsDto>("system_metrics"),

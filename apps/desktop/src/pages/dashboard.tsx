@@ -5,6 +5,7 @@ import { PageBody, PageHeader } from "@/app/app-shell";
 import { ActivityList } from "@/components/activity-list";
 import { ServerControls } from "@/components/server-controls";
 import { Sparkline } from "@/components/sparkline";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge, Banner, Card, CardHeader, EmptyState, StatusDot } from "@/components/ui/primitives";
 import { formatBytes, formatPercent } from "@/lib/format";
@@ -17,17 +18,19 @@ function Stat({
   value,
   sub,
   children,
+  tint = "text-accent",
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   sub?: string;
   children?: React.ReactNode;
+  tint?: string;
 }) {
   return (
     <Card className="flex flex-col gap-2 p-4">
-      <div className="flex items-center gap-2 text-xs text-muted [&_svg]:size-4">
-        {icon}
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <span className={cn("flex size-6 items-center justify-center rounded-md bg-current/12 [&_svg]:size-3.5", tint)}>{icon}</span>
         {label}
       </div>
       <div className="flex items-baseline gap-2">
@@ -88,16 +91,23 @@ export function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Stat icon={<Server />} label="Servers" value={`${running} / ${servers?.length ?? 0}`} sub="running" />
-          <Stat icon={<Cpu />} label="CPU (system)" value={formatPercent(cur?.cpuPercent)} sub={cur ? `${cur.cpuCount} threads` : undefined}>
-            <Sparkline points={cpuPoints} max={100} format={(v) => `${v.toFixed(0)}%`} />
+          <Stat
+            icon={<Cpu />}
+            tint="text-tint-cpu"
+            label="CPU (system)"
+            value={formatPercent(cur?.cpuPercent)}
+            sub={cur ? `${cur.cpuCount} threads` : undefined}
+          >
+            <Sparkline points={cpuPoints} max={100} color="var(--tint-cpu)" format={(v) => `${v.toFixed(0)}%`} />
           </Stat>
           <Stat
             icon={<MemoryStick />}
+            tint="text-tint-memory"
             label="Memory (system)"
             value={formatBytes(cur?.memoryUsedBytes)}
             sub={cur ? `of ${formatBytes(cur.memoryTotalBytes)}` : undefined}
           >
-            <Sparkline points={memPoints} max={cur?.memoryTotalBytes} color="var(--info)" format={(v) => formatBytes(v)} />
+            <Sparkline points={memPoints} max={cur?.memoryTotalBytes} color="var(--tint-memory)" format={(v) => formatBytes(v)} />
           </Stat>
         </div>
 
@@ -161,7 +171,7 @@ export function DashboardPage() {
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
                         <div
-                          className={pct > 0.95 ? "h-full bg-danger" : pct > 0.85 ? "h-full bg-warning" : "h-full bg-accent"}
+                          className={pct > 0.95 ? "h-full bg-danger" : pct > 0.85 ? "h-full bg-warning" : "h-full bg-tint-disk"}
                           style={{ width: `${pct * 100}%` }}
                         />
                       </div>
