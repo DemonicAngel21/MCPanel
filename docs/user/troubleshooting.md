@@ -4,6 +4,8 @@
 |---|---|---|
 | *The Minecraft EULA has not been accepted* | Minecraft refuses to start without it | Read the EULA and click **I accept** |
 | *Port … is already in use by …* | Another program (or server) uses the port | Stop it or change `server-port` on the Properties tab |
+| *Port … is used by the server “…”, which is starting or running* | Two MCPanel servers use the same port | Stop the other server or give one of them another port (Properties tab) |
+| *The world was never fully created* | The server's first start was interrupted (e.g. its port was taken), leaving a half-written world | Rename or delete the server's `world` folder (Files tab) so a new world is generated |
 | *The Bedrock port … (UDP) is already in use* | Another program uses Geyser's port | Change the Bedrock port on the Bedrock tab |
 | *Java … is too old* | The server needs a newer Java | Pick another runtime in the server's Settings, or install one |
 | *The selected Java runtime does not accept one of the JVM arguments* | A JVM flag is not supported by that Java | Remove it in the server's Settings |

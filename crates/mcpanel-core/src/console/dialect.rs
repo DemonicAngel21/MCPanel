@@ -285,4 +285,25 @@ mod tests {
         assert_eq!(p.level, Some(LogLevel::Warn));
         assert_eq!(p.message, "hi");
     }
+
+    #[test]
+    fn diagnoses_real_startup_failures() {
+        // Real Paper 26.2 output: a bind failure on the first start, then the world it
+        // left half-created on every later start.
+        let d = dialect("minecraft");
+        let kind = |line: &str| {
+            d.fatal
+                .iter()
+                .find(|f| line.contains(&f.needle))
+                .map(|f| f.kind.as_str())
+        };
+        assert_eq!(
+            kind("[14:09:15] [Server thread/WARN]: **** FAILED TO BIND TO PORT!"),
+            Some("port_in_use")
+        );
+        assert_eq!(
+            kind("Caused by: java.lang.IllegalStateException: Overworld settings missing"),
+            Some("world_incomplete")
+        );
+    }
 }

@@ -172,6 +172,50 @@ async fn preflight_rejects_missing_eula_and_busy_port() {
     h.finish().await;
 }
 
+/// Two servers with the same port: the second must not start while the first is still
+/// starting and not yet listening (this broke a real world on its first start).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_second_server_on_the_same_port_is_refused_while_the_first_starts() {
+    let h = harness().await;
+    let (first, port) = add_server(&h, "first", r#"{"startup_ms": 20000}"#, true, 60).await;
+    let (second, _) = add_server(&h, "second", "{}", true, 60).await;
+    std::fs::write(
+        h.servers.path().join("second").join("server.properties"),
+        format!(
+            "server-port={port}
+motd=Test
+"
+        ),
+    )
+    .unwrap();
+    h.core.servers.start(first, "test").await.unwrap();
+    wait_state(&h, first, LifecycleState::Starting, Duration::from_secs(10)).await;
+    let result = h.core.servers.start(second, "test").await;
+    if result.is_ok() {
+        // Clean up before failing so a regression fails instead of hanging.
+        let _ = h.core.servers.stop(second, true, "test").await;
+        let _ = h.core.servers.stop(first, true, "test").await;
+        wait_state(&h, second, LifecycleState::Stopped, Duration::from_secs(20)).await;
+        wait_state(&h, first, LifecycleState::Stopped, Duration::from_secs(20)).await;
+        panic!("the second server started on the port of a starting server");
+    }
+    let err = result.unwrap_err();
+    assert_eq!(err.code, ErrorCode::PortInUse);
+    assert!(err.message.contains("\"first\""), "{}", err.message);
+    assert_eq!(
+        h.core.servers.view(second).await.unwrap().runtime.state,
+        LifecycleState::Stopped
+    );
+    h.core.servers.stop(first, true, "test").await.unwrap();
+    wait_state(&h, first, LifecycleState::Stopped, Duration::from_secs(20)).await;
+    // Once the first server is stopped, the port is free for the second.
+    h.core.servers.start(second, "test").await.unwrap();
+    wait_state(&h, second, LifecycleState::Running, Duration::from_secs(20)).await;
+    h.core.servers.stop(second, false, "test").await.unwrap();
+    wait_state(&h, second, LifecycleState::Stopped, Duration::from_secs(20)).await;
+    h.finish().await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn console_flood_does_not_block_or_lose_the_tail() {
     let h = harness().await;

@@ -19,7 +19,8 @@
         { "pattern": "Unrecognized option: ", "kind": "jvm_option", "message": "The selected Java runtime does not accept one of the JVM arguments. Remove it in the server settings or choose another Java runtime." },
         { "pattern": "java.lang.OutOfMemoryError", "kind": "out_of_memory", "message": "The server ran out of memory. Consider increasing the maximum memory." },
         { "pattern": "Considering it to be crashed, server will forcibly shutdown", "kind": "watchdog", "message": "The server stopped responding (a single tick took too long) and was shut down by its watchdog." },
-        { "pattern": "The server has stopped responding! This is (probably) not a Paper bug.", "kind": "watchdog", "message": "The server stopped responding (its main thread was blocked too long) and Paper's watchdog shut it down." }
+        { "pattern": "The server has stopped responding! This is (probably) not a Paper bug.", "kind": "watchdog", "message": "The server stopped responding (its main thread was blocked too long) and Paper's watchdog shut it down." },
+        { "pattern": "Overworld settings missing", "kind": "world_incomplete", "message": "The world was never fully created (its first start was interrupted), so Minecraft cannot load it. Rename or delete the world folder to let the server generate a new world." }
       ]
     }
   }

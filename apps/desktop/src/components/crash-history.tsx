@@ -22,6 +22,7 @@ const KIND: Record<string, string> = {
   java_too_old: "Java too old",
   jar_missing: "Server jar missing",
   memory: "Memory setting",
+  world_incomplete: "World not fully created",
   unknown: "Unexpected exit",
 };
 

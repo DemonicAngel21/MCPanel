@@ -478,6 +478,37 @@ impl ServerManager {
             .as_ref()
             .and_then(|p| p.get("server-port").and_then(|v| v.trim().parse().ok()))
             .unwrap_or(25565);
+        // Another MCPanel server starting or running on the same port. It may not be
+        // listening yet (Paper patches itself for a minute on its first start), so the
+        // socket check below would miss it and the later bind would fail mid-start.
+        let clash = {
+            let runtimes = self.runtimes.lock().unwrap_or_else(|p| p.into_inner());
+            let clash = runtimes.iter().find_map(|(other_id, other)| {
+                if *other_id == server.id {
+                    return None;
+                }
+                let o = other.lock();
+                (o.port == Some(port) && (!o.state.can_start() || o.start_pending))
+                    .then_some(*other_id)
+            });
+            if clash.is_none() {
+                rt.lock().port = Some(port);
+            }
+            clash
+        };
+        if let Some(other) = clash {
+            let name = self.repo.get(other).await.ok().flatten().map_or_else(
+                || "another server".to_string(),
+                |s| format!("\"{}\"", s.name),
+            );
+            return Err(CoreError::new(
+                ErrorCode::PortInUse,
+                format!(
+                    "Port {port} is used by the server {name}, which is starting or running. Stop it or give one of the servers another port."
+                ),
+            )
+            .with_details(serde_json::json!({ "port": port, "server": other })));
+        }
         if let PortStatus::InUse { pid, process_name } = self.platform.tcp_port_status(port) {
             let who = match (process_name, pid) {
                 (Some(n), Some(p)) => format!(" by {n} (PID {p})"),

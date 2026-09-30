@@ -81,6 +81,8 @@ pub(crate) struct Inner {
     pub generation: u64,
     /// When the last process of this session exited (drives "skip idle" backups).
     pub last_exit_at: Option<Timestamp>,
+    /// TCP port of the current or pending launch (from server.properties at start).
+    pub port: Option<u16>,
 }
 
 pub struct ServerRuntime {
@@ -129,6 +131,7 @@ impl ServerRuntime {
                 start_pending: false,
                 generation: 0,
                 last_exit_at: None,
+                port: None,
             }),
             exited: Notify::new(),
         })
