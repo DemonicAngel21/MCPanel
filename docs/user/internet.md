@@ -10,20 +10,27 @@ default, and UDP 19132 for Bedrock); how friends reach it is up to you:
 
 ## playit.gg
 
-The *Internet access* panel (server Overview and Settings) works with the official playit
-program:
+Open **Playit.gg** in the left navigation.
 
-1. **Install** the playit program from playit.gg (the panel links to the download page).
-2. **Start agent** starts the playit background service. Stopping it takes every tunnel of
-   this agent offline; starting it publishes them again.
-3. **Link account** appears when the agent is not linked to a playit.gg account yet. MCPanel
-   runs `playit setup` and opens playit.gg in your browser, where you approve the agent. The
-   agent's secret goes straight from playit to its service; MCPanel never sees or stores it.
-4. **Create the tunnel on playit.gg:** add a *Minecraft Java* tunnel with local address
-   `127.0.0.1:<your port>` (and a *Minecraft Bedrock* tunnel for Geyser).
-5. **Paste the public address** (e.g. `name.joinmc.link`) into the panel. MCPanel shows it
-   with the server so you can copy it for your friends.
+1. **Install** the playit program from playit.gg if MCPanel says it is missing (MCPanel
+   uses its `playitd` agent program).
+2. **Link with playit.gg**: playit.gg opens in your browser; sign in or create a free
+   account and approve "MCPanel". MCPanel keeps the agent's key in the Windows Credential
+   Manager. Your other playit agents and tunnels are not changed.
+3. MCPanel **runs its agent** while MCPanel is open (you can turn off "Start the agent when
+   MCPanel starts" and start/stop it by hand). Tunnels are online only while it runs.
+4. **New tunnel**: pick a server; the port is filled in. Choose *Minecraft Java* (and a
+   *Minecraft Bedrock* tunnel for Geyser). playit.gg assigns the public address (for
+   example `name.joinmc.link`) within a few seconds; copy it for your friends. The
+   server's Overview shows it too.
+5. **Edit** (name, server/port), **disable/enable** or **delete** tunnels from the list.
+   Tunnels of other playit agents are listed but managed on playit.gg.
+6. **Unlink** stops the agent and forgets its key; remove the agent on playit.gg
+   (Account → Agents) if you no longer need it.
 
-MCPanel cannot create, list or change playit tunnels: playit.gg has no public API for that.
-The only interfaces are its private web API and the agent's internal connection, which are
-not documented for other programs and can change at any time.
+MCPanel uses playit.gg's web API, which playit.gg does not officially document for other
+programs (it is the API playit's own Minecraft plugin uses). If playit.gg changes it,
+MCPanel shows the error and the playit.gg dashboard still works.
+
+The **Installed playit service** card controls the playit program's own background
+service (separate from MCPanel's agent).

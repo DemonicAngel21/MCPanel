@@ -44,6 +44,29 @@ except the `https://playit.gg/claim/<hex>` URL). The user can save a tunnel's pu
 address per server. Tunnel creation, listing and changes stay in the playit.gg dashboard
 (`TunnelCaps::can_manage_tunnels = false`) until playit publishes a supported API.
 
+## Amendment 2 (2026-09-30): MCPanel's own agent
+
+On the user's decision ("Option 2"), MCPanel now links and runs its **own self-managed
+agent**, exactly as playit's official Minecraft plugin does:
+
+- Linking: `POST /claim/setup {code, agent_type: "self-managed", version}` (no key), the
+  user approves at `https://playit.gg/claim/<code>`, `POST /claim/exchange {code}` returns
+  the agent key. The key is kept in the Windows Credential Manager
+  (`playit-agent-secret`); unlinking deletes it.
+- Running: the installed program's `playitd.exe --secret-path <data>\playit\agent.toml
+  --socket-path \\.\pipe\mcpanel-playit-<hash of data folder>`; the key file exists only
+  while the agent runs. `playit --socket-path … status|stop` controls it (verified: stops
+  only that daemon). It stops when MCPanel exits and can start with MCPanel.
+- Tunnels: the web API with `Authorization: Agent-Key` (`/v1/tunnels/list|create|config`,
+  `/tunnels/rename|enable|delete`). A self-managed agent may only change its own tunnels
+  (`SelfManagedAgentCanOnlyAffectSelf`), so other agents' tunnels are shown read-only.
+- MCPanel never reads the key of the installed playit service (`playit.toml` in
+  ProgramData). The installed service keeps its own start/stop card.
+
+The API remains unofficial for third parties; responses are parsed defensively and every
+failure is shown in plain language. Linking against the real playit.gg has not been done
+by the developer (it needs the user's browser approval).
+
 ## Consequences
 
 Setting up internet access needs a few manual steps in the playit.gg dashboard. If

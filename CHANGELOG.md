@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- First-time setup (account, appearance, Java, playit.gg) and optional MCPanel accounts
+  with Firebase Authentication: email and password (verification and reset emails) or
+  Continue with Google.
+- playit.gg: MCPanel links its own agent to your playit.gg account, runs it, and creates,
+  edits, enables/disables and deletes tunnels for your servers.
+- Accent colors (presets, Windows accent or custom), RAM sliders, full-width layouts and
+  category colors.
 - Servers open on a new Manage tab: power controls, live CPU, memory, players, TPS and
   MSPT, and performance graphs (5/15/30 minutes) with axes and hover values.
 - Playit.gg has its own section: the agent (start, stop, link) and each server's local
