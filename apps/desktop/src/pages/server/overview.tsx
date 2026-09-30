@@ -1,19 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, Cpu, FileArchive, Gauge, MemoryStick, Timer, Users } from "lucide-react";
-import { useMemo } from "react";
+import { Copy, FileArchive } from "lucide-react";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
 import { ActivityList } from "@/components/activity-list";
 import { CrashHistory } from "@/components/crash-history";
-import { PlayitPanel } from "@/components/playit-card";
-import { Sparkline } from "@/components/sparkline";
+import { InternetAccessSummary } from "@/components/playit-card";
 import { Button } from "@/components/ui/button";
-import type { TickSampleDto } from "@/bindings/TickSampleDto";
 import { Card, CardHeader, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { formatBytes, formatDuration, formatPercent } from "@/lib/format";
-import { useAudit, useJava, useServer, useServerMetrics } from "@/lib/queries";
-import { hasProcess } from "@/lib/server-state";
+import { useAudit, useJava, useServer } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
 
@@ -29,127 +24,17 @@ async function exportDiagnostics(serverId: string, name: string) {
   }
 }
 
-function TickMetrics({
-  source,
-  tick,
-  tps,
-  mspt,
-  alive,
-}: {
-  source: string | null;
-  tick: TickSampleDto | null;
-  tps: [number, number][];
-  mspt: [number, number][];
-  alive: boolean;
-}) {
-  if (!source) {
-    return (
-      <p className="-mt-2 text-[11px] text-faint">
-        {alive
-          ? "TPS and MSPT are not available for this server (its software or Minecraft version has no supported command). MCPanel never estimates them."
-          : "TPS and MSPT appear while the server runs (on software that supports them)."}
-      </p>
-    );
-  }
-  const label = source === "paper_commands" ? "tps / mspt command" : "tick query";
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <Metric
-        icon={<Gauge />}
-        label={tick?.tpsCalculated ? "TPS (calculated)" : "TPS"}
-        source={label}
-        value={tick?.tps != null ? tick.tps.toFixed(1) : "—"}
-      >
-        <Sparkline points={tps} max={20} color="var(--accent)" format={(v) => v.toFixed(1)} />
-        <p className="text-[11px] text-faint">
-          {tick?.tpsCalculated
-            ? "Vanilla reports no TPS; shown as min(target rate, 1000 ÷ MSPT)."
-            : source === "paper_commands"
-              ? "Average of the last minute, as reported by the server."
-              : " "}
-          {tick?.status && tick.status !== "The game is running normally" ? ` ${tick.status}.` : ""}
-        </p>
-      </Metric>
-      <Metric icon={<Timer />} label="MSPT" source={label} value={tick?.mspt != null ? `${tick.mspt.toFixed(1)} ms` : "—"}>
-        <Sparkline points={mspt} max={Math.max(50, ...mspt.map((p) => p[1]))} color="var(--info)" format={(v) => `${v.toFixed(1)} ms`} />
-        <p className="text-[11px] text-faint">
-          {tick?.msptHigh != null
-            ? `${source === "paper_commands" ? "Max (5 s)" : "P95"}: ${tick.msptHigh.toFixed(1)} ms · 50 ms is the limit for 20 TPS.`
-            : "Milliseconds per tick; 50 ms is the limit for 20 TPS."}
-        </p>
-      </Metric>
-    </div>
-  );
-}
-
-function Metric({
-  icon,
-  label,
-  value,
-  source,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  source: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <Card className="flex flex-col gap-2 p-4">
-      <div className="flex items-center justify-between text-xs text-muted">
-        <span className="flex items-center gap-2 [&_svg]:size-4">
-          {icon}
-          {label}
-        </span>
-        <Tooltip content={`Source: ${source}`}>
-          <span className="rounded bg-surface-3 px-1.5 py-px text-[10px] text-faint uppercase">{source}</span>
-        </Tooltip>
-      </div>
-      <span className="text-xl font-semibold text-fg tabular-nums">{value}</span>
-      {children}
-    </Card>
-  );
-}
-
 export function ServerOverview() {
   const id = useServerId();
   const { data: server } = useServer(id);
-  const alive = !!server && hasProcess(server.state);
-  const { data: metrics } = useServerMetrics(id, alive);
   const { data: java } = useJava();
   const { data: audit } = useAudit(id, 8);
-  const cpu = useMemo(() => (metrics?.history ?? []).map((p) => [p.at, p.cpuPercent] as [number, number]), [metrics]);
-  const mem = useMemo(() => (metrics?.history ?? []).map((p) => [p.at, p.memoryBytes] as [number, number]), [metrics]);
-  const tps = useMemo(() => (metrics?.tickHistory ?? []).flatMap((t) => (t.tps != null ? [[t.at, t.tps] as [number, number]] : [])), [metrics]);
-  const mspt = useMemo(() => (metrics?.tickHistory ?? []).flatMap((t) => (t.mspt != null ? [[t.at, t.mspt] as [number, number]] : [])), [metrics]);
   if (!server) return null;
   const runtime = java?.find((j) => j.id === server.launch.javaRuntimeId);
   const address = `localhost:${server.port ?? 25565}`;
-  const cur = alive ? metrics?.current : null;
 
   return (
     <PageBody className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={<Cpu />} label="CPU" source="OS process" value={cur ? formatPercent(cur.cpuPercent) : "—"}>
-          <Sparkline points={cpu} max={100} format={(v) => `${v.toFixed(1)}%`} />
-        </Metric>
-        <Metric icon={<MemoryStick />} label="Memory" source="OS process" value={cur ? formatBytes(cur.memoryBytes) : "—"}>
-          <Sparkline points={mem} max={server.launch.maxMemoryMb * 1024 * 1024} color="var(--info)" format={(v) => formatBytes(v)} />
-        </Metric>
-        <Metric icon={<Users />} label="Players online" source="console log" value={alive ? String(server.onlinePlayers.length) : "—"}>
-          <p className="truncate text-xs text-muted">{server.onlinePlayers.join(", ") || (alive ? "Nobody online" : "Server not running")}</p>
-        </Metric>
-        <Metric icon={<Timer />} label="Uptime" source="MCPanel" value={alive ? formatDuration(metrics?.uptimeMs) : "—"}>
-          <p className="text-xs text-muted">
-            {server.state === "running" && server.readyAt && server.startedAt
-              ? `Started in ${formatDuration(server.readyAt - server.startedAt)}`
-              : " "}
-          </p>
-        </Metric>
-      </div>
-      <TickMetrics source={metrics?.tickSource ?? null} tick={alive ? (metrics?.tick ?? null) : null} tps={tps} mspt={mspt} alive={alive} />
-
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_380px]">
         <Card>
           <CardHeader title="Connection" description="Players on this computer or your local network can join with this address." />
@@ -169,7 +54,7 @@ export function ServerOverview() {
               Other devices on your network use this computer's LAN IP address with port {server.port ?? 25565}. Windows may ask to allow Java through
               the firewall the first time the server starts.
             </p>
-            <PlayitPanel serverId={server.id} port={server.port ?? 25565} />
+            <InternetAccessSummary serverId={server.id} port={server.port ?? 25565} />
           </div>
         </Card>
         <Card>

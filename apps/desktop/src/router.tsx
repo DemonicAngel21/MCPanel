@@ -3,6 +3,7 @@ import { createHashHistory, createRootRouteWithContext, createRoute, createRoute
 import { lazy } from "react";
 import { AppShell } from "@/app/app-shell";
 import { ErrorView, NotFoundView } from "@/app/error-view";
+import { PlayitPage } from "@/pages/playit";
 import { DashboardPage } from "@/pages/dashboard";
 import { ServersPage } from "@/pages/servers";
 import { CreateServerPage } from "@/pages/create-server";
@@ -14,6 +15,7 @@ import { BackupsPage } from "@/pages/backups";
 import { SettingsPage } from "@/pages/settings";
 import { ServerLayout } from "@/pages/server/layout";
 import { ServerOverview } from "@/pages/server/overview";
+import { ServerManage } from "@/pages/server/manage";
 import { ServerConsole } from "@/pages/server/console";
 import { ServerFiles } from "@/pages/server/files";
 import { ServerProperties } from "@/pages/server/properties";
@@ -42,10 +44,12 @@ const importServer = createRoute({ getParentRoute: () => rootRoute, path: "/serv
 const java = createRoute({ getParentRoute: () => rootRoute, path: "/java", component: JavaPage });
 const backups = createRoute({ getParentRoute: () => rootRoute, path: "/backups", component: BackupsPage });
 const activity = createRoute({ getParentRoute: () => rootRoute, path: "/activity", component: ActivityPage });
+const playit = createRoute({ getParentRoute: () => rootRoute, path: "/playit", component: PlayitPage });
 const settings = createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: SettingsPage });
 
 export const serverRoute = createRoute({ getParentRoute: () => rootRoute, path: "/servers/$serverId", component: ServerLayout });
-const serverOverview = createRoute({ getParentRoute: () => serverRoute, path: "/", component: ServerOverview });
+const serverManage = createRoute({ getParentRoute: () => serverRoute, path: "/", component: ServerManage });
+const serverOverview = createRoute({ getParentRoute: () => serverRoute, path: "/overview", component: ServerOverview });
 const serverConsole = createRoute({ getParentRoute: () => serverRoute, path: "/console", component: ServerConsole });
 export const serverFilesRoute = createRoute({
   getParentRoute: () => serverRoute,
@@ -77,7 +81,9 @@ const routeTree = rootRoute.addChildren([
   backups,
   activity,
   settings,
+  playit,
   serverRoute.addChildren([
+    serverManage,
     serverOverview,
     serverConsole,
     serverFilesRoute,

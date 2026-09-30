@@ -1,10 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, Globe, Link2, Play, Square } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, Check, Copy, ExternalLink, Globe, Link2, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
 import { Button } from "@/components/ui/button";
-import { Badge, Input, Spinner, Tooltip } from "@/components/ui/primitives";
+import { Badge, Card, CardHeader, Input, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { qk, useTunnel, useTunnelAddress } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
@@ -38,11 +39,8 @@ function agentState(t: TunnelStatusDto): { tone: Tone; label: string } {
 
 const open = (url: string) => api.app.openExternal(url).catch((e) => toast.error(errorMessage(e)));
 
-/**
- * The playit.gg agent: state, start/stop and account linking through the official
- * `playit` program. With `serverId`, also the tunnel address saved for that server.
- */
-export function PlayitPanel({ serverId, port }: { serverId?: string; port?: number }) {
+/** Start/stop/link actions with shared busy state and link-outcome toasts. */
+function usePlayitAgent() {
   const qc = useQueryClient();
   const { data: t } = useTunnel();
   const [busy, setBusy] = useState<null | "start" | "stop" | "link">(null);
@@ -54,13 +52,11 @@ export function PlayitPanel({ serverId, port }: { serverId?: string; port?: numb
     if (!linkState || linkState === seenLink.current) return;
     const first = seenLink.current === null && linkState !== "waiting";
     seenLink.current = linkState;
-    if (first) return; // an outcome from before this panel was shown
+    if (first) return; // an outcome from before this page was shown
     if (linkState === "linked") toast.success("playit agent linked to your account");
     if (linkState === "failed" && t?.linkError && t.linkError !== "Cancelled") toast.error(t.linkError);
   }, [linkState, t?.linkError]);
 
-  if (!t) return null;
-  const state = agentState(t);
   const run = async (kind: "start" | "stop" | "link", fn: () => Promise<unknown>) => {
     setBusy(kind);
     try {
@@ -73,49 +69,86 @@ export function PlayitPanel({ serverId, port }: { serverId?: string; port?: numb
       setBusy(null);
     }
   };
-  const running = t.agentRunning === true;
-  const linked = t.secretConfigured === true;
+  return {
+    t,
+    busy,
+    start: () => run("start", api.tunnels.startAgent),
+    stop: () => run("stop", api.tunnels.stopAgent),
+    link: () => run("link", api.tunnels.link),
+    cancelLink: () => run("link", api.tunnels.cancelLink),
+  };
+}
 
+/** The playit agent: state, version, start/stop and account linking (official program). */
+export function PlayitAgentCard() {
+  const { t, busy, start, stop, link, cancelLink } = usePlayitAgent();
+  if (!t) return <Card className="h-28 animate-skeleton" />;
+  const state = agentState(t);
   return (
-    <div className="rounded-md border border-border">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
-        <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-fg">
-          <Globe className="size-4 shrink-0 text-muted" /> Internet access
-          <span className="font-normal text-muted">· playit.gg</span>
-          {t.version && <span className="font-mono text-[11px] font-normal text-faint">{t.version}</span>}
-        </span>
-        <Badge tone={state.tone}>{state.label}</Badge>
-      </div>
-
-      <div className="space-y-3 p-3">
+    <Card>
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            playit agent
+            {t.version && <span className="font-mono text-[11px] font-normal text-faint">{t.version}</span>}
+            <Badge tone={state.tone}>{state.label}</Badge>
+          </span>
+        }
+        description="The playit program on this computer carries your tunnels. MCPanel controls it through the official playit program."
+      />
+      <div className="p-4">
         {!t.installed ? (
-          <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted">
-              Friends outside your network can join through a free playit.gg tunnel. Install the playit program from its official site, then come back
-              here to start and link it.
+              The playit program is not installed. Install it from its official site, then come back here to start and link it.
             </p>
-            <Button size="sm" variant="outline" onClick={() => open("https://playit.gg/download")}>
+            <Button size="sm" variant="primary" onClick={() => open("https://playit.gg/download")}>
               Download playit <ExternalLink />
             </Button>
-          </>
+          </div>
         ) : (
-          <>
-            <AgentRow
-              t={t}
-              busy={busy}
-              onStart={() => run("start", api.tunnels.startAgent)}
-              onStop={() => run("stop", api.tunnels.stopAgent)}
-              onLink={() => run("link", api.tunnels.link)}
-              onCancelLink={() => run("link", api.tunnels.cancelLink)}
-            />
-            {serverId && port != null && <ServerTunnel serverId={serverId} port={port} ready={running && linked} />}
-          </>
+          <AgentRow t={t} busy={busy} onStart={start} onStop={stop} onLink={link} onCancelLink={cancelLink} />
         )}
-        <p className="text-[11px] text-faint">
-          MCPanel starts, stops and links the playit agent through the official playit program. Tunnels are created and changed on playit.gg: playit
-          offers no public API for managing tunnels.
-        </p>
       </div>
+    </Card>
+  );
+}
+
+/** One line for a server's Overview: its public address, with a way to the playit section. */
+export function InternetAccessSummary({ serverId, port }: { serverId: string; port: number }) {
+  const { data: t } = useTunnel();
+  const { data: saved } = useTunnelAddress(serverId);
+  const state = t ? agentState(t) : null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
+      <div className="min-w-0 space-y-1">
+        <p className="flex items-center gap-2 text-[13px] font-medium text-fg">
+          <Globe className="size-4 text-muted" /> Internet access
+          {state && <Badge tone={state.tone}>{state.label}</Badge>}
+        </p>
+        {saved ? (
+          <span className="flex items-center gap-1.5">
+            <code className="selectable font-mono text-[13px] text-fg">{saved}</code>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Copy public address"
+              onClick={() => navigator.clipboard.writeText(saved).then(() => toast.success("Address copied"))}
+            >
+              <Copy />
+            </Button>
+          </span>
+        ) : (
+          <p className="text-xs text-muted">
+            No playit.gg address yet. Tunnel to <code className="font-mono text-fg">127.0.0.1:{port}</code> to let friends outside your network join.
+          </p>
+        )}
+      </div>
+      <Button asChild size="sm" variant="outline">
+        <Link to="/playit">
+          Playit.gg <ArrowRight />
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -191,7 +224,19 @@ function AgentRow({
   );
 }
 
-function ServerTunnel({ serverId, port, ready }: { serverId: string; port: number; ready: boolean }) {
+/** The public address saved for a server, with the steps to get one. */
+export function ServerAddressEditor({
+  serverId,
+  port,
+  ready,
+  steps = true,
+}: {
+  serverId: string;
+  port: number;
+  ready: boolean;
+  /** Show the setup steps (off where the page already explains them). */
+  steps?: boolean;
+}) {
   const qc = useQueryClient();
   const { data: saved, isLoading } = useTunnelAddress(serverId);
   const [editing, setEditing] = useState(false);
@@ -243,13 +288,15 @@ function ServerTunnel({ serverId, port, ready }: { serverId: string; port: numbe
 
   return (
     <div className="space-y-2">
-      <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted">
-        <li>
-          On playit.gg, add a <span className="text-fg">Minecraft Java</span> tunnel for this agent with local address{" "}
-          <code className="selectable font-mono text-fg">{local}</code> (and a Minecraft Bedrock tunnel if you use Geyser).
-        </li>
-        <li>Paste the tunnel's public address here so MCPanel can show it with this server.</li>
-      </ol>
+      {steps && (
+        <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted">
+          <li>
+            On playit.gg, add a <span className="text-fg">Minecraft Java</span> tunnel for this agent with local address{" "}
+            <code className="selectable font-mono text-fg">{local}</code> (and a Minecraft Bedrock tunnel if you use Geyser).
+          </li>
+          <li>Paste the tunnel's public address here so MCPanel can show it with this server.</li>
+        </ol>
+      )}
       <div className="flex flex-wrap items-start gap-2">
         <Button size="sm" variant="outline" onClick={() => open("https://playit.gg/account/tunnels")}>
           Tunnels on playit.gg <ExternalLink />

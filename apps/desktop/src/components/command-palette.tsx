@@ -5,9 +5,10 @@ import {
   Activity,
   Archive,
   Coffee,
-  LayoutTemplate,
   FolderInput,
+  Globe,
   LayoutDashboard,
+  LayoutTemplate,
   Moon,
   Play,
   Plus,
@@ -171,6 +172,9 @@ export function CommandPalette() {
                 </Item>
                 <Item value="java runtimes" icon={<Coffee />} onSelect={() => run(() => navigate({ to: "/java" }))}>
                   Java runtimes
+                </Item>
+                <Item value="playit.gg tunnels internet access" icon={<Globe />} onSelect={() => run(() => navigate({ to: "/playit" }))}>
+                  Playit.gg
                 </Item>
                 <Item value="activity audit log" icon={<Activity />} onSelect={() => run(() => navigate({ to: "/activity" }))}>
                   Activity

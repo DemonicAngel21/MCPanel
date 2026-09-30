@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Servers open on a new Manage tab: power controls, live CPU, memory, players, TPS and
+  MSPT, and performance graphs (5/15/30 minutes) with axes and hover values.
+- Playit.gg has its own section: the agent (start, stop, link) and each server's local
+  and public address.
 - playit.gg: start and stop the playit agent, link it to a playit.gg account through
   the official `playit setup` flow, and save a tunnel's public address per server.
   Tunnels are still created on playit.gg (no public API).
 
 ### Changed
+
+- A server cannot start while another MCPanel server on the same port is starting or
+  running; a half-created world ("Overworld settings missing") is diagnosed and not
+  auto-restarted.
 
 - OneDrive is no longer offered as cloud storage (postponed); Google Drive and Dropbox
   remain supported.

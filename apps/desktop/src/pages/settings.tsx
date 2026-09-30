@@ -4,7 +4,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { CloudCard } from "@/components/cloud-card";
-import { PlayitPanel } from "@/components/playit-card";
 import { EncryptionCard } from "@/components/encryption-card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
@@ -174,12 +173,6 @@ export function SettingsPage() {
         <EncryptionCard />
 
         <CloudCard />
-        <Card>
-          <CardHeader title="Internet access" description="Let friends outside your network join through a playit.gg tunnel." />
-          <div className="p-4">
-            <PlayitPanel />
-          </div>
-        </Card>
 
         <NotificationRules />
 

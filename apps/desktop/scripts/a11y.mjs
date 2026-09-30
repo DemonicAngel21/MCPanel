@@ -34,13 +34,14 @@ export default async (page) => {
     ["Java", "Java runtimes"],
     ["Templates", "Templates"],
     ["Activity", "Activity"],
+    ["Playit.gg", "Playit.gg"],
     ["Settings", "Settings"],
   ]) {
     await page.locator(`nav a[aria-label="${href}"]`).first().click();
     all.push(...(await scan(page, label)));
   }
   await page.getByText("Fake SMP").first().click();
-  for (const tab of ["Overview", "Console", "Files", "Players", "Plugins", "Bedrock", "Properties", "Backups", "Settings", "Activity"]) {
+  for (const tab of ["Manage", "Overview", "Console", "Files", "Players", "Plugins", "Bedrock", "Properties", "Backups", "Settings", "Activity"]) {
     await page.getByRole("link", { name: tab, exact: true }).last().click();
     all.push(...(await scan(page, `Server / ${tab}`)));
   }

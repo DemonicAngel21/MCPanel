@@ -14,7 +14,8 @@ import { cn, errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
 
 const TABS = [
-  { to: "", label: "Overview" },
+  { to: "", label: "Manage" },
+  { to: "/overview", label: "Overview" },
   { to: "/console", label: "Console" },
   { to: "/files", label: "Files" },
   { to: "/players", label: "Players" },

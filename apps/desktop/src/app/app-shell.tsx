@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Activity, Archive, Coffee, LayoutDashboard, LayoutTemplate, Plus, Search, Server, Settings } from "lucide-react";
+import { Activity, Archive, Coffee, Globe, LayoutDashboard, LayoutTemplate, Plus, Search, Server, Settings } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationInbox } from "@/components/notification-inbox";
@@ -156,6 +156,7 @@ export function AppShell() {
         <RailLink to="/backups" icon={<Archive />} label="Backups" />
         <RailLink to="/java" icon={<Coffee />} label="Java runtimes" />
         <RailLink to="/templates" icon={<LayoutTemplate />} label="Templates" />
+        <RailLink to="/playit" icon={<Globe />} label="Playit.gg" />
         <RailLink to="/activity" icon={<Activity />} label="Activity" />
         <div className="flex-1" />
         <NotificationInbox />
@@ -201,7 +202,13 @@ export function PageHeader({
  * the scrollbar stays at the window edge however narrow the content is. */
 export function PageBody({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-6 py-5">
+    // Focusable so keyboard users can scroll pages that have no interactive content.
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label="Page content"
+      className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-6 py-5 focus-visible:outline-offset-[-2px]"
+    >
       <div className={cn("w-full", className)}>{children}</div>
     </div>
   );
