@@ -24,8 +24,18 @@ const ACTIONS: Record<string, string> = {
   "encryption.setup": "Set up backup encryption",
   "encryption.import": "Imported a Recovery Kit",
   "cloud.disconnect": "Disconnected cloud storage",
-  "tunnel.agent_start": "Started the playit agent",
-  "tunnel.agent_stop": "Stopped the playit agent",
+  "playit.link_start": "Started linking MCPanel's playit agent",
+  "playit.unlink": "Unlinked MCPanel's playit agent",
+  "playit.start": "Started MCPanel's playit agent",
+  "playit.stop": "Stopped MCPanel's playit agent",
+  "playit.tunnel_create": "Created a playit tunnel",
+  "playit.tunnel_rename": "Renamed a playit tunnel",
+  "playit.tunnel_port": "Changed a playit tunnel's port",
+  "playit.tunnel_enable": "Enabled a playit tunnel",
+  "playit.tunnel_disable": "Disabled a playit tunnel",
+  "playit.tunnel_delete": "Deleted a playit tunnel",
+  "tunnel.agent_start": "Started the playit service",
+  "tunnel.agent_stop": "Stopped the playit service",
   "tunnel.link_start": "Started linking the playit agent",
   "tunnel.address_set": "Changed the public address",
   "bedrock.configure": "Changed the Bedrock settings",
@@ -83,7 +93,12 @@ export function ActivityList({ entries, serverNames }: { entries: AuditEntryDto[
       {entries.map((e) => {
         const raw = detail(e);
         // Skip details that only repeat what the row already says.
-        const d = raw && raw !== (e.serverId && serverNames?.[e.serverId]) && !(e.action.startsWith("tunnel.") && raw === "playit") ? raw : null;
+        const d =
+          raw &&
+          raw !== (e.serverId && serverNames?.[e.serverId]) &&
+          !((e.action.startsWith("tunnel.") || e.action.startsWith("playit.")) && raw === "playit")
+            ? raw
+            : null;
         return (
           <li key={e.id} className="flex items-start gap-3 px-4 py-2.5">
             {e.result === "success" ? (

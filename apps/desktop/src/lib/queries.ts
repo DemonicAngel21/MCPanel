@@ -24,6 +24,8 @@ export const qk = {
   content: (serverId: string) => ["servers", serverId, "content"] as const,
   bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   tunnel: ["tunnel"] as const,
+  playit: ["playit"] as const,
+  playitTunnels: ["playit", "tunnels"] as const,
   encryption: ["encryption"] as const,
   cloud: ["cloud"] as const,
   diskUsage: (serverId: string) => ["servers", serverId, "disk"] as const,
@@ -89,3 +91,21 @@ export const useTunnelAddress = (serverId: string) =>
 export const useBedrock = (serverId: string) => useQuery({ queryKey: qk.bedrock(serverId), queryFn: () => api.bedrock.status(serverId) });
 export const useCrashes = (serverId: string) => useQuery({ queryKey: qk.crashes(serverId), queryFn: () => api.crashes.history(serverId, 10) });
 export const useTemplates = () => useQuery({ queryKey: qk.templates, queryFn: api.templates.list, staleTime: Infinity });
+
+export const usePlayitAgent = () =>
+  useQuery({
+    queryKey: qk.playit,
+    queryFn: api.playit.status,
+    staleTime: 10_000,
+    // Follow a pending link closely.
+    refetchInterval: (q) => (q.state.data?.linkState === "waiting" ? 2_000 : 15_000),
+  });
+export const usePlayitTunnels = (enabled: boolean) =>
+  useQuery({
+    queryKey: qk.playitTunnels,
+    queryFn: api.playit.tunnels,
+    enabled,
+    staleTime: 10_000,
+    refetchInterval: enabled ? 20_000 : false,
+    retry: 1,
+  });

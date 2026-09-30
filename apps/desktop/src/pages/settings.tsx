@@ -81,6 +81,7 @@ function Row({ label, description, children }: { label: string; description?: st
 function AccentPicker({ value, onChange }: { value: string; onChange: (accent: string) => void }) {
   const custom = value.startsWith("#");
   const [draft, setDraft] = useState(custom ? value : "#22c55e");
+  const [touched, setTouched] = useState(false);
   return (
     <div className="space-y-3 border-t border-border px-4 py-3">
       <div>
@@ -128,12 +129,15 @@ function AccentPicker({ value, onChange }: { value: string; onChange: (accent: s
             type="color"
             aria-label="Custom accent color"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => onChange(draft)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setTouched(true);
+            }}
+            onBlur={() => touched && onChange(draft)}
             className="size-5 cursor-default rounded-full border-0 bg-transparent p-0"
           />
           Custom
-          {draft !== value && (
+          {touched && draft !== value && (
             <button type="button" className="rounded px-1 text-accent-text hover:underline" onClick={() => onChange(draft)}>
               Apply
             </button>

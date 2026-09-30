@@ -26,6 +26,8 @@ import type { DiskUsageDto } from "@/bindings/DiskUsageDto";
 import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
 import type { NotificationDto } from "@/bindings/NotificationDto";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
+import type { PlayitAgentDto } from "@/bindings/PlayitAgentDto";
+import type { PlayitTunnelsDto } from "@/bindings/PlayitTunnelsDto";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
 import type { CreateServerDto } from "@/bindings/CreateServerDto";
 import type { FileEntryDto } from "@/bindings/FileEntryDto";
@@ -236,6 +238,23 @@ export const api = {
     cancelLink: () => call<void>("tunnel_cancel_link"),
     serverAddress: (id: string) => call<string | null>("tunnel_server_address", { id }),
     setServerAddress: (id: string, address: string) => call<string | null>("tunnel_set_server_address", { id, address }),
+  },
+  playit: {
+    status: () => call<PlayitAgentDto>("playit_status"),
+    /** Starts linking MCPanel's agent and opens playit.gg; returns the approval URL. */
+    link: () => call<string>("playit_link"),
+    cancelLink: () => call<void>("playit_cancel_link"),
+    unlink: () => call<PlayitAgentDto>("playit_unlink"),
+    start: () => call<PlayitAgentDto>("playit_start"),
+    stop: () => call<PlayitAgentDto>("playit_stop"),
+    setAutostart: (on: boolean) => call<PlayitAgentDto>("playit_set_autostart", { on }),
+    tunnels: () => call<PlayitTunnelsDto>("playit_tunnels"),
+    /** `kind`: "minecraft-java" | "minecraft-bedrock". Returns the tunnel id. */
+    createTunnel: (name: string, kind: string, port: number) => call<string>("playit_create_tunnel", { name, kind, port }),
+    renameTunnel: (id: string, name: string) => call<void>("playit_rename_tunnel", { id, name }),
+    setTunnelPort: (id: string, port: number) => call<void>("playit_set_tunnel_port", { id, port }),
+    setTunnelEnabled: (id: string, enabled: boolean) => call<void>("playit_set_tunnel_enabled", { id, enabled }),
+    deleteTunnel: (id: string) => call<void>("playit_delete_tunnel", { id }),
   },
   bedrock: {
     status: (serverId: string) => call<BedrockStatusDto>("bedrock_status", { serverId }),

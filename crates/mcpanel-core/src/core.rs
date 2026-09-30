@@ -66,6 +66,8 @@ pub struct Core {
     pub templates: Arc<TemplateService>,
     pub bedrock: Arc<crate::bedrock::BedrockService>,
     pub tunnels: Arc<crate::tunnels::PlayitTunnel>,
+    /// MCPanel's own playit agent and tunnel management.
+    pub playit: Arc<crate::playit_agent::PlayitAgent>,
     pub notifications: Arc<crate::notify::NotificationService>,
     pub encryption: Arc<crate::crypto::EncryptionService>,
     pub cloud: Arc<crate::cloud::CloudService>,
@@ -195,6 +197,23 @@ impl Core {
             Arc::clone(&deps.platform),
             Arc::clone(&deps.repos.settings),
         ));
+        // One pipe per data folder, so a development instance never talks to the
+        // installed app's agent.
+        let pipe = {
+            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+            for b in deps.paths.data_dir.to_string_lossy().to_lowercase().bytes() {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0100_0000_01b3);
+            }
+            format!(r"\\.\pipe\mcpanel-playit-{h:016x}")
+        };
+        let playit = Arc::new(crate::playit_agent::PlayitAgent::new(
+            Arc::clone(&deps.platform),
+            Arc::clone(&deps.secrets),
+            Arc::clone(&deps.repos.settings),
+            &deps.paths.data_dir,
+            pipe,
+        ));
         Ok(Arc::new(Core {
             paths: deps.paths,
             events,
@@ -214,6 +233,7 @@ impl Core {
             templates,
             bedrock,
             tunnels,
+            playit,
             notifications,
             encryption,
             cloud,

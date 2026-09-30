@@ -7,7 +7,7 @@ import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CardHeader, Input, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { qk, useTunnel, useTunnelAddress } from "@/lib/queries";
+import { qk, usePlayitAgent, usePlayitTunnels, useTunnel, useTunnelAddress } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -40,7 +40,7 @@ function agentState(t: TunnelStatusDto): { tone: Tone; label: string } {
 const open = (url: string) => api.app.openExternal(url).catch((e) => toast.error(errorMessage(e)));
 
 /** Start/stop/link actions with shared busy state and link-outcome toasts. */
-function usePlayitAgent() {
+function useServiceAgent() {
   const qc = useQueryClient();
   const { data: t } = useTunnel();
   const [busy, setBusy] = useState<null | "start" | "stop" | "link">(null);
@@ -81,7 +81,7 @@ function usePlayitAgent() {
 
 /** The playit agent: state, version, start/stop and account linking (official program). */
 export function PlayitAgentCard() {
-  const { t, busy, start, stop, link, cancelLink } = usePlayitAgent();
+  const { t, busy, start, stop, link, cancelLink } = useServiceAgent();
   if (!t) return <Card className="h-28 animate-skeleton" />;
   const state = agentState(t);
   return (
@@ -89,12 +89,12 @@ export function PlayitAgentCard() {
       <CardHeader
         title={
           <span className="flex items-center gap-2">
-            playit agent
+            Installed playit service
             {t.version && <span className="font-mono text-[11px] font-normal text-faint">{t.version}</span>}
             <Badge tone={state.tone}>{state.label}</Badge>
           </span>
         }
-        description="The playit program on this computer carries your tunnels. MCPanel controls it through the official playit program."
+        description="The playit program's own background service and its tunnels (separate from MCPanel's agent). MCPanel can start and stop it."
       />
       <div className="p-4">
         {!t.installed ? (
@@ -117,8 +117,19 @@ export function PlayitAgentCard() {
 /** One line for a server's Overview: its public address, with a way to the playit section. */
 export function InternetAccessSummary({ serverId, port }: { serverId: string; port: number }) {
   const { data: t } = useTunnel();
-  const { data: saved } = useTunnelAddress(serverId);
-  const state = t ? agentState(t) : null;
+  const { data: manual } = useTunnelAddress(serverId);
+  const { data: agent } = usePlayitAgent();
+  const { data: list } = usePlayitTunnels(!!agent?.linked);
+  // A tunnel of the account to this server's port wins over an address typed in by hand.
+  const tunnel = list?.tunnels.find((x) => x.localPort === port && x.tunnelType !== "minecraft-bedrock" && x.addresses.length > 0);
+  const saved = tunnel?.addresses[0] ?? manual ?? null;
+  const state = agent?.linked
+    ? agent.running
+      ? { tone: "success" as const, label: "Agent online" }
+      : { tone: "neutral" as const, label: "Agent stopped" }
+    : t
+      ? agentState(t)
+      : null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
       <div className="min-w-0 space-y-1">

@@ -38,24 +38,27 @@ impl PlayitWebApi {
     }
 
     async fn call(&self, key: &SecretString, path: &str, body: Value) -> CoreResult<Value> {
-        let resp = self
+        self.send(Some(key), path, body).await
+    }
+
+    async fn send(&self, key: Option<&SecretString>, path: &str, body: Value) -> CoreResult<Value> {
+        let mut req = self
             .client
             .post(format!("{}{path}", self.base))
-            .timeout(Duration::from_secs(30))
-            .header(
+            .timeout(Duration::from_secs(30));
+        if let Some(key) = key {
+            req = req.header(
                 reqwest::header::AUTHORIZATION,
                 format!("Agent-Key {}", key.expose_secret().trim()),
+            );
+        }
+        let resp = req.json(&body).send().await.map_err(|e| {
+            CoreError::new(
+                ErrorCode::ProviderUnavailable,
+                format!("playit.gg could not be reached: {}", e.without_url()),
             )
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                CoreError::new(
-                    ErrorCode::ProviderUnavailable,
-                    format!("playit.gg could not be reached: {}", e.without_url()),
-                )
-                .retryable()
-            })?;
+            .retryable()
+        })?;
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
         parse_envelope(status, &text)
@@ -136,12 +139,28 @@ fn fail_error(data: &Value) -> CoreError {
             "This tunnel belongs to another agent and cannot be changed from here.".into(),
         ),
         "NothingToUpdate" => (ErrorCode::InvalidInput, "Nothing changed.".into()),
+        "InvalidCode" | "CodeNotFound" | "NotSetup" => (
+            ErrorCode::ProviderError,
+            "playit.gg does not know this link code. Start linking again.".into(),
+        ),
+        "CodeExpired" => (
+            ErrorCode::ProviderError,
+            "The link expired. Start linking again.".into(),
+        ),
+        "UserRejected" => (
+            ErrorCode::Cancelled,
+            "The agent was declined on playit.gg.".into(),
+        ),
+        "NotAccepted" => (
+            ErrorCode::Conflict,
+            "The agent has not been approved on playit.gg yet.".into(),
+        ),
         other => (
             ErrorCode::ProviderError,
             format!("playit.gg refused the request ({other})."),
         ),
     };
-    CoreError::new(error_code, message)
+    CoreError::new(error_code, message).with_details(json!({ "playit": code }))
 }
 
 /// A general API error (`"error"`): `{"type": "auth"|"validation"|…, "message": …}`.
@@ -327,6 +346,37 @@ pub fn create_body(agent_id: &str, t: &NewPlayitTunnel) -> Value {
 
 #[async_trait::async_trait]
 impl PlayitApi for PlayitWebApi {
+    async fn claim_setup(&self, code: &str, version: &str) -> CoreResult<String> {
+        let data = self
+            .send(
+                None,
+                "/claim/setup",
+                json!({ "code": code, "agent_type": "self-managed", "version": version }),
+            )
+            .await?;
+        data.as_str().map(str::to_string).ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::ProviderError,
+                "playit.gg sent an unexpected link state.",
+            )
+        })
+    }
+
+    async fn claim_exchange(&self, code: &str) -> CoreResult<SecretString> {
+        let data = self
+            .send(None, "/claim/exchange", json!({ "code": code }))
+            .await?;
+        let key = str_field(&data, "secret_key")
+            .filter(|k| !k.is_empty() && k.bytes().all(|b| b.is_ascii_alphanumeric()))
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::ProviderError,
+                    "playit.gg did not return the agent's key.",
+                )
+            })?;
+        Ok(SecretString::from(key))
+    }
+
     async fn agent(&self, key: &SecretString) -> CoreResult<PlayitAgentInfo> {
         parse_agent(&self.call(key, "/v1/agents/rundata", json!({})).await?)
     }
@@ -611,6 +661,38 @@ mod tests {
         assert_eq!(seen[1].2["new_config"]["fields"][1]["value"], "25570");
         assert_eq!(seen[2].2, json!({"tunnel_id":"t-1","enabled":false}));
         assert_eq!(seen[3].2, json!({"tunnel_id":"t-1"}));
+    }
+
+    #[tokio::test]
+    async fn claim_setup_sends_no_key_and_asks_for_a_self_managed_agent() {
+        let (base, seen) = stand_in(r#"{"status":"success","data":"WaitingForUserVisit"}"#).await;
+        let api = PlayitWebApi::for_test(base);
+        assert_eq!(
+            api.claim_setup("0a1b2c3d4e", "MCPanel 0.1.0")
+                .await
+                .unwrap(),
+            "WaitingForUserVisit"
+        );
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen[0].0, "/claim/setup");
+        assert_eq!(seen[0].1, "", "no Authorization header");
+        assert_eq!(
+            seen[0].2,
+            json!({"code":"0a1b2c3d4e","agent_type":"self-managed","version":"MCPanel 0.1.0"})
+        );
+        let e = parse_envelope(200, r#"{"status":"fail","data":"NotAccepted"}"#).unwrap_err();
+        assert_eq!(e.details.unwrap()["playit"], "NotAccepted");
+    }
+
+    #[tokio::test]
+    async fn claim_exchange_returns_the_key() {
+        use secrecy::ExposeSecret;
+        let (base, _) = stand_in(r#"{"status":"success","data":{"secret_key":"abc123DEF"}}"#).await;
+        let key = PlayitWebApi::for_test(base)
+            .claim_exchange("0a1b2c3d4e")
+            .await
+            .unwrap();
+        assert_eq!(key.expose_secret(), "abc123DEF");
     }
 
     #[tokio::test]

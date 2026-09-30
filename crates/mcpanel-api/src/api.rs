@@ -1404,6 +1404,135 @@ impl Api {
             .await;
     }
 
+    // ── MCPanel's own playit agent ──
+
+    pub async fn playit_status(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {
+        p.authorize(Permission::SystemRead)?;
+        Ok(self.core.playit.status().await?.into())
+    }
+
+    /// Start linking MCPanel's agent; returns the playit.gg approval page.
+    pub async fn playit_link(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::SettingsWrite)?;
+        let url = self.core.playit.begin_link().await?;
+        self.audit_tunnel(p, "playit.link_start", None).await;
+        Ok(url)
+    }
+
+    pub fn playit_cancel_link(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.cancel_link();
+        Ok(())
+    }
+
+    pub async fn playit_unlink(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.unlink().await?;
+        self.audit_tunnel(p, "playit.unlink", None).await;
+        Ok(self.core.playit.status().await?.into())
+    }
+
+    pub async fn playit_start(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.start().await?;
+        self.audit_tunnel(p, "playit.start", None).await;
+        Ok(self.core.playit.status().await?.into())
+    }
+
+    pub async fn playit_stop(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.stop().await?;
+        self.audit_tunnel(p, "playit.stop", None).await;
+        Ok(self.core.playit.status().await?.into())
+    }
+
+    pub async fn playit_set_autostart(&self, p: &Principal, on: bool) -> ApiResult<PlayitAgentDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.set_autostart(on).await?;
+        Ok(self.core.playit.status().await?.into())
+    }
+
+    pub async fn playit_tunnels(&self, p: &Principal) -> ApiResult<PlayitTunnelsDto> {
+        p.authorize(Permission::SystemRead)?;
+        Ok(self.core.playit.tunnels().await?.into())
+    }
+
+    pub async fn playit_create_tunnel(
+        &self,
+        p: &Principal,
+        name: &str,
+        kind: &str,
+        port: u16,
+    ) -> ApiResult<String> {
+        p.authorize(Permission::SettingsWrite)?;
+        let kind = match kind {
+            "minecraft-java" => mcpanel_core::playit_api::PlayitTunnelKind::MinecraftJava,
+            "minecraft-bedrock" => mcpanel_core::playit_api::PlayitTunnelKind::MinecraftBedrock,
+            _ => return Err(ApiError::invalid("Unknown tunnel type")),
+        };
+        let id = self.core.playit.create_tunnel(name, kind, port).await?;
+        self.audit_tunnel(p, "playit.tunnel_create", None).await;
+        Ok(id)
+    }
+
+    pub async fn playit_rename_tunnel(&self, p: &Principal, id: &str, name: &str) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.rename_tunnel(id, name).await?;
+        self.audit_tunnel(p, "playit.tunnel_rename", None).await;
+        Ok(())
+    }
+
+    pub async fn playit_set_tunnel_port(
+        &self,
+        p: &Principal,
+        id: &str,
+        port: u16,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.set_tunnel_port(id, port).await?;
+        self.audit_tunnel(p, "playit.tunnel_port", None).await;
+        Ok(())
+    }
+
+    pub async fn playit_set_tunnel_enabled(
+        &self,
+        p: &Principal,
+        id: &str,
+        enabled: bool,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.set_tunnel_enabled(id, enabled).await?;
+        let action = if enabled {
+            "playit.tunnel_enable"
+        } else {
+            "playit.tunnel_disable"
+        };
+        self.audit_tunnel(p, action, None).await;
+        Ok(())
+    }
+
+    pub async fn playit_delete_tunnel(&self, p: &Principal, id: &str) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.playit.delete_tunnel(id).await?;
+        self.audit_tunnel(p, "playit.tunnel_delete", None).await;
+        Ok(())
+    }
+
+    /// Host hook: the playit.gg web API client.
+    pub fn playit_attach_api(&self, api: Arc<dyn mcpanel_core::playit_api::PlayitApi>) {
+        self.core.playit.set_api(api);
+    }
+
+    /// Host hook: start the agent when it is linked and set to start with MCPanel.
+    pub async fn playit_on_startup(&self) {
+        self.core.playit.on_startup().await;
+    }
+
+    /// Host hook: stop the agent when MCPanel exits.
+    pub async fn playit_shutdown(&self) {
+        let _ = self.core.playit.stop().await;
+    }
+
     /// Start the playit agent (publishes all of its tunnels).
     pub async fn tunnel_start_agent(&self, p: &Principal) -> ApiResult<TunnelStatusDto> {
         p.authorize(Permission::SettingsWrite)?;

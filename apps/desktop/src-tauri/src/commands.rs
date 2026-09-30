@@ -550,6 +550,99 @@ pub async fn tunnel_status(s: State<'_, AppState>) -> R<TunnelStatusDto> {
     s.api.tunnel_status(&s.principal()).await
 }
 
+// ─────────────────────── MCPanel's playit agent ───────────────────────
+
+#[tauri::command]
+pub async fn playit_status(s: State<'_, AppState>) -> R<PlayitAgentDto> {
+    s.api.playit_status(&s.principal()).await
+}
+
+/// Start linking MCPanel's playit agent and open the approval page on playit.gg.
+#[tauri::command]
+pub async fn playit_link(app: AppHandle, s: State<'_, AppState>) -> R<String> {
+    let url = s.api.playit_link(&s.principal()).await?;
+    let ok = tauri::Url::parse(&url).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.host_str() == Some("playit.gg")
+            && u.path().starts_with("/claim/")
+    });
+    if !ok {
+        s.api.playit_cancel_link(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected playit address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(e) = app.opener().open_url(url.clone(), None::<&str>) {
+        return Err(ApiError::new("IO", format!("Cannot open the browser: {e}")));
+    }
+    Ok(url)
+}
+
+#[tauri::command]
+pub fn playit_cancel_link(s: State<'_, AppState>) -> R<()> {
+    s.api.playit_cancel_link(&s.principal())
+}
+
+#[tauri::command]
+pub async fn playit_unlink(s: State<'_, AppState>) -> R<PlayitAgentDto> {
+    s.api.playit_unlink(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn playit_start(s: State<'_, AppState>) -> R<PlayitAgentDto> {
+    s.api.playit_start(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn playit_stop(s: State<'_, AppState>) -> R<PlayitAgentDto> {
+    s.api.playit_stop(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn playit_set_autostart(s: State<'_, AppState>, on: bool) -> R<PlayitAgentDto> {
+    s.api.playit_set_autostart(&s.principal(), on).await
+}
+
+#[tauri::command]
+pub async fn playit_tunnels(s: State<'_, AppState>) -> R<PlayitTunnelsDto> {
+    s.api.playit_tunnels(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn playit_create_tunnel(
+    s: State<'_, AppState>,
+    name: String,
+    kind: String,
+    port: u16,
+) -> R<String> {
+    s.api
+        .playit_create_tunnel(&s.principal(), &name, &kind, port)
+        .await
+}
+
+#[tauri::command]
+pub async fn playit_rename_tunnel(s: State<'_, AppState>, id: String, name: String) -> R<()> {
+    s.api.playit_rename_tunnel(&s.principal(), &id, &name).await
+}
+
+#[tauri::command]
+pub async fn playit_set_tunnel_port(s: State<'_, AppState>, id: String, port: u16) -> R<()> {
+    s.api
+        .playit_set_tunnel_port(&s.principal(), &id, port)
+        .await
+}
+
+#[tauri::command]
+pub async fn playit_set_tunnel_enabled(s: State<'_, AppState>, id: String, enabled: bool) -> R<()> {
+    s.api
+        .playit_set_tunnel_enabled(&s.principal(), &id, enabled)
+        .await
+}
+
+#[tauri::command]
+pub async fn playit_delete_tunnel(s: State<'_, AppState>, id: String) -> R<()> {
+    s.api.playit_delete_tunnel(&s.principal(), &id).await
+}
+
 #[tauri::command]
 pub async fn tunnel_start_agent(s: State<'_, AppState>) -> R<TunnelStatusDto> {
     s.api.tunnel_start_agent(&s.principal()).await

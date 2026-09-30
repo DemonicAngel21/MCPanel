@@ -72,11 +72,13 @@ async fn build_api() -> Result<Started, String> {
             }
         });
     }
-    Ok((
-        Arc::new(Api::new(core, env!("CARGO_PKG_VERSION"))),
-        db,
-        guards,
-    ))
+    let api = Arc::new(Api::new(core, env!("CARGO_PKG_VERSION")));
+    api.playit_attach_api(Arc::new(mcpanel_providers::playit::PlayitWebApi::new(
+        &http,
+    )));
+    let startup = Arc::clone(&api);
+    tokio::spawn(async move { startup.playit_on_startup().await });
+    Ok((api, db, guards))
 }
 
 fn forward_events(app: tauri::AppHandle, api: Arc<Api>) {
@@ -218,6 +220,19 @@ fn main() {
             commands::restart_policy_update,
             commands::crash_history,
             commands::tunnel_status,
+            commands::playit_status,
+            commands::playit_link,
+            commands::playit_cancel_link,
+            commands::playit_unlink,
+            commands::playit_start,
+            commands::playit_stop,
+            commands::playit_set_autostart,
+            commands::playit_tunnels,
+            commands::playit_create_tunnel,
+            commands::playit_rename_tunnel,
+            commands::playit_set_tunnel_port,
+            commands::playit_set_tunnel_enabled,
+            commands::playit_delete_tunnel,
             commands::app_accent_color,
             commands::tunnel_start_agent,
             commands::tunnel_stop_agent,
@@ -339,6 +354,15 @@ fn main() {
         }
     };
     app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            // MCPanel's playit agent stops with MCPanel.
+            let api = Arc::clone(&handle.state::<AppState>().api);
+            tauri::async_runtime::block_on(async move {
+                let _ =
+                    tokio::time::timeout(std::time::Duration::from_secs(8), api.playit_shutdown())
+                        .await;
+            });
+        }
         if let RunEvent::ExitRequested { api, code, .. } = event {
             // Exits not initiated by our quit flow (e.g. last window closed) are ignored:
             // MCPanel lives in the tray.

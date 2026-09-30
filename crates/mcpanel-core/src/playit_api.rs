@@ -69,6 +69,11 @@ pub struct NewPlayitTunnel {
 
 #[async_trait::async_trait]
 pub trait PlayitApi: Send + Sync {
+    /// `/claim/setup` for a self-managed agent (no key needed). Returns playit's state:
+    /// "WaitingForUserVisit" | "WaitingForUser" | "UserAccepted" | "UserRejected".
+    async fn claim_setup(&self, code: &str, version: &str) -> CoreResult<String>;
+    /// `/claim/exchange`: the new agent's secret key once the user accepted.
+    async fn claim_exchange(&self, code: &str) -> CoreResult<SecretString>;
     /// `/v1/agents/rundata`: the agent the key belongs to.
     async fn agent(&self, key: &SecretString) -> CoreResult<PlayitAgentInfo>;
     /// `/v1/tunnels/list`: the account's tunnels.

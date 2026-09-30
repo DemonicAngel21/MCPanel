@@ -2097,6 +2097,101 @@ impl From<TunnelStatus> for TunnelStatusDto {
     }
 }
 
+// ──────────────────────────── playit agent ────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlayitAgentDto {
+    /// The playit program (with playitd.exe) is installed.
+    pub installed: bool,
+    pub linked: bool,
+    /// "waiting" | "linked" | "failed" for a link started in MCPanel.
+    pub link_state: Option<String>,
+    pub link_url: Option<String>,
+    pub link_error: Option<String>,
+    pub running: bool,
+    pub phase: Option<String>,
+    pub autostart: bool,
+}
+
+impl From<mcpanel_core::playit_agent::AgentStatus> for PlayitAgentDto {
+    fn from(s: mcpanel_core::playit_agent::AgentStatus) -> Self {
+        use mcpanel_core::playit_agent::AgentLink;
+        let (link_state, link_url, link_error) = match s.link {
+            Some(AgentLink::Waiting { url }) => (Some("waiting".into()), Some(url), None),
+            Some(AgentLink::Linked) => (Some("linked".into()), None, None),
+            Some(AgentLink::Failed { message }) => (Some("failed".into()), None, Some(message)),
+            None => (None, None, None),
+        };
+        Self {
+            installed: s.installed,
+            linked: s.linked,
+            link_state,
+            link_url,
+            link_error,
+            running: s.running,
+            phase: s.phase,
+            autostart: s.autostart,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlayitTunnelDto {
+    pub id: String,
+    pub name: Option<String>,
+    /// "minecraft-java" | "minecraft-bedrock" | other playit types; null for custom ports.
+    pub tunnel_type: Option<String>,
+    pub port_type: String,
+    pub enabled: bool,
+    pub offline_reasons: Vec<String>,
+    pub local_ip: Option<String>,
+    pub local_port: Option<u16>,
+    pub addresses: Vec<String>,
+    /// Belongs to MCPanel's agent, so MCPanel may change it.
+    pub editable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlayitTunnelsDto {
+    pub agent_id: String,
+    /// "guest" | "email-not-verified" | "verified"
+    pub account_status: String,
+    pub premium: bool,
+    pub tunnels: Vec<PlayitTunnelDto>,
+}
+
+impl From<mcpanel_core::playit_agent::TunnelList> for PlayitTunnelsDto {
+    fn from(l: mcpanel_core::playit_agent::TunnelList) -> Self {
+        Self {
+            agent_id: l.agent.agent_id,
+            account_status: l.agent.account_status,
+            premium: l.agent.premium,
+            tunnels: l
+                .tunnels
+                .into_iter()
+                .map(|m| PlayitTunnelDto {
+                    id: m.tunnel.id,
+                    name: m.tunnel.name,
+                    tunnel_type: m.tunnel.tunnel_type,
+                    port_type: m.tunnel.port_type,
+                    enabled: m.tunnel.enabled,
+                    offline_reasons: m.tunnel.offline_reasons,
+                    local_ip: m.tunnel.local_ip,
+                    local_port: m.tunnel.local_port,
+                    addresses: m.tunnel.addresses,
+                    editable: m.editable,
+                })
+                .collect(),
+        }
+    }
+}
+
 // ─────────────────────────────── bedrock ──────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
