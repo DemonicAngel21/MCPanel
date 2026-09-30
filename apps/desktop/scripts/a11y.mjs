@@ -29,7 +29,12 @@ export default async (page) => {
   await page.waitForFunction(() => /Dashboard|MCPanel setup/.test(document.body.innerText), null, { timeout: 60000 });
   const all = [];
   // First-time setup: scan every step, then skip it to reach the app.
-  if (await page.getByText("MCPanel setup").isVisible().catch(() => false)) {
+  if (
+    await page
+      .getByText("MCPanel setup")
+      .isVisible()
+      .catch(() => false)
+  ) {
     for (const step of ["Welcome", "Account", "Appearance", "Java", "Internet access", "Ready"]) {
       all.push(...(await scan(page, `Setup / ${step}`)));
       const next = page.getByRole("button", { name: /Get started|Continue|Next/ });
