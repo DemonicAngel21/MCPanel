@@ -14,6 +14,7 @@ pub mod http;
 pub mod modrinth;
 pub mod mojang;
 pub mod paper;
+pub mod playit;
 pub mod profiles;
 pub mod purpur;
 pub mod spiget;

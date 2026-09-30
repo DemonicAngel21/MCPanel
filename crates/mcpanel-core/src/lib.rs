@@ -30,6 +30,7 @@ pub mod notify;
 pub mod paths;
 pub mod perf;
 pub mod players;
+pub mod playit_api;
 pub mod ports;
 pub mod server;
 pub mod server_files;
