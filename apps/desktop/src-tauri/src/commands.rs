@@ -550,6 +550,84 @@ pub async fn tunnel_status(s: State<'_, AppState>) -> R<TunnelStatusDto> {
     s.api.tunnel_status(&s.principal()).await
 }
 
+// ─────────────────────────────── account ─────────────────────────────
+
+#[tauri::command]
+pub async fn account_status(s: State<'_, AppState>) -> R<AccountDto> {
+    s.api.account_status(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn account_sign_up(
+    s: State<'_, AppState>,
+    email: String,
+    password: String,
+    display_name: Option<String>,
+) -> R<AccountDto> {
+    s.api
+        .account_sign_up(&s.principal(), &email, &password, display_name.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn account_sign_in(
+    s: State<'_, AppState>,
+    email: String,
+    password: String,
+) -> R<AccountDto> {
+    s.api
+        .account_sign_in(&s.principal(), &email, &password)
+        .await
+}
+
+/// Start "Continue with Google" and open Google's consent page in the browser.
+#[tauri::command]
+pub async fn account_google(app: AppHandle, s: State<'_, AppState>) -> R<()> {
+    let url = s.api.account_google(&s.principal()).await?;
+    let ok = tauri::Url::parse(&url)
+        .is_ok_and(|u| u.scheme() == "https" && u.host_str() == Some("accounts.google.com"));
+    if !ok {
+        s.api.account_cancel_google(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected sign-in address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(e) = app.opener().open_url(url, None::<&str>) {
+        s.api.account_cancel_google(&s.principal())?;
+        return Err(ApiError::new("IO", format!("Cannot open the browser: {e}")));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn account_cancel_google(s: State<'_, AppState>) -> R<()> {
+    s.api.account_cancel_google(&s.principal())
+}
+
+#[tauri::command]
+pub async fn account_sign_out(s: State<'_, AppState>) -> R<AccountDto> {
+    s.api.account_sign_out(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn account_refresh(s: State<'_, AppState>) -> R<AccountDto> {
+    s.api.account_refresh(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn account_resend_verification(s: State<'_, AppState>) -> R<()> {
+    s.api.account_resend_verification(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn account_reset_password(s: State<'_, AppState>, email: String) -> R<()> {
+    s.api.account_reset_password(&s.principal(), &email).await
+}
+
+#[tauri::command]
+pub async fn account_set_name(s: State<'_, AppState>, name: String) -> R<AccountDto> {
+    s.api.account_set_name(&s.principal(), &name).await
+}
+
 // ─────────────────────── MCPanel's playit agent ───────────────────────
 
 #[tauri::command]

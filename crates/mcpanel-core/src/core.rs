@@ -68,6 +68,8 @@ pub struct Core {
     pub tunnels: Arc<crate::tunnels::PlayitTunnel>,
     /// MCPanel's own playit agent and tunnel management.
     pub playit: Arc<crate::playit_agent::PlayitAgent>,
+    /// MCPanel accounts (Firebase Authentication).
+    pub account: Arc<crate::account::AccountService>,
     pub notifications: Arc<crate::notify::NotificationService>,
     pub encryption: Arc<crate::crypto::EncryptionService>,
     pub cloud: Arc<crate::cloud::CloudService>,
@@ -207,6 +209,10 @@ impl Core {
             }
             format!(r"\\.\pipe\mcpanel-playit-{h:016x}")
         };
+        let account = Arc::new(crate::account::AccountService::new(
+            Arc::clone(&deps.secrets),
+            Arc::clone(&deps.repos.settings),
+        ));
         let playit = Arc::new(crate::playit_agent::PlayitAgent::new(
             Arc::clone(&deps.platform),
             Arc::clone(&deps.secrets),
@@ -234,6 +240,7 @@ impl Core {
             bedrock,
             tunnels,
             playit,
+            account,
             notifications,
             encryption,
             cloud,

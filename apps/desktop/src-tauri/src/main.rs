@@ -76,8 +76,16 @@ async fn build_api() -> Result<Started, String> {
     api.playit_attach_api(Arc::new(mcpanel_providers::playit::PlayitWebApi::new(
         &http,
     )));
+    api.account_attach_backend(Arc::new(mcpanel_providers::firebase::FirebaseAuth::new(
+        &http,
+        mcpanel_providers::firebase::firebase_api_key(),
+        &mcpanel_providers::cloud::CloudClientIds::from_env(),
+    )));
     let startup = Arc::clone(&api);
-    tokio::spawn(async move { startup.playit_on_startup().await });
+    tokio::spawn(async move {
+        startup.playit_on_startup().await;
+        startup.account_on_startup().await;
+    });
     Ok((api, db, guards))
 }
 
@@ -221,6 +229,16 @@ fn main() {
             commands::crash_history,
             commands::tunnel_status,
             commands::playit_status,
+            commands::account_status,
+            commands::account_sign_up,
+            commands::account_sign_in,
+            commands::account_google,
+            commands::account_cancel_google,
+            commands::account_sign_out,
+            commands::account_refresh,
+            commands::account_resend_verification,
+            commands::account_reset_password,
+            commands::account_set_name,
             commands::playit_link,
             commands::playit_cancel_link,
             commands::playit_unlink,

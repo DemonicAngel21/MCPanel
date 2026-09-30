@@ -7,6 +7,7 @@ const VARS: &[&str] = &[
     "MCPANEL_GOOGLE_CLIENT_ID",
     "MCPANEL_GOOGLE_CLIENT_SECRET",
     "MCPANEL_DROPBOX_CLIENT_ID",
+    "MCPANEL_FIREBASE_API_KEY",
 ];
 
 fn main() {

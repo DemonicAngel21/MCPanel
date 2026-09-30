@@ -33,6 +33,7 @@ jobs:
           MCPANEL_GOOGLE_CLIENT_ID: ${{ secrets.MCPANEL_GOOGLE_CLIENT_ID }}
           MCPANEL_GOOGLE_CLIENT_SECRET: ${{ secrets.MCPANEL_GOOGLE_CLIENT_SECRET }}
           MCPANEL_DROPBOX_CLIENT_ID: ${{ secrets.MCPANEL_DROPBOX_CLIENT_ID }}
+          MCPANEL_FIREBASE_API_KEY: ${{ secrets.MCPANEL_FIREBASE_API_KEY }}
         run: pnpm build
       - name: Sign installer
         id: sign

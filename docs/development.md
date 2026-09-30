@@ -109,6 +109,7 @@ Their client IDs are **not** stored in the repository. MCPanel reads, in this or
 | Google Drive | `MCPANEL_GOOGLE_CLIENT_ID` |
 | Google Drive | `MCPANEL_GOOGLE_CLIENT_SECRET` (the Desktop client's secret, see below) |
 | Dropbox | `MCPANEL_DROPBOX_CLIENT_ID` |
+| Accounts (Firebase) | `MCPANEL_FIREBASE_API_KEY` (the project's Web API key) |
 
 - **Development:** set them in the shell before `pnpm dev` (for example
   `$env:MCPANEL_GOOGLE_CLIENT_SECRET = "…"`), or keep them in a local `.env.local` that
@@ -122,6 +123,22 @@ Their client IDs are **not** stored in the repository. MCPanel reads, in this or
   build prints `This build embeds cloud OAuth configuration from the environment: …`
   (names only) so you notice; unset the variables (`Remove-Item Env:MCPANEL_…`) for a
   build that must not contain your app registration.
+
+### MCPanel accounts (Firebase)
+
+Accounts use Firebase Authentication's REST API. Set up a Firebase project:
+
+1. In the Firebase console, create the project **in the same Google Cloud project as
+   the Google OAuth Desktop client** (or add that client ID under Authentication →
+   Sign-in method → Google → "Safelist client IDs from external projects").
+2. Authentication → Sign-in method: enable **Email/Password** and **Google**.
+3. Project settings → General → Web API key: that value is `MCPANEL_FIREBASE_API_KEY`.
+4. Optional: Authentication → Templates, to customise the verification and password
+   reset emails Firebase sends.
+
+The Web API key only identifies the project (Firebase documents that it is not a
+secret); it is still kept out of Git like the other values. Without it, the account
+step of the first-time setup says accounts are unavailable and can be skipped.
 
 **Why Google has a client secret at all:** Google's token endpoint rejects "Desktop app"
 clients without `client_secret` (`invalid_request` "client_secret is missing."), even

@@ -7,6 +7,7 @@
 pub mod cloud;
 mod detect;
 pub mod fabric;
+pub mod firebase;
 pub mod forge;
 pub mod geysermc;
 pub mod hangar;

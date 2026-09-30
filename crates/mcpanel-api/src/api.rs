@@ -1404,6 +1404,106 @@ impl Api {
             .await;
     }
 
+    // ── accounts ──
+
+    async fn audit_account(&self, p: &Principal, action: &str) {
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                action,
+                None,
+                None,
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({}),
+            )
+            .await;
+    }
+
+    pub async fn account_status(&self, p: &Principal) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SystemRead)?;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    pub async fn account_sign_up(
+        &self,
+        p: &Principal,
+        email: &str,
+        password: &str,
+        display_name: Option<&str>,
+    ) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core
+            .account
+            .sign_up(email, password, display_name)
+            .await?;
+        self.audit_account(p, "account.sign_up").await;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    pub async fn account_sign_in(
+        &self,
+        p: &Principal,
+        email: &str,
+        password: &str,
+    ) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.sign_in(email, password).await?;
+        self.audit_account(p, "account.sign_in").await;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    /// Start "Continue with Google"; returns Google's consent page.
+    pub async fn account_google(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::SettingsWrite)?;
+        Ok(self.core.account.begin_google().await?)
+    }
+
+    pub fn account_cancel_google(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.cancel_google();
+        Ok(())
+    }
+
+    pub async fn account_sign_out(&self, p: &Principal) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.sign_out().await?;
+        self.audit_account(p, "account.sign_out").await;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    pub async fn account_refresh(&self, p: &Principal) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SystemRead)?;
+        self.core.account.refresh_profile().await?;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    pub async fn account_resend_verification(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        Ok(self.core.account.resend_verification().await?)
+    }
+
+    pub async fn account_reset_password(&self, p: &Principal, email: &str) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        Ok(self.core.account.send_password_reset(email).await?)
+    }
+
+    pub async fn account_set_name(&self, p: &Principal, name: &str) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.set_display_name(name).await?;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    /// Host hook: the Firebase backend.
+    pub fn account_attach_backend(&self, backend: Arc<dyn mcpanel_core::account::AuthBackend>) {
+        self.core.account.set_backend(backend);
+    }
+
+    /// Host hook: refresh the cached profile at start.
+    pub async fn account_on_startup(&self) {
+        self.core.account.on_startup().await;
+    }
+
     // ── MCPanel's own playit agent ──
 
     pub async fn playit_status(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {

@@ -2097,6 +2097,68 @@ impl From<TunnelStatus> for TunnelStatusDto {
     }
 }
 
+// ─────────────────────────────── account ───────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AccountProfileDto {
+    pub uid: String,
+    pub email: Option<String>,
+    pub email_verified: bool,
+    pub display_name: Option<String>,
+    pub photo_url: Option<String>,
+    /// "password" | "google.com"
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AccountDto {
+    /// A Firebase project is configured in this build.
+    pub configured: bool,
+    pub google_available: bool,
+    pub signed_in: bool,
+    pub profile: Option<AccountProfileDto>,
+    /// "waiting" | "done" | "failed" for a Google sign-in started in MCPanel.
+    pub google_state: Option<String>,
+    pub google_error: Option<String>,
+}
+
+impl From<mcpanel_core::account::AccountProfile> for AccountProfileDto {
+    fn from(p: mcpanel_core::account::AccountProfile) -> Self {
+        Self {
+            uid: p.uid,
+            email: p.email,
+            email_verified: p.email_verified,
+            display_name: p.display_name,
+            photo_url: p.photo_url,
+            provider: p.provider,
+        }
+    }
+}
+
+impl From<mcpanel_core::account::AccountStatus> for AccountDto {
+    fn from(s: mcpanel_core::account::AccountStatus) -> Self {
+        use mcpanel_core::account::GoogleSignIn;
+        let (google_state, google_error) = match s.google {
+            Some(GoogleSignIn::Waiting { .. }) => (Some("waiting".into()), None),
+            Some(GoogleSignIn::Done) => (Some("done".into()), None),
+            Some(GoogleSignIn::Failed { message }) => (Some("failed".into()), Some(message)),
+            None => (None, None),
+        };
+        Self {
+            configured: s.configured,
+            google_available: s.google_available,
+            signed_in: s.signed_in,
+            profile: s.profile.map(Into::into),
+            google_state,
+            google_error,
+        }
+    }
+}
+
 // ──────────────────────────── playit agent ────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

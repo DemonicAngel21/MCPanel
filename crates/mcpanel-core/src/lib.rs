@@ -5,6 +5,7 @@
 //! clients or OS APIs — those are adapters that implement the traits in [`ports`] and
 //! [`software`]. See `docs/architecture/README.md`.
 
+pub mod account;
 pub mod audit;
 pub mod backup;
 pub mod bedrock;
