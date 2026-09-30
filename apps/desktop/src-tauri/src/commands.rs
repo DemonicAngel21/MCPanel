@@ -656,6 +656,25 @@ pub async fn playit_link(app: AppHandle, s: State<'_, AppState>) -> R<String> {
 }
 
 #[tauri::command]
+pub async fn playit_relink(app: AppHandle, s: State<'_, AppState>) -> R<String> {
+    let url = s.api.playit_relink(&s.principal()).await?;
+    let ok = tauri::Url::parse(&url).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.host_str() == Some("playit.gg")
+            && u.path().starts_with("/claim/")
+    });
+    if !ok {
+        s.api.playit_cancel_link(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected playit address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(e) = app.opener().open_url(url.clone(), None::<&str>) {
+        return Err(ApiError::new("IO", format!("Cannot open the browser: {e}")));
+    }
+    Ok(url)
+}
+
+#[tauri::command]
 pub fn playit_cancel_link(s: State<'_, AppState>) -> R<()> {
     s.api.playit_cancel_link(&s.principal())
 }

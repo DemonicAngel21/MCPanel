@@ -240,6 +240,7 @@ fn main() {
             commands::account_reset_password,
             commands::account_set_name,
             commands::playit_link,
+            commands::playit_relink,
             commands::playit_cancel_link,
             commands::playit_unlink,
             commands::playit_start,

@@ -42,6 +42,12 @@ impl PlayitWebApi {
     }
 
     async fn send(&self, key: Option<&SecretString>, path: &str, body: Value) -> CoreResult<Value> {
+        let mut redact = Vec::new();
+        if let Some(key) = key {
+            redact.push(key.expose_secret().trim().to_string());
+        }
+        collect_sensitive_values(&body, None, &mut redact);
+        let request = diagnostic_json(&body, &redact);
         let mut req = self
             .client
             .post(format!("{}{path}", self.base))
@@ -53,6 +59,13 @@ impl PlayitWebApi {
             );
         }
         let resp = req.json(&body).send().await.map_err(|e| {
+            tracing::warn!(
+                target: "mcpanel::playit_api",
+                method = "POST",
+                path,
+                request = %request,
+                "playit API request failed before receiving a response"
+            );
             CoreError::new(
                 ErrorCode::ProviderUnavailable,
                 format!("playit.gg could not be reached: {}", e.without_url()),
@@ -61,8 +74,174 @@ impl PlayitWebApi {
         })?;
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
+        let response = diagnostic_response(&text, &redact);
+        let envelope_status = serde_json::from_str::<Value>(&text)
+            .ok()
+            .and_then(|v| v.get("status").and_then(Value::as_str).map(str::to_string));
+        if status >= 400 || envelope_status.as_deref().is_some_and(|s| s != "success") {
+            tracing::warn!(
+                target: "mcpanel::playit_api",
+                method = "POST",
+                path,
+                http_status = status,
+                request = %request,
+                response = %response,
+                "playit API request was rejected"
+            );
+        } else {
+            tracing::debug!(
+                target: "mcpanel::playit_api",
+                method = "POST",
+                path,
+                http_status = status,
+                request = %request,
+                response = %response,
+                "playit API request completed"
+            );
+        }
         parse_envelope(status, &text)
     }
+}
+
+/// Keep enough request/response structure to diagnose API drift without writing account
+/// credentials, claim codes, IDs, names, or public addresses to the application log.
+fn diagnostic_json(value: &Value, redact: &[String]) -> String {
+    serde_json::to_string(&sanitize_value(value, None, redact)).unwrap_or_else(|_| "null".into())
+}
+
+fn diagnostic_response(text: &str, redact: &[String]) -> String {
+    match serde_json::from_str::<Value>(text) {
+        Ok(value) => diagnostic_json(&value, redact),
+        Err(_) => format!("<non-json response; {} bytes>", text.len()),
+    }
+}
+
+fn is_sensitive_field(field: &str) -> bool {
+    let lower = field.to_ascii_lowercase();
+    [
+        "secret",
+        "token",
+        "authorization",
+        "agent_id",
+        "tunnel_id",
+        "claim",
+        "code",
+        "email",
+        "address",
+        "hostname",
+        "name",
+    ]
+    .iter()
+    .any(|part| lower.contains(part))
+        || lower == "id"
+        || lower == "ip"
+        || lower == "ip4"
+        || lower == "ip6"
+        || lower.ends_with("_ip")
+        || lower.ends_with("_id")
+}
+
+fn is_safe_agent_config_field(field: Option<&str>, value: &str) -> bool {
+    field == Some("name") && matches!(value, "local_ip" | "local_port")
+}
+
+fn collect_sensitive_values(value: &Value, field: Option<&str>, values: &mut Vec<String>) {
+    match value {
+        Value::String(s)
+            if field.is_some_and(is_sensitive_field)
+                && !is_safe_agent_config_field(field, s)
+                && s.len() >= 6 =>
+        {
+            values.push(s.clone())
+        }
+        Value::Array(items) => items
+            .iter()
+            .for_each(|v| collect_sensitive_values(v, field, values)),
+        Value::Object(items) => items.iter().for_each(|(key, value)| {
+            collect_sensitive_values(value, Some(key), values);
+        }),
+        _ => {}
+    }
+}
+
+fn sanitize_value(value: &Value, field: Option<&str>, redact: &[String]) -> Value {
+    match value {
+        Value::Object(items) => Value::Object(
+            items
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        key.clone(),
+                        if is_sensitive_field(key)
+                            && !value
+                                .as_str()
+                                .is_some_and(|s| is_safe_agent_config_field(Some(key), s))
+                        {
+                            Value::String("<redacted>".into())
+                        } else {
+                            sanitize_value(value, Some(key), redact)
+                        },
+                    )
+                })
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| sanitize_value(item, field, redact))
+                .collect(),
+        ),
+        Value::String(s) => {
+            let lower = field.unwrap_or_default().to_ascii_lowercase();
+            if [
+                "secret",
+                "token",
+                "authorization",
+                "code",
+                "name",
+                "address",
+            ]
+            .iter()
+            .any(|part| lower.contains(part))
+                && !is_safe_agent_config_field(field, s)
+            {
+                return Value::String("<redacted>".into());
+            }
+            let mut cleaned = s.clone();
+            for value in redact.iter().filter(|v| !v.is_empty()) {
+                cleaned = cleaned.replace(value, "<redacted>");
+            }
+            Value::String(redact_long_tokens(&cleaned))
+        }
+        _ => value.clone(),
+    }
+}
+
+fn redact_long_tokens(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut token = String::new();
+    let flush = |token: &mut String, result: &mut String| {
+        if token.len() >= 28
+            && token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        {
+            result.push_str("<redacted>");
+        } else {
+            result.push_str(token);
+        }
+        token.clear();
+    };
+    for ch in text.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '-' {
+            token.push(ch);
+        } else {
+            flush(&mut token, &mut result);
+            result.push(ch);
+        }
+    }
+    flush(&mut token, &mut result);
+    result
 }
 
 /// Turn a response into its `data`, or a user-facing error.
@@ -191,7 +370,21 @@ fn api_error(data: &Value) -> CoreError {
                 }
                 other => format!("playit.gg refused the agent's key ({other})."),
             };
-            CoreError::new(ErrorCode::ProviderError, message)
+            let error = CoreError::new(ErrorCode::ProviderError, message);
+            if matches!(
+                detail.as_str(),
+                "InvalidAgentKey"
+                    | "NoLongerValid"
+                    | "AgentNotSelfManaged"
+                    | "DefaultAgentBlocked"
+                    | "SelfManagedAgentCanOnlyAffectSelf"
+                    | "GuestAccountNotAllowed"
+                    | "EmailMustBeVerified"
+            ) {
+                error.with_details(json!({ "playit": detail }))
+            } else {
+                error
+            }
         }
         "validation" => CoreError::new(
             ErrorCode::InvalidInput,
@@ -332,13 +525,13 @@ fn agent_config(local_ip: &str, local_port: u16) -> Value {
 
 pub fn create_body(agent_id: &str, t: &NewPlayitTunnel) -> Value {
     json!({
-        "ports": { "type": "tunnel-type", "details": t.kind.api_name() },
+        "protocol": { "type": "tunnel-type", "details": t.kind.api_name() },
         "origin": { "type": "agent", "data": {
             "agent_id": agent_id,
             "config": agent_config(&t.local_ip, t.local_port),
         }},
         "enabled": t.enabled,
-        "alloc": { "type": "region", "details": { "region": "global", "port": null } },
+        "endpoint": { "type": "region", "details": { "region": "global", "port": null } },
         "name": t.name,
         "firewall_id": null,
     })
@@ -540,6 +733,12 @@ mod tests {
         .unwrap_err();
         assert!(e.message.contains("AgentNotSelfManaged"), "{}", e.message);
         assert!(e.message.contains("playit.gg instead"));
+        let e = parse_envelope(
+            401,
+            r#"{"status":"error","data":{"type":"auth","message":"InvalidAgentKey"}}"#,
+        )
+        .unwrap_err();
+        assert_eq!(e.details.unwrap()["playit"], "InvalidAgentKey");
         let e = parse_envelope(429, "").unwrap_err();
         assert!(e.retryable);
         let e = parse_envelope(502, "<html>bad gateway</html>").unwrap_err();
@@ -547,7 +746,46 @@ mod tests {
     }
 
     #[test]
-    fn create_body_matches_playits_own_client() {
+    fn api_diagnostics_keep_request_shape_and_redact_credentials_and_identifiers() {
+        let body = json!({
+            "code": "0123abcdef",
+            "agent_type": "self-managed",
+            "version": "MCPanel 0.1.0",
+            "origin": {"type": "agent", "data": {
+                "agent_id": "agent-secret-id",
+                "local_ip": "192.0.2.5",
+                "config": {"fields": [{"name": "local_port", "value": "25565"}]}
+            }},
+            "name": "private-server-name",
+            "ports": {"type": "tunnel-type", "details": "minecraft-java"}
+        });
+        let preview = diagnostic_json(
+            &body,
+            &[
+                "0123abcdef".into(),
+                "agent-secret-id".into(),
+                "private-server-name".into(),
+            ],
+        );
+        assert!(preview.contains("minecraft-java"));
+        assert!(preview.contains("self-managed"));
+        assert!(preview.contains("MCPanel 0.1.0"));
+        assert!(preview.contains("25565"));
+        assert!(!preview.contains("0123abcdef"));
+        assert!(!preview.contains("agent-secret-id"));
+        assert!(!preview.contains("private-server-name"));
+        assert!(!preview.contains("192.0.2.5"));
+
+        let response = diagnostic_response(
+            r#"{"status":"error","data":{"type":"auth","message":"InvalidAgentKey","secret_key":"secret-value"}}"#,
+            &["secret-value".into()],
+        );
+        assert!(response.contains("InvalidAgentKey"));
+        assert!(!response.contains("secret-value"));
+    }
+
+    #[test]
+    fn create_body_matches_the_current_playit_client_schema() {
         let b = create_body(
             "agent-1",
             &NewPlayitTunnel {
@@ -559,19 +797,25 @@ mod tests {
             },
         );
         assert_eq!(
-            b["ports"],
+            b["protocol"],
             json!({"type":"tunnel-type","details":"minecraft-java"})
         );
         assert_eq!(b["origin"]["type"], "agent");
         assert_eq!(b["origin"]["data"]["agent_id"], "agent-1");
         assert_eq!(
+            b["origin"]["data"]["config"]["fields"][0],
+            json!({"name":"local_ip","value":"127.0.0.1"})
+        );
+        assert_eq!(
             b["origin"]["data"]["config"]["fields"][1],
             json!({"name":"local_port","value":"25566"})
         );
         assert_eq!(
-            b["alloc"],
+            b["endpoint"],
             json!({"type":"region","details":{"region":"global","port":null}})
         );
+        assert!(b.get("ports").is_none());
+        assert!(b.get("alloc").is_none());
         assert_eq!(b["enabled"], true);
     }
 
@@ -719,6 +963,6 @@ mod tests {
         assert_eq!(id, "3f1b2c4d-0000-4000-8000-00000000000a");
         let seen = seen.lock().unwrap().clone();
         assert_eq!(seen[0].0, "/v1/tunnels/create");
-        assert_eq!(seen[0].2["ports"]["details"], "minecraft-bedrock");
+        assert_eq!(seen[0].2["protocol"]["details"], "minecraft-bedrock");
     }
 }

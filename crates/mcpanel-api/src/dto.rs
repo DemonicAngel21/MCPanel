@@ -2199,6 +2199,30 @@ impl From<mcpanel_core::playit_agent::AgentStatus> for PlayitAgentDto {
     }
 }
 
+#[cfg(test)]
+mod playit_agent_dto_tests {
+    use super::*;
+    use mcpanel_core::playit_agent::{AgentLink, AgentStatus};
+
+    #[test]
+    fn pending_agent_approval_url_reaches_the_frontend_dto() {
+        let dto = PlayitAgentDto::from(AgentStatus {
+            installed: true,
+            linked: false,
+            link: Some(AgentLink::Waiting {
+                url: "https://playit.gg/claim/0123abcdef".into(),
+            }),
+            running: false,
+            phase: None,
+            autostart: true,
+        });
+        let value = serde_json::to_value(dto).unwrap();
+        assert_eq!(value["linkState"], "waiting");
+        assert_eq!(value["linkUrl"], "https://playit.gg/claim/0123abcdef");
+        assert!(value["linkError"].is_null());
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

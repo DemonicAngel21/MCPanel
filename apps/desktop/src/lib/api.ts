@@ -257,6 +257,7 @@ export const api = {
     status: () => call<PlayitAgentDto>("playit_status"),
     /** Starts linking MCPanel's agent and opens playit.gg; returns the approval URL. */
     link: () => call<string>("playit_link"),
+    relink: () => call<string>("playit_relink"),
     cancelLink: () => call<void>("playit_cancel_link"),
     unlink: () => call<PlayitAgentDto>("playit_unlink"),
     start: () => call<PlayitAgentDto>("playit_start"),

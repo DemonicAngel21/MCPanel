@@ -1519,6 +1519,14 @@ impl Api {
         Ok(url)
     }
 
+    /// Forget MCPanel's current agent key and start a replacement approval flow.
+    pub async fn playit_relink(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::SettingsWrite)?;
+        let url = self.core.playit.relink().await?;
+        self.audit_tunnel(p, "playit.relink_start", None).await;
+        Ok(url)
+    }
+
     pub fn playit_cancel_link(&self, p: &Principal) -> ApiResult<()> {
         p.authorize(Permission::SettingsWrite)?;
         self.core.playit.cancel_link();

@@ -43,6 +43,7 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [confirmRelink, setConfirmRelink] = useState(false);
   const badge = agentBadge(agent);
 
   // Report a link started here once.
@@ -69,6 +70,9 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
       void qc.invalidateQueries({ queryKey: qk.playitTunnels });
     } catch (e) {
       toast.error(errorMessage(e));
+      if (kind === "link" || kind === "relink") {
+        void qc.invalidateQueries({ queryKey: qk.playit });
+      }
     } finally {
       setBusy(null);
     }
@@ -144,6 +148,9 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
               <Button variant="ghost" onClick={() => setConfirmUnlink(true)} disabled={busy != null}>
                 <Unlink /> Unlink
               </Button>
+              <Button variant="ghost" onClick={() => setConfirmRelink(true)} disabled={busy != null}>
+                <Link2 /> Relink
+              </Button>
             </span>
           </div>
         )}
@@ -156,6 +163,15 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
         confirmLabel="Unlink"
         destructive
         onConfirm={() => run("unlink", api.playit.unlink)}
+      />
+      <ConfirmDialog
+        open={confirmRelink}
+        onOpenChange={setConfirmRelink}
+        title="Relink MCPanel's playit agent?"
+        description="MCPanel stops its current agent, forgets its saved key, and opens a new approval link. The current agent and its tunnels may remain listed on playit.gg."
+        confirmLabel="Relink"
+        destructive
+        onConfirm={() => run("relink", api.playit.relink)}
       />
     </Card>
   );

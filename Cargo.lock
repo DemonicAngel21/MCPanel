@@ -3067,6 +3067,7 @@ dependencies = [
  "futures",
  "hex",
  "mcpanel-core",
+ "mcpanel-platform",
  "md-5 0.10.6",
  "reqwest",
  "secrecy",
@@ -3078,6 +3079,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+ "tracing-subscriber",
  "uuid",
  "zip",
 ]

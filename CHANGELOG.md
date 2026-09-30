@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Playit agent linking reports the installed daemon version; tunnel requests use the
+  current v1 field names and keep local address settings in the agent config.
+- Playit linking now offers recovery for an invalid saved agent key and exposes the
+  approval link if the browser cannot open it.
+
 - A server cannot start while another MCPanel server on the same port is starting or
   running; a half-created world ("Overworld settings missing") is diagnosed and not
   auto-restarted.

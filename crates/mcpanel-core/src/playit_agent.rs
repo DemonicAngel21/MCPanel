@@ -86,7 +86,6 @@ pub struct PlayitAgent {
     api: OnceLock<Arc<dyn PlayitApi>>,
     dir: PathBuf,
     socket: String,
-    version: String,
     claim: Mutex<Option<Claim>>,
     process: Mutex<Option<Arc<dyn ProcessController>>>,
     /// Tests: `Some(None)` = no playitd available.
@@ -131,6 +130,15 @@ fn local_port(port: u16) -> CoreResult<u16> {
     Ok(port)
 }
 
+fn format_claim_version(stdout: &str) -> Option<String> {
+    let version = stdout.trim();
+    (!version.is_empty()
+        && version
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'+')))
+    .then(|| format!("playit {version}"))
+}
+
 impl PlayitAgent {
     /// `data_dir` is MCPanel's data folder; `socket` the agent's named pipe.
     pub fn new(
@@ -147,7 +155,6 @@ impl PlayitAgent {
             api: OnceLock::new(),
             dir: data_dir.join("playit"),
             socket: socket.into(),
-            version: format!("MCPanel {}", env!("CARGO_PKG_VERSION")),
             claim: Mutex::new(None),
             process: Mutex::new(None),
             daemon_override: None,
@@ -259,6 +266,29 @@ impl PlayitAgent {
 
     // ── linking ──
 
+    async fn claim_version(&self) -> CoreResult<String> {
+        let exe = PlayitTunnel::locate().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::NotFound,
+                "The playit program is not installed. Download it from playit.gg.",
+            )
+        })?;
+        let output = self
+            .platform
+            .run_capture(&exe, &["version".into()], None, CLI_TIMEOUT)
+            .await?;
+        let version = (!output.timed_out && output.code == Some(0))
+            .then(|| format_claim_version(&String::from_utf8_lossy(&output.stdout)))
+            .flatten()
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::ProviderUnavailable,
+                    "Could not read the installed playit agent version. Update playit and try again.",
+                )
+            })?;
+        Ok(version)
+    }
+
     /// Start linking: returns the playit.gg page where the user approves the agent.
     /// Approval is polled in the background; the key is stored when it arrives and the
     /// agent is started.
@@ -272,16 +302,21 @@ impl PlayitAgent {
                 "MCPanel's playit agent is already linked. Unlink it first to link another account.",
             ));
         }
+        self.start_link(self.claim_version().await?).await
+    }
+
+    async fn start_link(self: &Arc<Self>, version: String) -> CoreResult<String> {
         let api = self.api()?;
         let code = claim_code();
         // Register the claim before sending the user to it.
-        api.claim_setup(&code, &self.version).await?;
+        api.claim_setup(&code, &version).await?;
         let url = format!("https://playit.gg/claim/{code}");
         let progress = Arc::new(Mutex::new(AgentLink::Waiting { url: url.clone() }));
         let this = Arc::clone(self);
         let prog = Arc::clone(&progress);
+        let poll_version = version.clone();
         let task = tokio::spawn(async move {
-            let result = this.wait_for_approval(&*api, &code).await;
+            let result = this.wait_for_approval(&*api, &code, &poll_version).await;
             let outcome = match result {
                 Ok(key) => match this.secrets.set(SECRET_NAME, &key) {
                     Ok(()) => {
@@ -309,7 +344,21 @@ impl PlayitAgent {
         Ok(url)
     }
 
-    async fn wait_for_approval(&self, api: &dyn PlayitApi, code: &str) -> CoreResult<SecretString> {
+    /// Replace MCPanel's current agent credential and begin a fresh approval flow.
+    /// The caller must make this an explicit user action because it takes the current
+    /// agent offline until the replacement is approved.
+    pub async fn relink(self: &Arc<Self>) -> CoreResult<String> {
+        let version = self.claim_version().await?;
+        self.unlink().await?;
+        self.start_link(version).await
+    }
+
+    async fn wait_for_approval(
+        &self,
+        api: &dyn PlayitApi,
+        code: &str,
+        version: &str,
+    ) -> CoreResult<SecretString> {
         let deadline = tokio::time::Instant::now() + CLAIM_LIMIT;
         loop {
             if tokio::time::Instant::now() > deadline {
@@ -318,7 +367,7 @@ impl PlayitAgent {
                     "Linking timed out. Start again when you are ready to approve it on playit.gg.",
                 ));
             }
-            match api.claim_setup(code, &self.version).await {
+            match api.claim_setup(code, version).await {
                 Ok(state) if state == "UserAccepted" => break,
                 Ok(state) if state == "UserRejected" => {
                     return Err(CoreError::new(
@@ -549,6 +598,16 @@ mod tests {
         assert_eq!(c.len(), 10);
         assert!(c.bytes().all(|b| b.is_ascii_hexdigit()));
         assert_ne!(claim_code(), c);
+    }
+
+    #[test]
+    fn claim_version_uses_the_installed_playit_version_format() {
+        assert_eq!(
+            format_claim_version("1.0.10\r\n"),
+            Some("playit 1.0.10".into())
+        );
+        assert_eq!(format_claim_version(""), None);
+        assert_eq!(format_claim_version("1.0.10\nInjected"), None);
     }
 
     #[test]
