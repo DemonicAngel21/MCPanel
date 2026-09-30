@@ -31,7 +31,7 @@ tunnels, Firebase accounts, first-time setup.
 
 - Git: work on `main`, Conventional Commits, end commits with the co-author line used in
   history. **Never push** unless the owner explicitly asks. No force-push, no public repo,
-  no releases. `main` is currently **21 commits ahead of `origin/main`, unpushed**.
+  no releases. Everything after `origin/main` is **unpushed** (see `git log origin/main..HEAD`).
 - License: MIT, "Copyright © 2026 DemonicAngel21". Do not change it again. Do not modify
   third-party licenses.
 - Secrets: never put client secrets, tokens, keys or credentials in Git, logs,
@@ -113,7 +113,7 @@ Done in the last sessions (details in `CHANGELOG.md` and `git log`):
    testing-server\world`) was half-created by a failed first start; rename or delete it so
    a new world generates (it contains no chunks). Not done: owner's data. Also give server
    "1" (imported SquidServers world) or Testing Server a different port.
-5. **Pushing** the 21 local commits, only when the owner asks.
+5. **Pushing** the local commits (`git log origin/main..HEAD`), only when the owner asks.
 
 ### Not yet built / follow-ups
 6. **Fresh production installer + end-user test** of everything since the last installer
