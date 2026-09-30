@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Kbd, StatusDot, Tooltip } from "@/components/ui/primitives";
 import { startEventBridge } from "@/lib/events";
 import { accentVars, applyAccent } from "@/lib/accent";
+import { OnboardingPage } from "@/pages/onboarding";
 import { api } from "@/lib/api";
 import { useServers, useSettings } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
@@ -143,6 +144,7 @@ function ServerList() {
 
 export function AppShell() {
   const qc = useQueryClient();
+  const { data: settings } = useSettings();
   useThemeSync();
 
   useEffect(() => {
@@ -168,6 +170,15 @@ export function AppShell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  if (settings && !settings.onboardingCompleted) {
+    return (
+      <>
+        <OnboardingPage />
+        <JobToasts />
+      </>
+    );
+  }
 
   return (
     <div className="flex h-full">

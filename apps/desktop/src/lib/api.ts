@@ -26,6 +26,7 @@ import type { DiskUsageDto } from "@/bindings/DiskUsageDto";
 import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
 import type { NotificationDto } from "@/bindings/NotificationDto";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
+import type { AccountDto } from "@/bindings/AccountDto";
 import type { PlayitAgentDto } from "@/bindings/PlayitAgentDto";
 import type { PlayitTunnelsDto } from "@/bindings/PlayitTunnelsDto";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
@@ -238,6 +239,19 @@ export const api = {
     cancelLink: () => call<void>("tunnel_cancel_link"),
     serverAddress: (id: string) => call<string | null>("tunnel_server_address", { id }),
     setServerAddress: (id: string, address: string) => call<string | null>("tunnel_set_server_address", { id, address }),
+  },
+  account: {
+    status: () => call<AccountDto>("account_status"),
+    signUp: (email: string, password: string, displayName: string | null) => call<AccountDto>("account_sign_up", { email, password, displayName }),
+    signIn: (email: string, password: string) => call<AccountDto>("account_sign_in", { email, password }),
+    /** Opens Google's consent page in the browser; the result shows up in `status`. */
+    google: () => call<void>("account_google"),
+    cancelGoogle: () => call<void>("account_cancel_google"),
+    signOut: () => call<AccountDto>("account_sign_out"),
+    refresh: () => call<AccountDto>("account_refresh"),
+    resendVerification: () => call<void>("account_resend_verification"),
+    resetPassword: (email: string) => call<void>("account_reset_password", { email }),
+    setName: (name: string) => call<AccountDto>("account_set_name", { name }),
   },
   playit: {
     status: () => call<PlayitAgentDto>("playit_status"),

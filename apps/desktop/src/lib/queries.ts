@@ -25,6 +25,7 @@ export const qk = {
   bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   tunnel: ["tunnel"] as const,
   playit: ["playit"] as const,
+  account: ["account"] as const,
   playitTunnels: ["playit", "tunnels"] as const,
   encryption: ["encryption"] as const,
   cloud: ["cloud"] as const,
@@ -108,4 +109,12 @@ export const usePlayitTunnels = (enabled: boolean) =>
     staleTime: 10_000,
     refetchInterval: enabled ? 20_000 : false,
     retry: 1,
+  });
+export const useAccount = () =>
+  useQuery({
+    queryKey: qk.account,
+    queryFn: api.account.status,
+    staleTime: 30_000,
+    // Follow a Google sign-in in the browser closely.
+    refetchInterval: (q) => (q.state.data?.googleState === "waiting" ? 1_500 : false),
   });

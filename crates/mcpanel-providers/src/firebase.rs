@@ -122,6 +122,18 @@ pub fn parse(status: u16, text: &str) -> CoreResult<Value> {
     }
     // Identity Toolkit: {"error":{"message":"EMAIL_EXISTS"}}; Secure Token and Google's
     // token endpoint: {"error":"invalid_grant","error_description":…} or the same shape.
+    // A rejected Web API key: "API key not valid…" with reason API_KEY_INVALID.
+    let reason = v
+        .pointer("/error/details/0/reason")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let message = v
+        .pointer("/error/message")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if reason == "API_KEY_INVALID" || message.starts_with("API key not valid") {
+        return Err(firebase_error(status, "API_KEY_INVALID"));
+    }
     let code = v
         .pointer("/error/message")
         .and_then(Value::as_str)
@@ -591,6 +603,11 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(e.code, ErrorCode::GrantInvalid);
+        let e = parse(400, r#"{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}"#).unwrap_err();
+        assert_eq!(
+            e.message,
+            "This build's Firebase configuration was rejected."
+        );
         let e = parse(500, "oops").unwrap_err();
         assert!(e.message.contains("HTTP 500"));
     }

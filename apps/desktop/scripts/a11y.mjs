@@ -26,8 +26,18 @@ async function scan(page, label) {
 
 export default async (page) => {
   await page.goto("http://localhost:1420/");
-  await page.waitForSelector("text=Dashboard", { timeout: 60000 });
+  await page.waitForFunction(() => /Dashboard|MCPanel setup/.test(document.body.innerText), null, { timeout: 60000 });
   const all = [];
+  // First-time setup: scan every step, then skip it to reach the app.
+  if (await page.getByText("MCPanel setup").isVisible().catch(() => false)) {
+    for (const step of ["Welcome", "Account", "Appearance", "Java", "Internet access", "Ready"]) {
+      all.push(...(await scan(page, `Setup / ${step}`)));
+      const next = page.getByRole("button", { name: /Get started|Continue|Next/ });
+      if (await next.count()) await next.first().click();
+    }
+    await page.getByRole("button", { name: "Skip setup" }).click();
+    await page.waitForSelector("text=Dashboard", { timeout: 20000 });
+  }
   all.push(...(await scan(page, "Dashboard")));
   for (const [label, href] of [
     ["Backups", "Backups"],
