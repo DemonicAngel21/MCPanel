@@ -986,6 +986,7 @@ pub enum EventDto {
         server_id: Option<String>,
         backup_id: String,
     },
+    HostsChanged,
 }
 
 impl From<&EventEnvelope> for EventDto {
@@ -1108,6 +1109,7 @@ impl From<&EventEnvelope> for EventDto {
                 server_id: server_id.map(|s| s.to_string()),
                 backup_id: backup_id.to_string(),
             },
+            D::HostsChanged => Self::HostsChanged,
         }
     }
 }
@@ -2635,4 +2637,90 @@ impl From<ResolvedTemplate> for ResolvedTemplateDto {
             notes: r.notes,
         }
     }
+}
+
+// ────────────────────────────── multihost ─────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HostDto {
+    pub id: String,
+    pub name: String,
+    pub endpoint: Option<String>,
+    pub is_local: bool,
+    pub status: String,
+    pub tags: Vec<String>,
+    pub os_info: Option<String>,
+    pub cpu_count: Option<u32>,
+    pub total_memory_bytes: Option<u64>,
+    pub used_memory_bytes: Option<u64>,
+    pub servers_count: u32,
+    pub running_servers_count: u32,
+    pub latency_ms: Option<u32>,
+    pub last_seen: Option<i64>,
+    pub created_at: i64,
+}
+
+impl From<&mcpanel_core::multihost::HostNode> for HostDto {
+    fn from(h: &mcpanel_core::multihost::HostNode) -> Self {
+        Self {
+            id: h.id.clone(),
+            name: h.name.clone(),
+            endpoint: h.endpoint.clone(),
+            is_local: h.is_local,
+            status: h.status.as_str().to_string(),
+            tags: h.tags.clone(),
+            os_info: h.os_info.clone(),
+            cpu_count: h.cpu_count,
+            total_memory_bytes: h.total_memory_bytes,
+            used_memory_bytes: h.used_memory_bytes,
+            servers_count: h.servers_count,
+            running_servers_count: h.running_servers_count,
+            latency_ms: h.latency_ms,
+            last_seen: h.last_seen,
+            created_at: h.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MultihostStatusDto {
+    pub account_required: bool,
+    pub signed_in: bool,
+    pub user_email: Option<String>,
+    pub hosts: Vec<HostDto>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AddHostDto {
+    pub name: String,
+    pub endpoint: String,
+    pub auth_token: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HostPingResultDto {
+    pub host_id: String,
+    pub online: bool,
+    pub latency_ms: Option<u32>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HostEnrollmentTokenDto {
+    pub token: String,
+    pub account_uid: String,
+    pub expires_at: i64,
+    pub pairing_command: String,
 }

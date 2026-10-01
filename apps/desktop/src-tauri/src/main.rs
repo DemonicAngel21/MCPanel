@@ -382,6 +382,12 @@ fn main() {
             commands::jobs_get,
             commands::jobs_cancel,
             commands::audit_query,
+            commands::multihost_status,
+            commands::multihost_list_hosts,
+            commands::multihost_add_host,
+            commands::multihost_remove_host,
+            commands::multihost_ping_host,
+            commands::multihost_generate_token,
         ])
         .build(tauri::generate_context!());
 

@@ -37,6 +37,7 @@ export const qk = {
   backups: (serverId: string | null) => ["backups", serverId] as const,
   backupPolicy: (serverId: string) => ["backups", "policy", serverId] as const,
   backupLocation: ["backups", "location"] as const,
+  multihost: ["multihost"] as const,
 };
 
 export const useAppInfo = () => useQuery({ queryKey: qk.appInfo, queryFn: api.app.info, staleTime: Infinity });
@@ -123,4 +124,12 @@ export const useAccount = () =>
     staleTime: 30_000,
     // Follow a Google sign-in in the browser closely.
     refetchInterval: (q) => (q.state.data?.googleState === "waiting" ? 1_500 : false),
+  });
+
+export const useMultihostStatus = () =>
+  useQuery({
+    queryKey: qk.multihost,
+    queryFn: api.multihost.status,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
   });

@@ -73,6 +73,7 @@ pub struct Core {
     pub notifications: Arc<crate::notify::NotificationService>,
     pub encryption: Arc<crate::crypto::EncryptionService>,
     pub cloud: Arc<crate::cloud::CloudService>,
+    pub multihost: Arc<crate::multihost::MultihostService>,
 }
 
 impl Core {
@@ -220,6 +221,15 @@ impl Core {
             &deps.paths.data_dir,
             pipe,
         ));
+        let multihost = Arc::new(crate::multihost::MultihostService::new(
+            Arc::clone(&account),
+            Arc::clone(&deps.repos.settings),
+            Arc::clone(&servers),
+            Arc::clone(&monitor),
+            Arc::clone(&deps.platform),
+            Arc::clone(&audit),
+            events.clone(),
+        ));
         Ok(Arc::new(Core {
             paths: deps.paths,
             events,
@@ -244,6 +254,7 @@ impl Core {
             notifications,
             encryption,
             cloud,
+            multihost,
         }))
     }
 }

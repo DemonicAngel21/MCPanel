@@ -27,6 +27,11 @@ import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
 import type { NotificationDto } from "@/bindings/NotificationDto";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import type { AccountDto } from "@/bindings/AccountDto";
+import type { AddHostDto } from "@/bindings/AddHostDto";
+import type { HostDto } from "@/bindings/HostDto";
+import type { HostEnrollmentTokenDto } from "@/bindings/HostEnrollmentTokenDto";
+import type { HostPingResultDto } from "@/bindings/HostPingResultDto";
+import type { MultihostStatusDto } from "@/bindings/MultihostStatusDto";
 import type { PlayitAgentDto } from "@/bindings/PlayitAgentDto";
 import type { PlayitTunnelsDto } from "@/bindings/PlayitTunnelsDto";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
@@ -322,6 +327,14 @@ export const api = {
   },
   audit: {
     query: (serverId: string | null, before: number | null, limit: number) => call<AuditEntryDto[]>("audit_query", { serverId, before, limit }),
+  },
+  multihost: {
+    status: () => call<MultihostStatusDto>("multihost_status"),
+    list: () => call<HostDto[]>("multihost_list_hosts"),
+    add: (req: AddHostDto) => call<HostDto>("multihost_add_host", { req }),
+    remove: (hostId: string) => call<void>("multihost_remove_host", { hostId }),
+    ping: (hostId: string) => call<HostPingResultDto>("multihost_ping_host", { hostId }),
+    generateToken: () => call<HostEnrollmentTokenDto>("multihost_generate_token"),
   },
 };
 

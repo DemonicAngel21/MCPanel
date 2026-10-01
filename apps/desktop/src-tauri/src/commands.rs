@@ -1326,6 +1326,38 @@ pub async fn audit_query(
         .await
 }
 
+// ───────────────────────────── multihost ──────────────────────────
+
+#[tauri::command]
+pub async fn multihost_status(s: State<'_, AppState>) -> R<MultihostStatusDto> {
+    s.api.multihost_status(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn multihost_list_hosts(s: State<'_, AppState>) -> R<Vec<HostDto>> {
+    s.api.multihost_list_hosts(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn multihost_add_host(s: State<'_, AppState>, req: AddHostDto) -> R<HostDto> {
+    s.api.multihost_add_host(&s.principal(), req).await
+}
+
+#[tauri::command]
+pub async fn multihost_remove_host(s: State<'_, AppState>, host_id: String) -> R<()> {
+    s.api.multihost_remove_host(&s.principal(), &host_id).await
+}
+
+#[tauri::command]
+pub async fn multihost_ping_host(s: State<'_, AppState>, host_id: String) -> R<HostPingResultDto> {
+    s.api.multihost_ping_host(&s.principal(), &host_id).await
+}
+
+#[tauri::command]
+pub async fn multihost_generate_token(s: State<'_, AppState>) -> R<HostEnrollmentTokenDto> {
+    s.api.multihost_generate_token(&s.principal()).await
+}
+
 /// Show and focus the main window (used by tray and single-instance handler).
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {

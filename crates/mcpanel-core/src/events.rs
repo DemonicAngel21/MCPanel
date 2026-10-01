@@ -105,6 +105,8 @@ pub enum DomainEvent {
     CloudChanged {
         provider: String,
     },
+    /// Multihost nodes were added, updated or removed.
+    HostsChanged,
 }
 
 #[derive(Debug, Clone, Serialize)]

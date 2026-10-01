@@ -2153,4 +2153,74 @@ impl Api {
             .map(Into::into)
             .collect())
     }
+
+    // ──────────────────────────── multihost ───────────────────────────
+
+    pub async fn multihost_status(&self, p: &Principal) -> ApiResult<MultihostStatusDto> {
+        p.authorize(Permission::MultihostRead)?;
+        let status = self.core.multihost.status().await?;
+        Ok(MultihostStatusDto {
+            account_required: status.account_required,
+            signed_in: status.signed_in,
+            user_email: status.user_email,
+            hosts: status.hosts.iter().map(Into::into).collect(),
+        })
+    }
+
+    pub async fn multihost_list_hosts(&self, p: &Principal) -> ApiResult<Vec<HostDto>> {
+        p.authorize(Permission::MultihostRead)?;
+        let hosts = self.core.multihost.list_hosts().await?;
+        Ok(hosts.iter().map(Into::into).collect())
+    }
+
+    pub async fn multihost_add_host(&self, p: &Principal, body: AddHostDto) -> ApiResult<HostDto> {
+        p.authorize(Permission::MultihostManage)?;
+        let host = self
+            .core
+            .multihost
+            .add_host(
+                body.name,
+                body.endpoint,
+                body.auth_token,
+                body.tags,
+                p.actor(),
+            )
+            .await?;
+        Ok((&host).into())
+    }
+
+    pub async fn multihost_remove_host(&self, p: &Principal, host_id: &str) -> ApiResult<()> {
+        p.authorize(Permission::MultihostManage)?;
+        self.core.multihost.remove_host(host_id, p.actor()).await?;
+        Ok(())
+    }
+
+    pub async fn multihost_ping_host(
+        &self,
+        p: &Principal,
+        host_id: &str,
+    ) -> ApiResult<HostPingResultDto> {
+        p.authorize(Permission::MultihostRead)?;
+        let res = self.core.multihost.ping_host(host_id).await?;
+        Ok(HostPingResultDto {
+            host_id: res.host_id,
+            online: res.online,
+            latency_ms: res.latency_ms,
+            message: res.message,
+        })
+    }
+
+    pub async fn multihost_generate_token(
+        &self,
+        p: &Principal,
+    ) -> ApiResult<HostEnrollmentTokenDto> {
+        p.authorize(Permission::MultihostManage)?;
+        let token = self.core.multihost.generate_enrollment_token().await?;
+        Ok(HostEnrollmentTokenDto {
+            token: token.token,
+            account_uid: token.account_uid,
+            expires_at: token.expires_at,
+            pairing_command: token.pairing_command,
+        })
+    }
 }

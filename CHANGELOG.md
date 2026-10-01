@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multihost cluster management: monitor and manage Minecraft servers across multiple
+  host nodes (local machine and remote nodes). Remote node enrollment and management
+  requires an active MCPanel account (Firebase Authentication). Unauthenticated users
+  receive an account prompt while retaining local host visibility; authenticated users can
+  enroll remote nodes, test latency with ping checks, generate token pairing commands,
+  and inspect hardware telemetry.
 - First-time setup (account, appearance, Java, playit.gg) and optional MCPanel accounts
   with Firebase Authentication: email and password (verification and reset emails) or
   Continue with Google.

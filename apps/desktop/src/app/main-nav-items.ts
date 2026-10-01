@@ -1,8 +1,21 @@
-import { Activity, Archive, Coffee, Globe, LayoutDashboard, LayoutTemplate, Server, Settings, UserRound, type LucideIcon } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  Coffee,
+  Globe,
+  LayoutDashboard,
+  LayoutTemplate,
+  Network,
+  Server,
+  Settings,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 
 export const MAIN_NAV_ITEMS: { to: string; label: string; icon: LucideIcon; exact?: boolean }[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/servers", label: "Servers", icon: Server },
+  { to: "/hosts", label: "Hosts", icon: Network },
   { to: "/backups", label: "Backups", icon: Archive },
   { to: "/java", label: "Java runtimes", icon: Coffee },
   { to: "/templates", label: "Templates", icon: LayoutTemplate },

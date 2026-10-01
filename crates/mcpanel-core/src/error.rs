@@ -42,6 +42,7 @@ pub enum ErrorCode {
     GrantInvalid,
     InsufficientDiskSpace,
     Unsupported,
+    PermissionDenied,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -84,6 +85,14 @@ impl CoreError {
 
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::NotFound, message)
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Conflict, message)
+    }
+
+    pub fn permission_denied(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::PermissionDenied, message)
     }
 
     pub fn io(context: impl AsRef<str>, err: &std::io::Error) -> Self {

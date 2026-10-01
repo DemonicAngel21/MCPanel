@@ -23,6 +23,8 @@ pub enum Permission {
     SettingsWrite,
     ActivityRead,
     SystemRead,
+    MultihostRead,
+    MultihostManage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

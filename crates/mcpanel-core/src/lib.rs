@@ -27,6 +27,7 @@ pub mod jobs;
 pub mod lifecycle;
 pub mod model;
 pub mod monitoring;
+pub mod multihost;
 pub mod notify;
 pub mod paths;
 pub mod perf;

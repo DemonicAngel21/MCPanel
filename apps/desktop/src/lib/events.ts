@@ -90,5 +90,8 @@ function handle(qc: QueryClient, e: EventDto) {
     case "backupsChanged":
       void qc.invalidateQueries({ queryKey: ["backups"] });
       break;
+    case "hostsChanged":
+      void qc.invalidateQueries({ queryKey: qk.multihost });
+      break;
   }
 }
