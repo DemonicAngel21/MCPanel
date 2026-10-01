@@ -1,6 +1,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Check, Coffee, ExternalLink, Globe, Link2, Monitor, Moon, Palette, Rocket, Server, Sun, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Coffee,
+  ExternalLink,
+  Globe,
+  Link2,
+  Monitor,
+  Moon,
+  Palette,
+  Rocket,
+  Server,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { SettingsPatchDto } from "@/bindings/SettingsPatchDto";
@@ -12,8 +27,7 @@ import { api } from "@/lib/api";
 import { qk, useAccount, useJava, usePlayitAgent, useSettings } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
 
-const openPlayitDownload = () =>
-  api.app.openExternal("https://playit.gg/download").catch((e) => toast.error(errorMessage(e)));
+const openPlayitDownload = () => api.app.openExternal("https://playit.gg/download").catch((e) => toast.error(errorMessage(e)));
 
 const STEPS = [
   { id: "welcome", label: "Welcome", icon: <Rocket /> },
@@ -291,7 +305,9 @@ export function OnboardingPage() {
           <div className="mx-auto mb-8 max-w-5xl">
             <div className="mb-2 flex items-center justify-between text-[11px] text-muted">
               <span>{STEPS[step]?.label}</span>
-              <span>{step + 1} of {STEPS.length}</span>
+              <span>
+                {step + 1} of {STEPS.length}
+              </span>
             </div>
             <div
               className="h-1 overflow-hidden rounded-full bg-surface-3"

@@ -1,6 +1,6 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { AlertTriangle, ExternalLink, FolderOpen, ServerOff, Unplug } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ServerDto } from "@/bindings/ServerDto";
 import { ServerControls } from "@/components/server-controls";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { Badge, Banner, EmptyState, Spinner } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
+import { formatSoftwareBuild } from "@/lib/format";
 import { useServer, useSoftware } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
 import { cn, errorMessage } from "@/lib/utils";
@@ -106,6 +107,14 @@ export function ServerLayout() {
   const { data: software } = useSoftware();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const base = `/servers/${id}`;
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const activeEl = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (activeEl) {
+      activeEl.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    }
+  }, [path]);
 
   if (isLoading) {
     return (
@@ -135,7 +144,7 @@ export function ServerLayout() {
             </div>
             <p className="mt-0.5 text-xs text-muted">
               {server.software.softwareName} {server.software.gameVersion}
-              {server.software.build && ` · build ${server.software.build}`}
+              {server.software.build && ` · ${formatSoftwareBuild(server.software.softwareId, server.software.build, "build ")}`}
               {server.port && ` · port ${server.port}`}
             </p>
           </div>
@@ -153,6 +162,7 @@ export function ServerLayout() {
           </div>
         </div>
         <nav
+          ref={navRef}
           aria-label="Server sections"
           className="-mb-px flex [scrollbar-width:none] gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] pr-6"
         >

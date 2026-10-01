@@ -136,7 +136,7 @@ const dotClasses: Record<Tone, string> = {
 export function StatusDot({ tone, pulse }: { tone: Tone; pulse?: boolean }) {
   return (
     <span className="relative inline-flex size-2">
-      {pulse && <span className={cn("absolute inset-0 animate-status-pulse rounded-full opacity-60", dotClasses[tone])} />}
+      {pulse && <span className={cn("animate-status-pulse absolute inset-0 rounded-full opacity-60", dotClasses[tone])} />}
       <span className={cn("status-dot-core relative inline-flex size-2 rounded-full", dotClasses[tone])} />
     </span>
   );

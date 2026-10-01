@@ -23,7 +23,7 @@ export function PlayerHead({ name, uuid, className, size = "md" }: { name: strin
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
-          className="absolute inset-0 size-full image-pixelated"
+          className="image-pixelated absolute inset-0 size-full"
           onError={() => setUnavailable(true)}
         />
       )}

@@ -49,7 +49,12 @@ export const useSoftware = () => useQuery({ queryKey: qk.software, queryFn: api.
 export const useSystemMetrics = () => useQuery({ queryKey: qk.systemMetrics, queryFn: api.system.metrics, refetchInterval: 2000 });
 
 export const useServerMetrics = (id: string, enabled: boolean) =>
-  useQuery({ queryKey: qk.serverMetrics(id), queryFn: () => api.servers.metrics(id), refetchInterval: enabled ? 2000 : false });
+  useQuery({
+    queryKey: qk.serverMetrics(id),
+    queryFn: () => api.servers.metrics(id),
+    enabled,
+    refetchInterval: enabled ? 2000 : false,
+  });
 
 export const useAudit = (serverId: string | null, limit = 50) =>
   useQuery({ queryKey: qk.audit(serverId), queryFn: () => api.audit.query(serverId, null, limit) });

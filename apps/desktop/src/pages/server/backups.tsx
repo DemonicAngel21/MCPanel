@@ -254,8 +254,8 @@ export function ServerBackups() {
                 {formatCount(backups?.length ?? 0, "backup")} · {formatBytes(total)} ·{" "}
                 <Link
                   to="/backups"
-                  title="Change the backups folder on the Backups page"
-                  className="text-muted underline-offset-2 hover:text-fg hover:underline"
+                  title={`Backups folder: ${location.directory} (change on the Backups page)`}
+                  className="inline-block max-w-[200px] truncate align-bottom text-muted underline-offset-2 hover:text-fg hover:underline sm:max-w-xs md:max-w-md"
                 >
                   {location.directory}
                 </Link>

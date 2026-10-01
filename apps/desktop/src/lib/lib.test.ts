@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, formatDuration, formatPercent } from "./format";
+import { formatBytes, formatDuration, formatPercent, formatSoftwareBuild } from "./format";
 import { parseMinecraftText, stripFormatting } from "./minecraft-text";
 import { validateProperty } from "./properties";
 import { canStart, canStop, hasProcess, stateMeta } from "./server-state";
@@ -47,6 +47,14 @@ describe("format", () => {
     expect(formatPercent(4.25)).toBe("4.3%");
     expect(formatPercent(42)).toBe("42%");
     expect(formatPercent(undefined)).toBe("—");
+  });
+
+  it("formats software builds and loaders", () => {
+    expect(formatSoftwareBuild("paper", "123")).toBe("#123");
+    expect(formatSoftwareBuild("paper", "123", "build ")).toBe("build 123");
+    expect(formatSoftwareBuild("fabric", "0.19.5")).toBe("Loader 0.19.5");
+    expect(formatSoftwareBuild("quilt", "0.20.0", "build ")).toBe("Loader 0.20.0");
+    expect(formatSoftwareBuild("paper", null)).toBe("");
   });
 });
 

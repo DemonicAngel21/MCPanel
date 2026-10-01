@@ -92,13 +92,9 @@ export function ActivityList({ entries, serverNames }: { entries: AuditEntryDto[
     <ul className="divide-y divide-border">
       {entries.map((e) => {
         const raw = detail(e);
-        // Skip details that only repeat what the row already says.
-        const d =
-          raw &&
-          raw !== (e.serverId && serverNames?.[e.serverId]) &&
-          !((e.action.startsWith("tunnel.") || e.action.startsWith("playit.")) && raw === "playit")
-            ? raw
-            : null;
+        const isServerIdentity = !!e.serverId && (raw === e.serverId || (serverNames ? raw === serverNames[e.serverId] : false));
+        const isPlayitIdentity = (e.action.startsWith("tunnel.") || e.action.startsWith("playit.")) && raw === "playit";
+        const d = raw && !isServerIdentity && !isPlayitIdentity ? raw : null;
         return (
           <li key={e.id} className="flex items-start gap-3 px-4 py-2.5">
             {e.result === "success" ? (

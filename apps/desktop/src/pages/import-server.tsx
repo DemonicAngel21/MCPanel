@@ -107,7 +107,14 @@ export function ImportServerPage() {
                 <Field label="Name" className="col-span-2">
                   <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
                 </Field>
-                <Field label={<span className="flex items-center gap-2"><SoftwareMark softwareId={softwareId} name={selectedSoftware?.displayName} size="sm" />Server software</span>}>
+                <Field
+                  label={
+                    <span className="flex items-center gap-2">
+                      <SoftwareMark softwareId={softwareId} name={selectedSoftware?.displayName} size="sm" />
+                      Server software
+                    </span>
+                  }
+                >
                   <Select
                     value={softwareId}
                     onValueChange={setSoftwareId}

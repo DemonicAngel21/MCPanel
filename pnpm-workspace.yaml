@@ -1,3 +1,6 @@
 packages:
   - apps/*
 
+overrides:
+  dompurify: ">=3.4.16"
+

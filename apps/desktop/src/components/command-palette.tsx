@@ -101,7 +101,17 @@ export function CommandPalette() {
                       <Item
                         key={s.id}
                         value={`server ${s.name} ${s.software.softwareName} ${s.software.gameVersion}`}
-                        icon={<span className="flex items-center gap-1.5"><SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" className="size-5 rounded [&_svg]:size-3" /><StatusDot tone={m.tone} /></span>}
+                        icon={
+                          <span className="flex items-center gap-1.5">
+                            <SoftwareMark
+                              softwareId={s.software.softwareId}
+                              name={s.software.softwareName}
+                              size="sm"
+                              className="size-5 rounded [&_svg]:size-3"
+                            />
+                            <StatusDot tone={m.tone} />
+                          </span>
+                        }
                         hint={`${s.software.softwareName} ${s.software.gameVersion}`}
                         onSelect={() => run(() => navigate({ to: "/servers/$serverId", params: { serverId: s.id } }))}
                       >

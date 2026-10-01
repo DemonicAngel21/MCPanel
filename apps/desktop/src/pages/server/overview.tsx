@@ -9,6 +9,7 @@ import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
+import { formatSoftwareBuild } from "@/lib/format";
 import { useAudit, useJava, useServer } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
@@ -72,9 +73,14 @@ export function ServerOverview() {
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 p-4 text-xs">
             <dt className="text-muted">Software</dt>
             <dd className="flex items-center gap-2 text-fg">
-              <SoftwareMark softwareId={server.software.softwareId} name={server.software.softwareName} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />
+              <SoftwareMark
+                softwareId={server.software.softwareId}
+                name={server.software.softwareName}
+                size="sm"
+                className="size-6 rounded-md [&_svg]:size-3.5"
+              />
               {server.software.softwareName} {server.software.gameVersion}
-              {server.software.build && ` #${server.software.build}`}
+              {server.software.build && ` · ${formatSoftwareBuild(server.software.softwareId, server.software.build)}`}
             </dd>
             <dt className="text-muted">Java</dt>
             <dd className="text-fg">

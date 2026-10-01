@@ -297,10 +297,7 @@ export function ServerPlayers() {
                 ? "Online players unknown"
                 : "The server is not running"
           }
-          description={
-            data.readOnlyReason ??
-            (data.live ? "Changes apply to the running server." : "Changes are saved to the server folder.")
-          }
+          description={data.readOnlyReason ?? (data.live ? "Changes apply to the running server." : "Changes are saved to the server folder.")}
           actions={
             <label className="flex items-center gap-2 text-xs text-muted">
               Whitelist {data.whitelistEnabled ? "on" : "off"}
@@ -339,15 +336,17 @@ export function ServerPlayers() {
       )}
 
       <Card>
-        <div className="flex gap-1 border-b border-border px-3 pt-2">
+        <div role="tablist" aria-label="Player categories" className="flex gap-1 border-b border-border px-3 pt-2">
           {tabs.map(([t, label, n]) => (
             <button
               key={t}
               type="button"
+              role="tab"
+              aria-selected={tab === t}
               onClick={() => setTab(t)}
               className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors duration-150",
-                tab === t ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:text-fg",
+                "-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors duration-150 focus:outline-none focus-visible:rounded-t-sm focus-visible:ring-1 focus-visible:ring-accent",
+                tab === t ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:border-border-strong hover:text-fg",
               )}
             >
               {label} <span className="text-faint">{n}</span>
@@ -361,31 +360,31 @@ export function ServerPlayers() {
               <EmptyState icon={<Users />} title="No players yet" description="Players who join, and players on the server's lists, appear here." />
             ) : (
               <div className="table-scroll">
-              <table className="w-full text-[13px]">
-                <thead className="border-b border-border text-left text-xs text-muted">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Player</th>
-                    <th className="px-4 py-2 font-medium">Last seen</th>
-                    <th className="px-4 py-2 font-medium">Play time</th>
-                    <th className="px-4 py-2 font-medium">Sessions</th>
-                    <th className="w-10">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.known.map((p) => (
-                    <PlayerRow
-                      key={p.name}
-                      p={p}
-                      data={data}
-                      run={run}
-                      onKick={() => setDialog({ kind: "kick", name: p.name })}
-                      onBan={() => setDialog({ kind: "ban", name: p.name })}
-                    />
-                  ))}
-                </tbody>
-              </table>
+                <table className="w-full text-[13px]">
+                  <thead className="border-b border-border text-left text-xs text-muted">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Player</th>
+                      <th className="px-4 py-2 font-medium">Last seen</th>
+                      <th className="px-4 py-2 font-medium">Play time</th>
+                      <th className="px-4 py-2 font-medium">Sessions</th>
+                      <th className="w-10">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.known.map((p) => (
+                      <PlayerRow
+                        key={p.name}
+                        p={p}
+                        data={data}
+                        run={run}
+                        onKick={() => setDialog({ kind: "kick", name: p.name })}
+                        onBan={() => setDialog({ kind: "ban", name: p.name })}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ))}
 

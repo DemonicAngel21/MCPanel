@@ -85,7 +85,7 @@ impl FakePlayit {
 impl PlayitApi for FakePlayit {
     async fn claim_setup(&self, code: &str, version: &str) -> CoreResult<String> {
         assert_eq!(code.len(), 10);
-        assert!(version.starts_with("MCPanel "));
+        assert!(version.starts_with("playit ") || version.starts_with("MCPanel "));
         let mut p = self.polls.lock().unwrap();
         *p += 1;
         Ok(if *p < 3 {

@@ -162,91 +162,98 @@ export function BackupList({
   return (
     <>
       <div className="table-scroll">
-      <table className="w-full text-[13px]">
-        <thead className="border-b border-border text-left text-xs text-muted">
-          <tr>
-            <th className="px-4 py-2 font-medium">Created</th>
-            {showServer && <th className="px-4 py-2 font-medium">Server</th>}
-            <th className="px-4 py-2 font-medium">Type</th>
-            <th className="px-4 py-2 font-medium">Size</th>
-            <th className="px-4 py-2 font-medium">Note</th>
-            <th className="w-10" />
-          </tr>
-        </thead>
-        <tbody>
-          {backups.map((b) => {
-            const usable = b.status === "ready" && b.filePresent;
-            return (
-              <tr key={b.id} className="border-b border-border last:border-0 hover:bg-surface-2">
-                <td className="px-4 py-2">
-                  <Tooltip content={b.fileName}>
-                    <span className="text-fg">{formatDateTime(b.createdAt)}</span>
-                  </Tooltip>
-                  <span className="ml-2 text-xs text-muted">{formatRelative(b.createdAt)}</span>
-                </td>
-                {showServer && <td className="px-4 py-2 text-fg"><span className="inline-flex items-center gap-2"><SoftwareMark softwareId={b.softwareId} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />{b.serverName}</span></td>}
-                <td className="px-4 py-2">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <Badge tone={b.kind === "pre_restore" ? "info" : "neutral"}>{KIND_LABEL[b.kind] ?? b.kind}</Badge>
-                    {b.live && (
-                      <Tooltip content="Taken while the server was running (saving paused)">
-                        <Badge tone="success">Live</Badge>
-                      </Tooltip>
-                    )}
-                    {b.encrypted && (
-                      <Tooltip content="Encrypted with your backup key. Opening it elsewhere needs the Recovery Kit and its passphrase.">
-                        <Badge tone="info">
-                          <Lock className="size-3" /> Encrypted
-                        </Badge>
-                      </Tooltip>
-                    )}
-                    {b.containsSensitive && (
-                      <Tooltip content="Contains highly sensitive files (e.g. the Floodgate key). Do not share this backup.">
-                        <Badge tone="warning">
-                          <KeyRound className="size-3" /> Sensitive
-                        </Badge>
-                      </Tooltip>
-                    )}
-                    {b.skipped.length > 0 && (
-                      <Tooltip content={`Not included: ${b.skipped.map((s) => `${s.path} (${s.reason})`).join(", ")}`}>
-                        <Badge tone="warning">{b.skipped.length} skipped</Badge>
-                      </Tooltip>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2">
-                  <StatusCell b={b} />
-                </td>
-                <td className="max-w-56 truncate px-4 py-2 text-muted">{b.note}</td>
-                <td className="px-2 py-1 text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label="Backup actions" disabled={b.status === "creating"}>
-                        <MoreHorizontal />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem disabled={!usable || !b.serverId} onSelect={() => setRestore(b)}>
-                        <ArchiveRestore /> Restore…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={!usable} onSelect={() => void verify(b)}>
-                        <ShieldCheck /> Verify
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={!usable} onSelect={() => (b.containsSensitive ? setReveal(b) : void doReveal(b))}>
-                        <FolderSearch /> Show in Explorer
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem destructive onSelect={() => setRemove(b)}>
-                        <Trash2 /> Delete…
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+        <table className="w-full text-[13px]">
+          <thead className="border-b border-border text-left text-xs text-muted">
+            <tr>
+              <th className="px-4 py-2 font-medium">Created</th>
+              {showServer && <th className="px-4 py-2 font-medium">Server</th>}
+              <th className="px-4 py-2 font-medium">Type</th>
+              <th className="px-4 py-2 font-medium">Size</th>
+              <th className="px-4 py-2 font-medium">Note</th>
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {backups.map((b) => {
+              const usable = b.status === "ready" && b.filePresent;
+              return (
+                <tr key={b.id} className="border-b border-border last:border-0 hover:bg-surface-2">
+                  <td className="px-4 py-2">
+                    <Tooltip content={b.fileName}>
+                      <span className="text-fg">{formatDateTime(b.createdAt)}</span>
+                    </Tooltip>
+                    <span className="ml-2 text-xs text-muted">{formatRelative(b.createdAt)}</span>
+                  </td>
+                  {showServer && (
+                    <td className="px-4 py-2 text-fg">
+                      <span className="inline-flex items-center gap-2">
+                        <SoftwareMark softwareId={b.softwareId} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />
+                        {b.serverName}
+                      </span>
+                    </td>
+                  )}
+                  <td className="px-4 py-2">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge tone={b.kind === "pre_restore" ? "info" : "neutral"}>{KIND_LABEL[b.kind] ?? b.kind}</Badge>
+                      {b.live && (
+                        <Tooltip content="Taken while the server was running (saving paused)">
+                          <Badge tone="success">Live</Badge>
+                        </Tooltip>
+                      )}
+                      {b.encrypted && (
+                        <Tooltip content="Encrypted with your backup key. Opening it elsewhere needs the Recovery Kit and its passphrase.">
+                          <Badge tone="info">
+                            <Lock className="size-3" /> Encrypted
+                          </Badge>
+                        </Tooltip>
+                      )}
+                      {b.containsSensitive && (
+                        <Tooltip content="Contains highly sensitive files (e.g. the Floodgate key). Do not share this backup.">
+                          <Badge tone="warning">
+                            <KeyRound className="size-3" /> Sensitive
+                          </Badge>
+                        </Tooltip>
+                      )}
+                      {b.skipped.length > 0 && (
+                        <Tooltip content={`Not included: ${b.skipped.map((s) => `${s.path} (${s.reason})`).join(", ")}`}>
+                          <Badge tone="warning">{b.skipped.length} skipped</Badge>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2">
+                    <StatusCell b={b} />
+                  </td>
+                  <td className="max-w-56 truncate px-4 py-2 text-muted">{b.note}</td>
+                  <td className="px-2 py-1 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" aria-label="Backup actions" disabled={b.status === "creating"}>
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem disabled={!usable || !b.serverId} onSelect={() => setRestore(b)}>
+                          <ArchiveRestore /> Restore…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={!usable} onSelect={() => void verify(b)}>
+                          <ShieldCheck /> Verify
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={!usable} onSelect={() => (b.containsSensitive ? setReveal(b) : void doReveal(b))}>
+                          <FolderSearch /> Show in Explorer
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem destructive onSelect={() => setRemove(b)}>
+                          <Trash2 /> Delete…
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {restore && <RestoreDialog key={restore.id} backup={restore} running={isRunning(restore.serverId)} onClose={() => setRestore(null)} />}

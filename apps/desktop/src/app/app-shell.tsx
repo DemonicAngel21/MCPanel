@@ -133,7 +133,12 @@ function ServerList() {
               )}
             >
               <StatusDot tone={meta.tone} pulse={meta.pulse} />
-              <SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />
+              <SoftwareMark
+                softwareId={s.software.softwareId}
+                name={s.software.softwareName}
+                size="sm"
+                className="size-6 rounded-md [&_svg]:size-3.5"
+              />
               <span className="min-w-0 flex-1 truncate">{s.name}</span>
               <span className="shrink-0 text-[11px] text-faint">{s.software.gameVersion}</span>
             </Link>
@@ -272,7 +277,9 @@ export function PageBody({ children, className }: { children: ReactNode; classNa
       aria-label="Page content"
       className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-3 py-4 focus-visible:outline-offset-[-2px] sm:px-4 lg:px-6 lg:py-5"
     >
-      <div data-page-enter className={cn("page-content-enter w-full", className)}>{children}</div>
+      <div data-page-enter className={cn("page-content-enter w-full", className)}>
+        {children}
+      </div>
     </div>
   );
 }

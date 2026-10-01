@@ -181,8 +181,8 @@ function ConnectionCard({ serverId, status }: { serverId: string; status: Bedroc
           <div className="flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-fg">
             <CheckCircle2 className="size-4 text-accent" />
             <span>
-              Bedrock listener answered in {pong.latencyMs} ms: <b>{pong.motd}</b> · Bedrock {pong.version} · {pong.players ?? 0}/
-              {pong.maxPlayers ?? "?"} players
+              Bedrock listener answered in {pong.latencyMs} ms: <b>{pong.motd.replace(/^"(.*)"$/, "$1")}</b> · Bedrock {pong.version} ·{" "}
+              {pong.players ?? 0}/{pong.maxPlayers ?? "?"} players
             </span>
           </div>
         )}

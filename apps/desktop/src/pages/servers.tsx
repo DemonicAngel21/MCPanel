@@ -5,7 +5,7 @@ import { ServerControls } from "@/components/server-controls";
 import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, EmptyState, SkeletonRows, StatusDot } from "@/components/ui/primitives";
-import { formatRelative } from "@/lib/format";
+import { formatRelative, formatSoftwareBuild } from "@/lib/format";
 import { useServers } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
 
@@ -39,52 +39,55 @@ export function ServersPage() {
             <EmptyState icon={<Server />} title="No servers yet" description="Create a server or import an existing server folder." />
           ) : (
             <div className="table-scroll">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted">
-                  <th className="px-4 py-2 font-medium">Name</th>
-                  <th className="px-4 py-2 font-medium">Software</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Port</th>
-                  <th className="px-4 py-2 font-medium">Created</th>
-                  <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {servers?.map((s) => {
-                  const m = stateMeta(s.state);
-                  return (
-                    <tr key={s.id} className="table-row hover:bg-surface-2">
-                      <td className="px-4 py-2.5">
-                        <Link
-                          to="/servers/$serverId"
-                          params={{ serverId: s.id }}
-                          className="flex items-center gap-2.5 font-medium text-fg hover:underline"
-                        >
-                          <SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" />
-                          <span className="min-w-0 truncate">{s.name}</span>
-                        </Link>
-                        <p className="selectable mt-0.5 truncate pl-4 text-[11px] text-faint">{s.directory}</p>
-                      </td>
-                      <td className="px-4 py-2.5 text-muted">
-                        <span className="inline-flex items-center gap-1.5"><StatusDot tone={m.tone} pulse={m.pulse} />{s.software.softwareName} {s.software.gameVersion}</span>
-                        {s.software.build ? ` #${s.software.build}` : ""}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge tone={m.tone}>{m.label}</Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-muted tabular-nums">{s.port ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-muted">{formatRelative(s.createdAt)}</td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex justify-end">
-                          <ServerControls server={s} compact />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted">
+                    <th className="px-4 py-2 font-medium">Name</th>
+                    <th className="px-4 py-2 font-medium">Software</th>
+                    <th className="px-4 py-2 font-medium">Status</th>
+                    <th className="px-4 py-2 font-medium">Port</th>
+                    <th className="px-4 py-2 font-medium">Created</th>
+                    <th className="px-4 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {servers?.map((s) => {
+                    const m = stateMeta(s.state);
+                    return (
+                      <tr key={s.id} className="table-row hover:bg-surface-2">
+                        <td className="px-4 py-2.5">
+                          <Link
+                            to="/servers/$serverId"
+                            params={{ serverId: s.id }}
+                            className="flex items-center gap-2.5 font-medium text-fg hover:underline"
+                          >
+                            <SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" />
+                            <span className="min-w-0 truncate">{s.name}</span>
+                          </Link>
+                          <p className="selectable mt-0.5 truncate pl-4 text-[11px] text-faint">{s.directory}</p>
+                        </td>
+                        <td className="px-4 py-2.5 text-muted">
+                          <span className="inline-flex items-center gap-1.5">
+                            <StatusDot tone={m.tone} pulse={m.pulse} />
+                            {s.software.softwareName} {s.software.gameVersion}
+                          </span>
+                          {s.software.build ? ` · ${formatSoftwareBuild(s.software.softwareId, s.software.build)}` : ""}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Badge tone={m.tone}>{m.label}</Badge>
+                        </td>
+                        <td className="px-4 py-2.5 text-muted tabular-nums">{s.port ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-muted">{formatRelative(s.createdAt)}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex justify-end">
+                            <ServerControls server={s} compact />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </Card>

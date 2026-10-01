@@ -420,7 +420,11 @@ export function ServerContent() {
       <Card>
         <CardHeader
           title={`${list.entries.length} ${label.toLowerCase()}`}
-          description={`${server?.directory ?? ""}\\${list.folder}`}
+          description={
+            <span className="inline-block max-w-[240px] truncate align-bottom sm:max-w-md" title={`${server?.directory ?? ""}\\${list.folder}`}>
+              {server?.directory ? `${server.directory}\\${list.folder}` : list.folder}
+            </span>
+          }
           actions={
             <>
               <Button size="sm" variant="ghost" disabled={checking} onClick={check}>

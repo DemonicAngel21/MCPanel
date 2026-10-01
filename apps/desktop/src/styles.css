@@ -242,8 +242,14 @@
 }
 
 @keyframes status-change {
-  from { opacity: 0.55; transform: scale(0.86); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .animate-status-pulse {
@@ -366,16 +372,36 @@
   color: var(--software-tone, var(--muted));
 }
 
-.software-vanilla { --software-tone: #63a85c; }
-.software-paper { --software-tone: #5c9bb8; }
-.software-purpur { --software-tone: #a78bfa; }
-.software-fabric { --software-tone: #c5a94e; }
-.software-forge { --software-tone: #cf7c53; }
-.software-neoforge { --software-tone: #d08b57; }
-.software-quilt { --software-tone: #c277a7; }
-.software-spigot { --software-tone: #74a780; }
-.software-bukkit { --software-tone: #8b9b70; }
-.software-default { --software-tone: var(--muted); }
+.software-vanilla {
+  --software-tone: #63a85c;
+}
+.software-paper {
+  --software-tone: #5c9bb8;
+}
+.software-purpur {
+  --software-tone: #a78bfa;
+}
+.software-fabric {
+  --software-tone: #c5a94e;
+}
+.software-forge {
+  --software-tone: #cf7c53;
+}
+.software-neoforge {
+  --software-tone: #d08b57;
+}
+.software-quilt {
+  --software-tone: #c277a7;
+}
+.software-spigot {
+  --software-tone: #74a780;
+}
+.software-bukkit {
+  --software-tone: #8b9b70;
+}
+.software-default {
+  --software-tone: var(--muted);
+}
 
 .image-pixelated {
   image-rendering: pixelated;
@@ -390,13 +416,13 @@
 }
 
 .metric-fill {
-  transition: width 420ms var(--ease-out-soft), background-color 180ms var(--ease-out-soft);
+  transition:
+    width 420ms var(--ease-out-soft),
+    background-color 180ms var(--ease-out-soft);
 }
 
 .setup-content {
-  background:
-    radial-gradient(ellipse at 50% -18%, var(--accent-soft), transparent 48%),
-    var(--background);
+  background: radial-gradient(ellipse at 50% -18%, var(--accent-soft), transparent 48%), var(--background);
 }
 
 .setup-sidebar {

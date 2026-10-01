@@ -702,6 +702,12 @@ impl BackupService {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(CoreError::io("Cannot delete the backup file", &e)),
         }
+        if let Some(parent) = b.path.parent()
+            && let Ok(base) = self.backups_dir().await
+            && parent != base
+        {
+            let _ = tokio::fs::remove_dir(parent).await;
+        }
         self.repo.delete(id).await?;
         self.changed(b.server_id, id);
         self.audit

@@ -55,3 +55,12 @@ export function formatPercent(v: number | null | undefined): string {
 export function formatCount(n: number, singular: string, plural = `${singular}s`): string {
   return `${n} ${n === 1 ? singular : plural}`;
 }
+
+/** Format software build or loader version cleanly (e.g. "Loader 0.19.5" for Fabric/Quilt, "#123" for Paper). */
+export function formatSoftwareBuild(softwareId: string, build: string | null | undefined, prefix = "#"): string {
+  if (!build) return "";
+  if (softwareId === "fabric" || softwareId === "quilt") {
+    return `Loader ${build}`;
+  }
+  return `${prefix}${build}`;
+}

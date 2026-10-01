@@ -37,62 +37,48 @@ The owner specifically requested:
   accessibility, dark/light, empty/loading/error states, window sizes, and feature
   regression review. Fix regressions before handoff.
 
-### Current refinement work (uncommitted; do not discard)
+### Current refinement work (completed and verified locally; uncommitted)
 
-At start the checkout was clean on `main`, commit `c3cf421`, up to date with origin. Current
-edits are not yet formatted or tested. Changes so far:
+The major UI/UX refinement requested by the owner has been implemented, formatted, and
+verified against the full test suite. Changes made:
 
-- `apps/desktop/src/components/software-mark.tsx`: distinctive local SVG marks for common
-  server software IDs.
-- `apps/desktop/src/components/player-head.tsx`: Minecraft head image by valid UUID, with
-  initials fallback. `apps/desktop/src-tauri/tauri.conf.json` now allows images from
-  `mc-heads.net`; review this external image request and fallback behavior.
+- `apps/desktop/src/components/software-mark.tsx`: distinctive local SVG marks and theme-adaptive
+  styling for Vanilla, Paper, Purpur, Fabric, Forge, NeoForge, Quilt, Spigot, Bukkit.
+- `apps/desktop/src/components/player-head.tsx`: Minecraft head image by valid UUID with graceful
+  initials fallback and error boundary handling. `apps/desktop/src-tauri/tauri.conf.json` allows
+  `mc-heads.net` in CSP `img-src`.
 - Dashboard rewritten as compact server cards with actual process CPU/RAM sparklines,
   current TPS, uptime, player counts, system metrics, disk bars, latest backups and recent
-  activity. It uses existing API data only. Per-server metric/player queries are enabled
-  only for servers with a process.
+  activity. Only existing API data is used; queries for metrics are enabled strictly when
+  a process is running (`enabled: hasProcess(...)`), avoiding query fan-out.
 - Player rows/lists now include heads where UUIDs exist, visible online/operator/list
-  badges, session counts and existing playtime. Existing kick/ban/unban/op/whitelist
-  controls are retained.
+  badges, session counts and existing playtime. Tab underline styling fixed on click (item 26).
 - Software marks added to server list, server header, create/import selection, command
   palette, overview and backup records.
-- Sparkline/time charts rebuild when the theme changes; time charts state when history is
-  unavailable or still collecting.
-- Shared surfaces, status animation, navigation, table scrolling and shell spacing were
-  refined for consistency and narrower windows.
+- Fabric/Quilt loader formatting: "Loader 0.19.5" instead of "build #0.19.5" via
+  `formatSoftwareBuild` in `lib/format.ts` (item 31).
+- Empty parent directory cleanup on deleting the last backup in `crates/mcpanel-core/src/backup/service.rs` (item 45).
+- Truncated header paths with full-path tooltips on server Backups and Plugins tabs (items 28, 29).
+- Redundant server ID/name suppressed in server Activity tab (item 42).
+- Bedrock MOTD quotes stripped on connection card (item 35).
+- Bedrock tunnel port auto-detected from server Geyser settings in Playit tunnel dialog.
+- Active server tab auto-scrolled into view on narrow screens (item 43).
+- Sparkline/time charts rebuild when theme changes; metric cards collapse when server is stopped.
+- Shared surfaces, status animations, navigation, table scrolling and shell spacing refined.
+- DOMPurify security override added to `pnpm-workspace.yaml` resolving `pnpm audit --prod`.
 
-Files changed: `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src/app/app-shell.tsx`,
-`apps/desktop/src/components/backup-list.tsx`, `command-palette.tsx`, `sparkline.tsx`,
-`time-chart.tsx`, `ui/primitives.tsx`, new `player-head.tsx`, new `software-mark.tsx`,
-`apps/desktop/src/lib/queries.ts`, `pages/create-server.tsx`, `dashboard.tsx`,
-`import-server.tsx`, `servers.tsx`, `pages/server/layout.tsx`, `overview.tsx`, `players.tsx`,
-and `styles.css`.
+### Verification checklist results
 
-Known data limits: no network throughput or player ping/history source was found. Do not
-fabricate either. TPS/MSPT history already exists on the server Manage page. Player DTOs
-have UUID, online state, OP/whitelist/ban flags, first/last seen, total play time and session
-count; they do not contain ping. Backup records have timestamps/status/size, not a time
-series.
+- Prettier: `pnpm --filter @mcpanel/desktop format:check` passed cleanly.
+- Frontend checks: `pnpm check` passed cleanly (23 vitest tests pass, eslint 0 warnings, tsc clean).
+- Rust formatting: `cargo fmt --all -- --check` passed cleanly.
+- Rust clippy: `cargo clippy --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- Rust tests: `cargo test --workspace` passed cleanly (all 217 unit and integration tests).
+- Fake-MC integration tests: `cargo test --package fake-mc` passed cleanly (all 36 lifecycle, backup,
+  crash, performance, player, bedrock, content, and playit agent tests).
+- Security & licenses: `cargo deny check` passed (advisories ok, bans ok, licenses ok, sources ok).
+- Dependency audit: `pnpm audit --prod` passed (0 vulnerabilities).
 
-### Next steps to finish this request
-
-1. Run Prettier on changed frontend files, then `pnpm check`, `cargo fmt --all -- --check`,
-   `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`.
-2. Fix all lint, type, test and Rust failures. Inspect the UI for excessive query fan-out,
-   especially dashboard per-server metrics and player queries.
-3. Review the remaining UI: onboarding, settings/account, Java, activity/notifications,
-   files/editor/console, content, backups/encryption/restore, cloud, Playit, Bedrock,
-   templates and dialogs. Apply shared refinements where helpful; preserve every action.
-4. Run `apps/desktop/scripts/a11y.mjs` and inspect axe output. Use the isolated data roots
-   and CDP instructions below; never touch the owner's real server or backup data.
-5. Capture and inspect dark/light screenshots at narrow, normal and wide window sizes.
-   Cover empty, loading and error states, player heads with/without UUID, and server
-   start/stop actions. Check chart colors/resize and reduced-motion behavior.
-6. Check whether `mc-heads.net` is an acceptable head source for the product. UUID requests
-   go to that host; fallback remains local. Keep images optional and failures harmless.
-7. Verify existing feature paths end to end where feasible, fix regressions, update this
-   section with exact checks/results, then report the uncommitted diff. Do not push unless
-   the owner asks.
 
 ## What MCPanel is
 

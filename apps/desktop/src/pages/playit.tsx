@@ -202,11 +202,22 @@ function TunnelDialog({ servers, editing, onClose }: { servers: ServerDto[]; edi
   const [busy, setBusy] = useState(false);
   const ascii = /^[\x20-\x7e]*$/.test(name);
 
-  const pick = (id: string, k = kind) => {
+  const pick = async (id: string, k = kind) => {
     setServerId(id);
     const s = servers.find((x) => x.id === id);
     if (s && k === "minecraft-java") setPort(String(s.port ?? 25565));
-    if (k === "minecraft-bedrock") setPort("19132");
+    if (k === "minecraft-bedrock") {
+      let bp = 19132;
+      if (s) {
+        try {
+          const status = await api.bedrock.status(s.id);
+          bp = status.activePort ?? status.settings.port ?? 19132;
+        } catch {
+          // Keep default if status unavailable
+        }
+      }
+      setPort(String(bp));
+    }
     if (!editing && s) setName(`${s.name} ${k === "minecraft-bedrock" ? "Bedrock" : "Java"}`.replace(/[^\x20-\x7e]/g, "").slice(0, 64));
   };
 
