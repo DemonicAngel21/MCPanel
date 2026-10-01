@@ -64,7 +64,7 @@ function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; lab
       <Link
         to={to}
         className={cn(
-          "flex size-10 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg active:scale-95 [&_svg]:size-[18px]",
+          "nav-link flex size-10 items-center justify-center rounded-lg text-muted transition-[color,background-color,scale] duration-150 hover:bg-surface-3 hover:text-fg active:scale-95 [&_svg]:size-[18px]",
           active && "bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent",
         )}
         aria-label={label}
@@ -95,7 +95,7 @@ function ServerList() {
   const { data: servers, isLoading } = useServers();
   const path = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-surface xl:w-60">
+    <aside className="server-sidebar flex w-52 shrink-0 flex-col border-r border-border xl:w-60">
       <div className="flex h-12 items-center justify-between border-b border-border px-3">
         <span className="text-xs font-semibold tracking-wide text-muted uppercase">Servers</span>
         <Tooltip content="New server">
@@ -125,7 +125,7 @@ function ServerList() {
               to="/servers/$serverId"
               params={{ serverId: s.id }}
               className={cn(
-                "group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg",
+                "server-row group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-muted hover:bg-surface-3 hover:text-fg",
                 active && "bg-surface-3 text-fg",
               )}
             >
@@ -212,7 +212,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-full">
-      <nav aria-label="Main" className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-background py-3">
+      <nav aria-label="Main" className="app-rail flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border py-3">
         <Link to="/" className="mb-3 flex size-9 items-center justify-center" aria-label="MCPanel home">
           <img src="/logo.svg" alt="" className="size-8" />
         </Link>
@@ -222,7 +222,7 @@ export function AppShell() {
         {MAIN_NAV_ITEMS.filter((item) => item.to === "/settings").map(railItem)}
       </nav>
       <ServerList />
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <main className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden">
         <RouteTransition />
       </main>
       <CommandPalette />
@@ -244,7 +244,7 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <header className="shrink-0 border-b border-border bg-surface px-6 pt-4">
+    <header className="workspace-header shrink-0 border-b border-border px-6 pt-4">
       <div className="flex items-start justify-between gap-4 pb-4">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold text-fg">{title}</h1>
@@ -268,7 +268,7 @@ export function PageBody({ children, className }: { children: ReactNode; classNa
       aria-label="Page content"
       className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-6 py-5 focus-visible:outline-offset-[-2px]"
     >
-      <div className={cn("w-full", className)}>{children}</div>
+      <div data-page-enter className={cn("page-content-enter w-full", className)}>{children}</div>
     </div>
   );
 }

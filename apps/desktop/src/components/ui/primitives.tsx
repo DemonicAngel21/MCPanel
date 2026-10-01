@@ -143,7 +143,7 @@ export function StatusDot({ tone, pulse }: { tone: Tone; pulse?: boolean }) {
 }
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-lg border border-border bg-surface", className)} {...props} />;
+  return <div className={cn("ui-card rounded-lg border border-border bg-surface", className)} {...props} />;
 }
 
 export function CardHeader({

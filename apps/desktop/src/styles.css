@@ -9,6 +9,7 @@
 [data-theme="dark"] {
   color-scheme: dark;
   --background: #0b0f14;
+  --background-glow: rgb(74 222 128 / 0.055);
   --surface: #11161d;
   --surface-2: #161c24;
   --surface-3: #1c2430;
@@ -41,6 +42,7 @@
 [data-theme="light"] {
   color-scheme: light;
   --background: #f5f7fa;
+  --background-glow: rgb(22 163 74 / 0.035);
   --surface: #ffffff;
   --surface-2: #f1f4f8;
   --surface-3: #e7ebf1;
@@ -218,6 +220,115 @@
   }
 }
 
+@keyframes content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-main {
+  background:
+    radial-gradient(ellipse at 88% 0%, var(--background-glow), transparent 34%),
+    var(--background);
+}
+
+.app-rail {
+  background: linear-gradient(180deg, var(--surface) 0%, var(--background) 38%);
+}
+
+.server-sidebar {
+  background: linear-gradient(155deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 88%, var(--accent)) 100%);
+}
+
+.page-content-enter > * {
+  animation: content-enter 360ms var(--ease-out-soft) both;
+}
+
+.page-content-enter > :nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.page-content-enter > :nth-child(3) {
+  animation-delay: 70ms;
+}
+
+.page-content-enter > :nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.page-content-enter > :nth-child(5) {
+  animation-delay: 140ms;
+}
+
+.page-content-enter > :nth-child(6) {
+  animation-delay: 175ms;
+}
+
+.workspace-header {
+  background: linear-gradient(110deg, var(--surface) 65%, color-mix(in srgb, var(--surface) 90%, var(--accent)) 100%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.015);
+}
+
+.ui-card {
+  background-image: linear-gradient(145deg, rgb(255 255 255 / 0.018), transparent 58%);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  transition:
+    border-color 180ms var(--ease-out-soft),
+    box-shadow 180ms var(--ease-out-soft),
+    transform 180ms var(--ease-out-soft);
+}
+
+.ui-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.08);
+}
+
+.nav-link {
+  position: relative;
+}
+
+.nav-link[aria-current="page"]::before {
+  position: absolute;
+  inset-block: 9px;
+  inset-inline-start: -9px;
+  width: 2px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  content: "";
+  animation: fade-in 180ms var(--ease-out-soft) both;
+}
+
+.server-row {
+  transition:
+    background-color 160ms var(--ease-out-soft),
+    transform 160ms var(--ease-out-soft);
+}
+
+.server-row:hover {
+  transform: translateX(2px);
+}
+
+.button-control:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button-control:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.button-control:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.table-row {
+  transition: background-color 140ms var(--ease-out-soft);
+}
+
 .setup-content {
   background:
     radial-gradient(ellipse at 50% -18%, var(--accent-soft), transparent 48%),
@@ -265,7 +376,9 @@ body,
 
 body {
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(ellipse at 88% 0%, var(--background-glow), transparent 34%),
+    var(--background);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -306,8 +419,15 @@ textarea,
   *::before,
   *::after {
     animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@media (hover: none) {
+  .server-row:hover {
+    transform: none;
   }
 }

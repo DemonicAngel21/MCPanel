@@ -135,7 +135,7 @@ export function DashboardPage() {
                 {servers?.map((s) => {
                   const m = stateMeta(s.state);
                   return (
-                    <li key={s.id} className="flex items-center gap-3 px-4 py-3">
+                    <li key={s.id} className="server-row flex items-center gap-3 px-4 py-3">
                       <StatusDot tone={m.tone} pulse={m.pulse} />
                       <Link to="/servers/$serverId" params={{ serverId: s.id }} className="min-w-0 flex-1 hover:underline">
                         <p className="truncate text-[13px] font-medium text-fg">{s.name}</p>

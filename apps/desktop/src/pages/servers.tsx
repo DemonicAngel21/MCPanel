@@ -52,7 +52,7 @@ export function ServersPage() {
                 {servers?.map((s) => {
                   const m = stateMeta(s.state);
                   return (
-                    <tr key={s.id} className="hover:bg-surface-2">
+                    <tr key={s.id} className="table-row hover:bg-surface-2">
                       <td className="px-4 py-2.5">
                         <Link
                           to="/servers/$serverId"

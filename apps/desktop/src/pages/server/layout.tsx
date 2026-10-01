@@ -124,7 +124,7 @@ export function ServerLayout() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="shrink-0 border-b border-border bg-surface px-6 pt-4">
+      <header className="workspace-header shrink-0 border-b border-border px-6 pt-4">
         <div className="flex items-start justify-between gap-4 pb-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
