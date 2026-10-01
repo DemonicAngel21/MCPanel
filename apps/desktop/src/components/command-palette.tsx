@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { api } from "@/lib/api";
+import { SoftwareMark } from "@/components/software-mark";
 import { qk, useServers, useSettings } from "@/lib/queries";
 import { canStart, canStop, stateMeta } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
@@ -100,7 +101,7 @@ export function CommandPalette() {
                       <Item
                         key={s.id}
                         value={`server ${s.name} ${s.software.softwareName} ${s.software.gameVersion}`}
-                        icon={<StatusDot tone={m.tone} />}
+                        icon={<span className="flex items-center gap-1.5"><SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" className="size-5 rounded [&_svg]:size-3" /><StatusDot tone={m.tone} /></span>}
                         hint={`${s.software.softwareName} ${s.software.gameVersion}`}
                         onSelect={() => run(() => navigate({ to: "/servers/$serverId", params: { serverId: s.id } }))}
                       >

@@ -5,6 +5,7 @@ import { PageBody } from "@/app/app-shell";
 import { ActivityList } from "@/components/activity-list";
 import { CrashHistory } from "@/components/crash-history";
 import { InternetAccessSummary } from "@/components/playit-card";
+import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
@@ -70,7 +71,8 @@ export function ServerOverview() {
           />
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 p-4 text-xs">
             <dt className="text-muted">Software</dt>
-            <dd className="text-fg">
+            <dd className="flex items-center gap-2 text-fg">
+              <SoftwareMark softwareId={server.software.softwareId} name={server.software.softwareName} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />
               {server.software.softwareName} {server.software.gameVersion}
               {server.software.build && ` #${server.software.build}`}
             </dd>

@@ -1,8 +1,98 @@
 # MCPanel handoff
 
-Written 2026-09-30 for the next developer (human or AI). Read this first, then
+Written 2026-10-01; update this section as work continues. Read this first, then
 `README.md`, `docs/development.md`, `docs/architecture/README.md`, the ADRs in `docs/adr/`,
 `docs/architecture/verification-log.md` and `docs/polish-backlog.md`.
+
+## Active owner request: major UI/UX refinement
+
+Keep every existing feature and action. Make MCPanel more visual, concise, information
+dense, polished, responsive and consistent, like a professional Minecraft server control
+panel. Do not remove, hide, disable, simplify or break functionality. Retain important
+warnings, security details, recovery guidance, configuration and accessibility. Avoid fake
+metrics, decorative gradients, generic dashboard cards, prose-heavy explanations and
+unnecessary empty space.
+
+The owner specifically requested:
+
+- Use real data for compact charts: CPU/RAM, disk, TPS/MSPT, players, backups, uptime and
+  network only where data exists. Add hover/tooltips, dark/light support, responsive sizing
+  and honest empty states. Never invent samples.
+- Identify Vanilla, Paper, Purpur, Fabric, Forge, NeoForge, Quilt, Spigot and Bukkit with
+  consistent software-specific marks. Use safe existing assets or distinctive clean marks.
+- Show actual player heads when available, with graceful fallback. Keep online state,
+  operator and whitelist/ban status, ping/playtime/session details when the data exists,
+  and all player actions.
+- Make the dashboard and server cards quickly communicate state, software/version,
+  players, resources, performance, uptime, storage, activity, backups and warnings without
+  a wall of cards.
+- Use concise copy, consistent typography, icons, cards, controls, tables, badges, tabs,
+  dialogs, tooltips, empty/loading/error states and subtle fast animations. Maintain both
+  dark and light themes and usable layouts at different window sizes.
+- Review every page for clarity within a few seconds. Preserve server create/import,
+  lifecycle, console, files/editor, properties, players, content/plugins, backups,
+  encryption/restore, cloud/Google Drive/Dropbox, Playit, Geyser/Floodgate, TPS/MSPT,
+  diagnostics, notifications, Java, settings, account, onboarding, tray and orphan handling.
+- Final pass requested: formatting, TypeScript, frontend tests, Rust checks/tests,
+  accessibility, dark/light, empty/loading/error states, window sizes, and feature
+  regression review. Fix regressions before handoff.
+
+### Current refinement work (uncommitted; do not discard)
+
+At start the checkout was clean on `main`, commit `c3cf421`, up to date with origin. Current
+edits are not yet formatted or tested. Changes so far:
+
+- `apps/desktop/src/components/software-mark.tsx`: distinctive local SVG marks for common
+  server software IDs.
+- `apps/desktop/src/components/player-head.tsx`: Minecraft head image by valid UUID, with
+  initials fallback. `apps/desktop/src-tauri/tauri.conf.json` now allows images from
+  `mc-heads.net`; review this external image request and fallback behavior.
+- Dashboard rewritten as compact server cards with actual process CPU/RAM sparklines,
+  current TPS, uptime, player counts, system metrics, disk bars, latest backups and recent
+  activity. It uses existing API data only. Per-server metric/player queries are enabled
+  only for servers with a process.
+- Player rows/lists now include heads where UUIDs exist, visible online/operator/list
+  badges, session counts and existing playtime. Existing kick/ban/unban/op/whitelist
+  controls are retained.
+- Software marks added to server list, server header, create/import selection, command
+  palette, overview and backup records.
+- Sparkline/time charts rebuild when the theme changes; time charts state when history is
+  unavailable or still collecting.
+- Shared surfaces, status animation, navigation, table scrolling and shell spacing were
+  refined for consistency and narrower windows.
+
+Files changed: `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src/app/app-shell.tsx`,
+`apps/desktop/src/components/backup-list.tsx`, `command-palette.tsx`, `sparkline.tsx`,
+`time-chart.tsx`, `ui/primitives.tsx`, new `player-head.tsx`, new `software-mark.tsx`,
+`apps/desktop/src/lib/queries.ts`, `pages/create-server.tsx`, `dashboard.tsx`,
+`import-server.tsx`, `servers.tsx`, `pages/server/layout.tsx`, `overview.tsx`, `players.tsx`,
+and `styles.css`.
+
+Known data limits: no network throughput or player ping/history source was found. Do not
+fabricate either. TPS/MSPT history already exists on the server Manage page. Player DTOs
+have UUID, online state, OP/whitelist/ban flags, first/last seen, total play time and session
+count; they do not contain ping. Backup records have timestamps/status/size, not a time
+series.
+
+### Next steps to finish this request
+
+1. Run Prettier on changed frontend files, then `pnpm check`, `cargo fmt --all -- --check`,
+   `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`.
+2. Fix all lint, type, test and Rust failures. Inspect the UI for excessive query fan-out,
+   especially dashboard per-server metrics and player queries.
+3. Review the remaining UI: onboarding, settings/account, Java, activity/notifications,
+   files/editor/console, content, backups/encryption/restore, cloud, Playit, Bedrock,
+   templates and dialogs. Apply shared refinements where helpful; preserve every action.
+4. Run `apps/desktop/scripts/a11y.mjs` and inspect axe output. Use the isolated data roots
+   and CDP instructions below; never touch the owner's real server or backup data.
+5. Capture and inspect dark/light screenshots at narrow, normal and wide window sizes.
+   Cover empty, loading and error states, player heads with/without UUID, and server
+   start/stop actions. Check chart colors/resize and reduced-motion behavior.
+6. Check whether `mc-heads.net` is an acceptable head source for the product. UUID requests
+   go to that host; fallback remains local. Keep images optional and failures harmless.
+7. Verify existing feature paths end to end where feasible, fix regressions, update this
+   section with exact checks/results, then report the uncommitted diff. Do not push unless
+   the owner asks.
 
 ## What MCPanel is
 
@@ -69,11 +159,12 @@ UI with `node apps/desktop/scripts/cdp.mjs <script.mjs>`. `scripts/a11y.mjs` run
 every page (and every setup step). Emulate `reducedMotion: "reduce"` for screenshots;
 hidden windows freeze CSS animations.
 
-## State at handoff
+## Previous verified baseline
 
-All checks above pass (369 Rust tests, 12 frontend tests, clippy, fmt, prettier, deny,
-audit, accessibility scan with no violations in light and dark). The working tree is
-committed.
+The prior handoff recorded 369 Rust tests, 12 frontend tests, clippy, formatting, deny,
+audit and accessibility checks as passing. Those results predate the active refinement
+above; they do not verify its current uncommitted code. Before this request, the checkout
+was clean at `c3cf421` and matched `origin/main`.
 
 Done in the last sessions (details in `CHANGELOG.md` and `git log`):
 - License → MIT, holder DemonicAngel21; OneDrive removed; animations; UI polish.
@@ -113,7 +204,7 @@ Done in the last sessions (details in `CHANGELOG.md` and `git log`):
    testing-server\world`) was half-created by a failed first start; rename or delete it so
    a new world generates (it contains no chunks). Not done: owner's data. Also give server
    "1" (imported SquidServers world) or Testing Server a different port.
-5. **Pushing** the local commits (`git log origin/main..HEAD`), only when the owner asks.
+5. **Pushing changes** only when the owner asks. The current refinement is uncommitted.
 
 ### Not yet built / follow-ups
 6. **Fresh production installer + end-user test** of everything since the last installer
@@ -134,8 +225,7 @@ Done in the last sessions (details in `CHANGELOG.md` and `git log`):
    synced or gated. Decide with the owner what accounts should unlock (e.g. settings sync,
    cloud backups).
 10. **Cloud backups upload** is not implemented (accounts can be linked, uploads cannot).
-11. **"More color" / full-width pass** was applied to the main pages; review remaining
-    screens (dialogs, file explorer, content search) for consistency.
+11. **UI refinement** is active; see “Active owner request” above for scope and next steps.
 12. **Polish backlog:** see `docs/polish-backlog.md` (e.g. stop during first-run patching
     waits the full timeout, install dir equals data dir, empty backup folder left after
     deleting the last backup, active tab not scrolled into view at narrow widths).

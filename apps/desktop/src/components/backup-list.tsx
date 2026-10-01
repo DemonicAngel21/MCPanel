@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { BackupDto } from "@/bindings/BackupDto";
 import type { RestorePreviewDto } from "@/bindings/RestorePreviewDto";
+import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import {
   ConfirmDialog,
@@ -160,6 +161,7 @@ export function BackupList({
 
   return (
     <>
+      <div className="table-scroll">
       <table className="w-full text-[13px]">
         <thead className="border-b border-border text-left text-xs text-muted">
           <tr>
@@ -182,7 +184,7 @@ export function BackupList({
                   </Tooltip>
                   <span className="ml-2 text-xs text-muted">{formatRelative(b.createdAt)}</span>
                 </td>
-                {showServer && <td className="px-4 py-2 text-fg">{b.serverName}</td>}
+                {showServer && <td className="px-4 py-2 text-fg"><span className="inline-flex items-center gap-2"><SoftwareMark softwareId={b.softwareId} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />{b.serverName}</span></td>}
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap items-center gap-1">
                     <Badge tone={b.kind === "pre_restore" ? "info" : "neutral"}>{KIND_LABEL[b.kind] ?? b.kind}</Badge>
@@ -245,6 +247,7 @@ export function BackupList({
           })}
         </tbody>
       </table>
+      </div>
 
       {restore && <RestoreDialog key={restore.id} backup={restore} running={isRunning(restore.serverId)} onClose={() => setRestore(null)} />}
       <ConfirmDialog

@@ -136,8 +136,8 @@ const dotClasses: Record<Tone, string> = {
 export function StatusDot({ tone, pulse }: { tone: Tone; pulse?: boolean }) {
   return (
     <span className="relative inline-flex size-2">
-      {pulse && <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60", dotClasses[tone])} />}
-      <span className={cn("relative inline-flex size-2 rounded-full", dotClasses[tone])} />
+      {pulse && <span className={cn("absolute inset-0 animate-status-pulse rounded-full opacity-60", dotClasses[tone])} />}
+      <span className={cn("status-dot-core relative inline-flex size-2 rounded-full", dotClasses[tone])} />
     </span>
   );
 }
@@ -234,8 +234,8 @@ export function EmptyState({
       {icon && (
         <div
           className={cn(
-            "mb-1 flex size-11 items-center justify-center rounded-full [&_svg]:size-5",
-            tone === "danger" ? "bg-danger-soft text-danger" : "bg-surface-2 text-muted",
+            "mb-1 flex size-11 items-center justify-center rounded-xl border [&_svg]:size-5",
+            tone === "danger" ? "border-danger/20 bg-danger-soft text-danger" : "border-border bg-surface-2 text-accent-text",
           )}
         >
           {icon}

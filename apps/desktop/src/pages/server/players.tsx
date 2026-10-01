@@ -6,6 +6,7 @@ import type { KnownPlayerDto } from "@/bindings/KnownPlayerDto";
 import type { PlayerActionDto } from "@/bindings/PlayerActionDto";
 import type { ServerPlayersDto } from "@/bindings/ServerPlayersDto";
 import { PageBody } from "@/app/app-shell";
+import { PlayerHead } from "@/components/player-head";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -155,9 +156,14 @@ function PlayerRow({
     <tr className="border-b border-border last:border-0 hover:bg-surface-2">
       <td className="px-4 py-2">
         <div className="flex items-center gap-2">
-          <StatusDot tone={p.online ? "success" : "neutral"} />
+          <span className="relative">
+            <PlayerHead name={p.name} uuid={p.uuid} size="sm" />
+            <span className="absolute -right-0.5 -bottom-0.5 rounded-full border-2 border-surface bg-surface p-px">
+              <StatusDot tone={p.online ? "success" : "neutral"} />
+            </span>
+          </span>
           <Tooltip content={p.uuid ?? "UUID unknown"}>
-            <span className="text-fg">{p.name}</span>
+            <span className="font-medium text-fg">{p.name}</span>
           </Tooltip>
           {p.opLevel != null && (
             <Tooltip content={`Operator (level ${p.opLevel})`}>
@@ -170,8 +176,9 @@ function PlayerRow({
           {p.banned && <Badge tone="danger">Banned</Badge>}
         </div>
       </td>
-      <td className="px-4 py-2 text-muted">{p.online ? "Online now" : p.lastSeen ? formatRelative(p.lastSeen) : "—"}</td>
-      <td className="px-4 py-2 text-muted">{p.totalPlayMs ? formatDuration(p.totalPlayMs) : "—"}</td>
+      <td className="px-4 py-2 text-muted">{p.online ? <Badge tone="success">Online</Badge> : p.lastSeen ? formatRelative(p.lastSeen) : "—"}</td>
+      <td className="px-4 py-2 text-muted tabular-nums">{p.totalPlayMs ? formatDuration(p.totalPlayMs) : "—"}</td>
+      <td className="px-4 py-2 text-muted tabular-nums">{p.sessions ?? "—"}</td>
       <td className="px-2 py-1 text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -225,7 +232,7 @@ function SimpleList({
   removeLabel,
   disabled,
 }: {
-  rows: { key: string; main: ReactNode; sub?: ReactNode }[];
+  rows: { key: string; main: ReactNode; sub?: ReactNode; uuid?: string | null }[];
   empty: string;
   onRemove: (key: string) => void;
   removeLabel: string;
@@ -236,9 +243,12 @@ function SimpleList({
     <ul>
       {rows.map((r) => (
         <li key={r.key} className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 last:border-0 hover:bg-surface-2">
-          <div className="min-w-0">
-            <p className="truncate text-[13px] text-fg">{r.main}</p>
-            {r.sub && <p className="truncate text-xs text-muted">{r.sub}</p>}
+          <div className="flex min-w-0 items-center gap-2.5">
+            <PlayerHead name={r.key} uuid={r.uuid} size="sm" />
+            <div className="min-w-0">
+              <p className="truncate text-[13px] text-fg">{r.main}</p>
+              {r.sub && <p className="truncate text-xs text-muted">{r.sub}</p>}
+            </div>
           </div>
           <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onRemove(r.key)}>
             {removeLabel}
@@ -289,9 +299,7 @@ export function ServerPlayers() {
           }
           description={
             data.readOnlyReason ??
-            (data.live
-              ? "Changes are sent to the running server as console commands."
-              : "The server is stopped: MCPanel edits its player lists directly.")
+            (data.live ? "Changes apply to the running server." : "Changes are saved to the server folder.")
           }
           actions={
             <label className="flex items-center gap-2 text-xs text-muted">
@@ -307,11 +315,14 @@ export function ServerPlayers() {
         />
         {data.online.length > 0 && (
           <div className="flex flex-wrap gap-1.5 px-4 py-3">
-            {data.online.map((n) => (
-              <Badge key={n} tone="success">
-                {n}
-              </Badge>
-            ))}
+            {data.online.map((n) => {
+              const player = data.known.find((known) => known.name === n);
+              return (
+                <Badge key={n} tone="success" className="py-1">
+                  <PlayerHead name={n} uuid={player?.uuid} size="sm" className="size-4 rounded-sm" /> {n}
+                </Badge>
+              );
+            })}
           </div>
         )}
       </Card>
@@ -323,8 +334,7 @@ export function ServerPlayers() {
       )}
       {!data.onlineMode && (
         <Banner tone="warning" title="Offline mode">
-          Player names are not verified, so anyone can join with any name — including an operator's. Use the whitelist, or enable online mode in
-          Properties.
+          Names aren’t verified; anyone can join as anyone, including an operator. Enable the whitelist or online mode.
         </Banner>
       )}
 
@@ -350,12 +360,14 @@ export function ServerPlayers() {
             (data.known.length === 0 ? (
               <EmptyState icon={<Users />} title="No players yet" description="Players who join, and players on the server's lists, appear here." />
             ) : (
+              <div className="table-scroll">
               <table className="w-full text-[13px]">
                 <thead className="border-b border-border text-left text-xs text-muted">
                   <tr>
                     <th className="px-4 py-2 font-medium">Player</th>
                     <th className="px-4 py-2 font-medium">Last seen</th>
                     <th className="px-4 py-2 font-medium">Play time</th>
+                    <th className="px-4 py-2 font-medium">Sessions</th>
                     <th className="w-10">
                       <span className="sr-only">Actions</span>
                     </th>
@@ -374,13 +386,14 @@ export function ServerPlayers() {
                   ))}
                 </tbody>
               </table>
+              </div>
             ))}
 
           {tab === "whitelist" && (
             <>
               <NameForm label="Add" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "whitelist_add", name })} />
               <SimpleList
-                rows={data.whitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid }))}
+                rows={data.whitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid, uuid: w.uuid }))}
                 empty="Nobody is on the whitelist."
                 removeLabel="Remove"
                 disabled={ro || busy}
@@ -397,6 +410,7 @@ export function ServerPlayers() {
                   key: o.name,
                   main: o.name,
                   sub: `Level ${o.level}${o.bypassesPlayerLimit ? " · bypasses player limit" : ""}`,
+                  uuid: o.uuid,
                 }))}
                 empty="There are no operators."
                 removeLabel="Remove"
@@ -421,6 +435,7 @@ export function ServerPlayers() {
                   key: b.target,
                   main: b.target,
                   sub: [b.reason, b.source && `by ${b.source}`, b.expires ? `until ${b.expires}` : "permanent"].filter(Boolean).join(" · "),
+                  uuid: b.uuid,
                 }))}
                 empty="Nobody is banned."
                 removeLabel="Unban"

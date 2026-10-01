@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 
@@ -18,6 +18,7 @@ export function Sparkline({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
   // Callers pass inline `format` functions and new `points` arrays on every render; keep
   // the latest in refs so the chart is only rebuilt when its shape changes.
   const formatRef = useRef(format);
@@ -26,6 +27,12 @@ export function Sparkline({
     formatRef.current = format;
     pointsRef.current = points;
   });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(document.documentElement.dataset.theme ?? "dark"));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -66,7 +73,7 @@ export function Sparkline({
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [height, max, color]);
+  }, [height, max, color, theme]);
 
   useEffect(() => {
     plot.current?.setData([points.map((p) => p[0] / 1000), points.map((p) => p[1])]);

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import type { GrantDto } from "@/bindings/GrantDto";
 import type { ImportDetectionDto } from "@/bindings/ImportDetectionDto";
 import { PageBody, PageHeader } from "@/app/app-shell";
+import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
 import { Banner, Card, Field, Input, Spinner } from "@/components/ui/primitives";
@@ -26,6 +27,7 @@ export function ImportServerPage() {
   const [jar, setJar] = useState<string | undefined>();
   const [javaId, setJavaId] = useState<string | undefined>();
   const [maxMem, setMaxMem] = useState(4096);
+  const selectedSoftware = software?.find((entry) => entry.id === softwareId);
 
   const pick = async () => {
     try {
@@ -97,7 +99,7 @@ export function ImportServerPage() {
                 title={detection.detected ? "Server software detected" : "Could not detect the server software"}
               >
                 {detection.detected
-                  ? `Looks like ${software?.find((s) => s.id === detection.detected?.softwareId)?.displayName ?? detection.detected.softwareId}${detection.detected.gameVersion ? ` ${detection.detected.gameVersion}` : ""} (${detection.detected.jar}). Check the details below.`
+                  ? `Detected ${software?.find((s) => s.id === detection.detected?.softwareId)?.displayName ?? detection.detected.softwareId}${detection.detected.gameVersion ? ` ${detection.detected.gameVersion}` : ""}. Review the details below.`
                   : "Choose the software, version and jar below."}
                 {!detection.hasEula && " The Minecraft EULA has not been accepted in this folder yet; you will be asked before the first start."}
               </Banner>
@@ -105,7 +107,7 @@ export function ImportServerPage() {
                 <Field label="Name" className="col-span-2">
                   <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
                 </Field>
-                <Field label="Server software">
+                <Field label={<span className="flex items-center gap-2"><SoftwareMark softwareId={softwareId} name={selectedSoftware?.displayName} size="sm" />Server software</span>}>
                   <Select
                     value={softwareId}
                     onValueChange={setSoftwareId}

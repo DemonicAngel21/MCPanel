@@ -5,6 +5,7 @@ import { useEffect, type ReactNode } from "react";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationInbox } from "@/components/notification-inbox";
 import { JobToasts } from "@/components/job-toasts";
+import { SoftwareMark } from "@/components/software-mark";
 import { QuitDialog } from "@/components/quit-dialog";
 import { Button } from "@/components/ui/button";
 import { Kbd, StatusDot, Tooltip } from "@/components/ui/primitives";
@@ -63,6 +64,7 @@ function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; lab
     <Tooltip content={label} side="right">
       <Link
         to={to}
+        aria-current={active ? "page" : undefined}
         className={cn(
           "nav-link flex size-10 items-center justify-center rounded-lg text-muted transition-[color,background-color,scale] duration-150 hover:bg-surface-3 hover:text-fg active:scale-95 [&_svg]:size-[18px]",
           active && "bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent",
@@ -95,7 +97,7 @@ function ServerList() {
   const { data: servers, isLoading } = useServers();
   const path = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <aside className="server-sidebar flex w-52 shrink-0 flex-col border-r border-border xl:w-60">
+    <aside className="server-sidebar flex w-40 shrink-0 flex-col border-r border-border lg:w-52 xl:w-60">
       <div className="flex h-12 items-center justify-between border-b border-border px-3">
         <span className="text-xs font-semibold tracking-wide text-muted uppercase">Servers</span>
         <Tooltip content="New server">
@@ -124,12 +126,14 @@ function ServerList() {
               key={s.id}
               to="/servers/$serverId"
               params={{ serverId: s.id }}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "server-row group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-muted hover:bg-surface-3 hover:text-fg",
                 active && "bg-surface-3 text-fg",
               )}
             >
               <StatusDot tone={meta.tone} pulse={meta.pulse} />
+              <SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" className="size-6 rounded-md [&_svg]:size-3.5" />
               <span className="min-w-0 flex-1 truncate">{s.name}</span>
               <span className="shrink-0 text-[11px] text-faint">{s.software.gameVersion}</span>
             </Link>
@@ -244,7 +248,7 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <header className="workspace-header shrink-0 border-b border-border px-6 pt-4">
+    <header className="workspace-header shrink-0 border-b border-border px-3 pt-4 sm:px-4 lg:px-6">
       <div className="flex items-start justify-between gap-4 pb-4">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold text-fg">{title}</h1>
@@ -266,7 +270,7 @@ export function PageBody({ children, className }: { children: ReactNode; classNa
       tabIndex={0}
       role="region"
       aria-label="Page content"
-      className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-6 py-5 focus-visible:outline-offset-[-2px]"
+      className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto px-3 py-4 focus-visible:outline-offset-[-2px] sm:px-4 lg:px-6 lg:py-5"
     >
       <div data-page-enter className={cn("page-content-enter w-full", className)}>{children}</div>
     </div>

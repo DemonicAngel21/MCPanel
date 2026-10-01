@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { FolderInput, Plus, Server } from "lucide-react";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { ServerControls } from "@/components/server-controls";
+import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, EmptyState, SkeletonRows, StatusDot } from "@/components/ui/primitives";
 import { formatRelative } from "@/lib/format";
@@ -37,6 +38,7 @@ export function ServersPage() {
           ) : servers?.length === 0 ? (
             <EmptyState icon={<Server />} title="No servers yet" description="Create a server or import an existing server folder." />
           ) : (
+            <div className="table-scroll">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -57,15 +59,15 @@ export function ServersPage() {
                         <Link
                           to="/servers/$serverId"
                           params={{ serverId: s.id }}
-                          className="flex items-center gap-2 font-medium text-fg hover:underline"
+                          className="flex items-center gap-2.5 font-medium text-fg hover:underline"
                         >
-                          <StatusDot tone={m.tone} pulse={m.pulse} />
-                          {s.name}
+                          <SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" />
+                          <span className="min-w-0 truncate">{s.name}</span>
                         </Link>
                         <p className="selectable mt-0.5 truncate pl-4 text-[11px] text-faint">{s.directory}</p>
                       </td>
                       <td className="px-4 py-2.5 text-muted">
-                        {s.software.softwareName} {s.software.gameVersion}
+                        <span className="inline-flex items-center gap-1.5"><StatusDot tone={m.tone} pulse={m.pulse} />{s.software.softwareName} {s.software.gameVersion}</span>
                         {s.software.build ? ` #${s.software.build}` : ""}
                       </td>
                       <td className="px-4 py-2.5">
@@ -83,6 +85,7 @@ export function ServersPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
       </PageBody>

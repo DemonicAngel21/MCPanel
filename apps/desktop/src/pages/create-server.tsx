@@ -8,6 +8,7 @@ import type { JavaCompatibilityDto } from "@/bindings/JavaCompatibilityDto";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { MemoryRange } from "@/components/memory-slider";
 import { PropertyInput } from "@/components/property-input";
+import { SoftwareMark } from "@/components/software-mark";
 import { LOCATION_WARNING_TEXT } from "@/lib/location";
 import { validateProperty } from "@/lib/properties";
 import { Button } from "@/components/ui/button";
@@ -318,8 +319,11 @@ export function CreateServerPage() {
                               softwareId === s.id ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong",
                             )}
                           >
-                            <p className="text-[13px] font-semibold text-fg">{s.displayName}</p>
-                            <p className="mt-1 text-xs text-muted">{s.description}</p>
+                            <span className="mb-2 flex items-center gap-2">
+                              <SoftwareMark softwareId={s.id} name={s.displayName} size="sm" />
+                              <span className="text-[13px] font-semibold text-fg">{s.displayName}</span>
+                            </span>
+                            <span className="line-clamp-2 text-xs text-muted">{s.description}</span>
                           </button>
                         ))}
                       </div>

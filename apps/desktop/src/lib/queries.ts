@@ -69,7 +69,8 @@ export function useAuditPages(serverId: string | null) {
 export const useBackups = (serverId: string | null) => useQuery({ queryKey: qk.backups(serverId), queryFn: () => api.backups.list(serverId) });
 export const useBackupPolicy = (serverId: string) => useQuery({ queryKey: qk.backupPolicy(serverId), queryFn: () => api.backups.policy(serverId) });
 export const useBackupLocation = () => useQuery({ queryKey: qk.backupLocation, queryFn: api.backups.location });
-export const usePlayers = (serverId: string) => useQuery({ queryKey: qk.players(serverId), queryFn: () => api.players.get(serverId) });
+export const usePlayers = (serverId: string, enabled = true) =>
+  useQuery({ queryKey: qk.players(serverId), queryFn: () => api.players.get(serverId), enabled });
 export const useContent = (serverId: string) => useQuery({ queryKey: qk.content(serverId), queryFn: () => api.content.list(serverId) });
 export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.restartPolicy(serverId), queryFn: () => api.crashes.policy(serverId) });
 export const useNotifications = (enabled: boolean) => useQuery({ queryKey: qk.notifications, queryFn: () => api.notifications.list(100), enabled });

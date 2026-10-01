@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { ServerDto } from "@/bindings/ServerDto";
 import { ServerControls } from "@/components/server-controls";
+import { SoftwareMark } from "@/components/software-mark";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { Badge, Banner, EmptyState, Spinner } from "@/components/ui/primitives";
@@ -30,7 +31,7 @@ const TABS = [
 function ServerBanners({ server }: { server: ServerDto }) {
   const [killOpen, setKillOpen] = useState(false);
   return (
-    <div className="space-y-2 px-6 pt-4 empty:hidden">
+    <div className="space-y-2 px-3 pt-4 empty:hidden sm:px-4 lg:px-6">
       {!server.directoryExists && (
         <Banner tone="danger" icon={<AlertTriangle />} title="Server folder not found">
           <span className="selectable font-mono">{server.directory}</span> does not exist or is not accessible.
@@ -124,10 +125,11 @@ export function ServerLayout() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="workspace-header shrink-0 border-b border-border px-6 pt-4">
+      <header className="workspace-header shrink-0 border-b border-border px-3 pt-4 sm:px-4 lg:px-6">
         <div className="flex items-start justify-between gap-4 pb-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
+              <SoftwareMark softwareId={server.software.softwareId} name={server.software.softwareName} size="sm" />
               <h1 className="truncate text-lg font-semibold text-fg">{server.name}</h1>
               <Badge tone={meta.tone}>{meta.label}</Badge>
             </div>

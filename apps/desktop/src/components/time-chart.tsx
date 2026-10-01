@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 
@@ -39,7 +39,14 @@ export function TimeChart({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
   const latest = useRef({ points, windowMs, format, threshold });
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(document.documentElement.dataset.theme ?? "dark"));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     latest.current = { points, windowMs, format, threshold };
   });
@@ -135,7 +142,7 @@ export function TimeChart({
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [height, min, max, color, label]);
+  }, [height, min, max, color, label, theme]);
 
   useEffect(() => {
     plot.current?.setData([points.map((p) => p[0] / 1000), points.map((p) => p[1])]);
@@ -148,6 +155,11 @@ export function TimeChart({
         aria-hidden
         className="pointer-events-none absolute top-0 right-2 z-10 rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] text-fg opacity-0 transition-opacity"
       />
+      {points.length < 2 && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] text-faint" aria-hidden="true">
+          {points.length === 0 ? "Waiting for samples" : "Collecting history"}
+        </span>
+      )}
     </div>
   );
 }
