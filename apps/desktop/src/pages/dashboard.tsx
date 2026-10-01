@@ -251,8 +251,33 @@ export function DashboardPage() {
         ))}
 
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <Stat icon={<Server />} label="Servers" value={`${running} / ${servers?.length ?? 0}`} sub="running" />
-          <Stat icon={<Users />} tint="text-tint-players" label="Players" value={`${onlineCount}`} sub="online" />
+          <Stat icon={<Server />} label="Servers" value={`${running} / ${servers?.length ?? 0}`} sub="running">
+            <div className="mt-auto flex h-[38px] flex-col justify-end gap-1.5">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-300"
+                  style={{ width: `${servers?.length ? Math.min(100, Math.round((running / servers.length) * 100)) : 0}%` }}
+                />
+              </div>
+              <span className="text-[11px] text-faint">
+                {servers?.length ? `${Math.round((running / servers.length) * 100)}% active` : "No servers configured"}
+              </span>
+            </div>
+          </Stat>
+          <Stat icon={<Users />} tint="text-tint-players" label="Players" value={`${onlineCount}`} sub="online">
+            <div className="mt-auto flex h-[38px] flex-col justify-end gap-1.5">
+              <div className="flex items-center gap-1.5 overflow-hidden text-[11px] text-faint">
+                {onlineCount > 0 ? (
+                  <span className="truncate text-tint-players">
+                    Active across {servers?.filter((s) => s.onlinePlayers.length > 0).length ?? 0} server
+                    {(servers?.filter((s) => s.onlinePlayers.length > 0).length ?? 0) === 1 ? "" : "s"}
+                  </span>
+                ) : (
+                  <span>No active sessions</span>
+                )}
+              </div>
+            </div>
+          </Stat>
           <Stat
             icon={<Cpu />}
             tint="text-tint-cpu"

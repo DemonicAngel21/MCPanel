@@ -7,6 +7,7 @@ import { canStart, canStop } from "@/lib/server-state";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/overlays";
+import { Tooltip } from "./ui/primitives";
 
 export function ServerControls({ server, compact }: { server: ServerDto; compact?: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -44,14 +45,22 @@ export function ServerControls({ server, compact }: { server: ServerDto; compact
         </>
       )}
       {(s === "stopping" || s === "restarting") && (
-        <Button variant="outline" size={compact ? "sm" : "md"} disabled>
-          <Square /> {s === "stopping" ? "Stopping…" : "Restarting…"}
-        </Button>
+        <Tooltip
+          content={
+            s === "stopping" ? "Stopping gracefully (waits up to 60s before terminating if unresponsive, or use Force stop)" : "Restarting server"
+          }
+        >
+          <span>
+            <Button variant="outline" size={compact ? "sm" : "md"} disabled>
+              <Square /> {s === "stopping" ? "Stopping…" : "Restarting…"}
+            </Button>
+          </span>
+        </Tooltip>
       )}
-      {processAlive && !compact && (
+      {processAlive && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="More actions">
+            <Button variant="ghost" size={compact ? "icon-sm" : "icon"} aria-label="More actions">
               <MoreHorizontal />
             </Button>
           </DropdownMenuTrigger>

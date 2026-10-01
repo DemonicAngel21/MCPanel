@@ -207,10 +207,16 @@ fn command_for(action: &PlayerAction) -> String {
 }
 
 /// Strip the log prefix and 26.x's "System chat: " from a server reply line.
+/// Unrelated server warning lines logged concurrently are filtered out.
 fn reply_text(raw: &str) -> String {
-    let msg = dialect::parse_line(raw).message;
+    let parsed = dialect::parse_line(raw);
+    if matches!(parsed.level, Some(dialect::LogLevel::Warn)) {
+        return String::new();
+    }
+    let msg = parsed.message;
     msg.strip_prefix("System chat: ")
         .unwrap_or(&msg)
+        .trim()
         .to_string()
 }
 
@@ -895,5 +901,10 @@ mod tests {
             "Made McpTester a server operator"
         );
         assert_eq!(reply_text("[12:00:00 INFO]: Opped Steve"), "Opped Steve");
+        assert_eq!(
+            reply_text("[12:00:00 WARN]: handleDisconnection() called twice"),
+            "",
+            "warn lines are filtered out of command replies"
+        );
     }
 }

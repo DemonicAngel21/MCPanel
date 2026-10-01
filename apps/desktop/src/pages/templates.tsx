@@ -61,6 +61,16 @@ export function TemplatesPage() {
                   </Badge>
                 ))}
               </div>
+              {t.defaultProperties && t.defaultProperties.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-1 font-mono text-[11px] text-faint">
+                  {t.defaultProperties.slice(0, 4).map((p) => (
+                    <span key={p.key} className="rounded border border-border/60 bg-surface-2 px-1.5 py-0.5 text-muted">
+                      {p.key}={p.value}
+                    </span>
+                  ))}
+                  {t.defaultProperties.length > 4 && <span className="text-[10px] text-faint">+{t.defaultProperties.length - 4} more</span>}
+                </div>
+              )}
               <Button asChild variant="primary" size="sm" className="mt-4 self-start">
                 <Link to="/servers/new" search={{ template: t.id }}>
                   Create server

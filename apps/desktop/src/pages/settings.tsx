@@ -12,7 +12,7 @@ import { Select } from "@/components/ui/overlays";
 import { Card, CardHeader, Checkbox, Field, Input, Switch } from "@/components/ui/primitives";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import { api } from "@/lib/api";
-import { qk, useAppInfo, useNotificationPrefs, useSettings } from "@/lib/queries";
+import { qk, useAppInfo, useNotificationPrefs, useSettings, useSoftware } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
 
 const RULES: { key: keyof NotificationPrefsDto; label: string; description: string }[] = [
@@ -94,6 +94,7 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const { data: settings } = useSettings();
   const { data: info } = useAppInfo();
+  const { data: software } = useSoftware();
 
   const update = async (patch: Parameters<typeof api.settings.update>[0]) => {
     try {
@@ -191,8 +192,9 @@ export function SettingsPage() {
             <Shield className="mt-0.5 size-4 shrink-0 text-accent" />
             <p>
               MCPanel has <span className="text-fg">no telemetry</span>. It contacts the internet only for what you ask it to do: server software and
-              version information from the official providers (Mojang, PaperMC, PurpurMC, FabricMC, QuiltMC, NeoForged, MinecraftForge), plugins and
-              mods from Modrinth, Hangar, GeyserMC and SpigotMC (through the Spiget API), and player profiles from Mojang. It does not open any
+              version information from the official providers (
+              {software?.map((s) => s.displayName).join(", ") || "Mojang, PaperMC, PurpurMC, FabricMC, QuiltMC, NeoForged, MinecraftForge"}), plugins
+              and mods from Modrinth, Hangar, GeyserMC and SpigotMC (through the Spiget API), and player profiles from Mojang. It does not open any
               network port.
             </p>
           </div>

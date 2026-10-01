@@ -13,7 +13,7 @@ import { LOCATION_WARNING_TEXT } from "@/lib/location";
 import { validateProperty } from "@/lib/properties";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Badge, Banner, Card, CardHeader, Checkbox, Field, Input, Progress, Spinner, Switch } from "@/components/ui/primitives";
+import { Badge, Banner, Card, CardHeader, Checkbox, Field, Input, Progress, Spinner, Switch, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { qk, useJava, useServers, useSoftware, useSystemMetrics, useTemplates } from "@/lib/queries";
@@ -526,9 +526,26 @@ export function CreateServerPage() {
                         {minMem} – {maxMem} MB
                       </dd>
                       <dt className="text-muted">Download</dt>
-                      <dd className="flex items-center gap-1.5 text-fg">
-                        {preview.data?.hashStrong ? <ShieldCheck className="size-4 text-accent" /> : <ShieldAlert className="size-4 text-warning" />}
+                      <dd className="flex flex-wrap items-center gap-1.5 text-fg">
+                        {preview.data?.hashStrong ? (
+                          <ShieldCheck className="size-4 text-accent" />
+                        ) : (
+                          <Tooltip
+                            content={
+                              preview.data?.hashAlgorithm === "sha1"
+                                ? "Base game jar uses SHA-1 integrity verification; loader libraries are verified with SHA-512."
+                                : undefined
+                            }
+                          >
+                            <span className="flex items-center">
+                              <ShieldAlert className="size-4 text-warning" />
+                            </span>
+                          </Tooltip>
+                        )}
                         {preview.data?.hashAlgorithm ? `Checked with ${preview.data.hashAlgorithm.toUpperCase()}` : "No checksum available"}
+                        {preview.data?.hashAlgorithm === "sha1" && preview.data.notes.some((n) => n.includes("SHA-512")) && (
+                          <span className="text-xs text-muted">(libraries SHA-512)</span>
+                        )}
                         {preview.data?.downloadBytes ? ` · ${formatBytes(preview.data.downloadBytes)}` : ""}
                       </dd>
                     </dl>

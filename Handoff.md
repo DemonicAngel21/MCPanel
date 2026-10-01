@@ -37,7 +37,7 @@ The owner specifically requested:
   accessibility, dark/light, empty/loading/error states, window sizes, and feature
   regression review. Fix regressions before handoff.
 
-### Current refinement work (completed and verified locally; uncommitted)
+### Current refinement work (completed and verified locally)
 
 The major UI/UX refinement requested by the owner has been implemented, formatted, and
 verified against the full test suite. Changes made:
@@ -66,6 +66,13 @@ verified against the full test suite. Changes made:
 - Sparkline/time charts rebuild when theme changes; metric cards collapse when server is stopped.
 - Shared surfaces, status animations, navigation, table scrolling and shell spacing refined.
 - DOMPurify security override added to `pnpm-workspace.yaml` resolving `pnpm audit --prod`.
+- Player console replies filter out concurrent WARN log lines in `crates/mcpanel-core/src/players/service.rs` (item 27).
+- Template cards display preview badges for resolved properties in modern versions (item 30).
+- Settings Privacy card dynamically derives software providers from registered provider list (item 33).
+- Bedrock connection card shows a quick-copy 127.0.0.1:{port} address block matching Java Overview (item 36).
+- ServerControls provides graceful termination guidance tooltip and enables Force stop on compact cards (item 37).
+- Create wizard clarifies multi-file checksums when base game jar uses SHA-1 and libraries use SHA-512 (item 32).
+- Dashboard Servers and Players cards include 38px visual metric bars/summaries matching CPU/RAM sparklines (item 41).
 
 ### Verification checklist results
 
@@ -190,7 +197,7 @@ Done in the last sessions (details in `CHANGELOG.md` and `git log`):
    testing-server\world`) was half-created by a failed first start; rename or delete it so
    a new world generates (it contains no chunks). Not done: owner's data. Also give server
    "1" (imported SquidServers world) or Testing Server a different port.
-5. **Pushing changes** only when the owner asks. The current refinement is uncommitted.
+5. **Pushing changes** only when the owner asks. Never push to origin/main unless requested.
 
 ### Not yet built / follow-ups
 6. **Fresh production installer + end-user test** of everything since the last installer

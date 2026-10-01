@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, KeyRound, Radio, RefreshCw, Save, Smartphone } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, KeyRound, Radio, RefreshCw, Save, Smartphone } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { BedrockPieceDto } from "@/bindings/BedrockPieceDto";
@@ -172,10 +172,24 @@ function ConnectionCard({ serverId, status }: { serverId: string; status: Bedroc
         }
       />
       <div className="space-y-3 p-4 text-xs text-muted">
+        <div className="flex items-center gap-2">
+          <code className="selectable rounded-md border border-border bg-surface-2 px-2.5 py-1.5 font-mono text-[13px] text-fg">
+            127.0.0.1:{port}
+          </code>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Copy address"
+            onClick={() => navigator.clipboard.writeText(`127.0.0.1:${port}`).then(() => toast.success("Address copied"))}
+          >
+            <Copy />
+          </Button>
+        </div>
         <p>
-          In Minecraft Bedrock, open <b>Play → Servers → Add Server</b> and enter this computer's address with port{" "}
-          <span className="selectable font-mono text-fg">{port}</span>. Players on the same network use its LAN IP address; Windows may ask to allow
-          Java through the firewall for UDP the first time.
+          In Minecraft Bedrock, open <b>Play → Servers → Add Server</b>. For this computer use{" "}
+          <code className="font-mono text-fg">127.0.0.1:{port}</code>. Other devices on your local network use this computer's LAN IP address with
+          port <span className="selectable font-mono text-fg">{port}</span>. Windows may ask to allow Java through the firewall for UDP the first
+          time.
         </p>
         {pong && (
           <div className="flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-fg">

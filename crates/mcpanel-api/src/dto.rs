@@ -2551,6 +2551,8 @@ pub struct TemplateDto {
     pub memory_mb: Option<MemoryRangeDto>,
     /// Keys the template sets (values depend on the Minecraft version).
     pub property_keys: Vec<String>,
+    /// Resolved default properties for modern versions (where until is None).
+    pub default_properties: Vec<TemplatePropertyDto>,
     pub backup_interval_minutes: Option<u32>,
     pub auto_restart: bool,
     pub plugins: Vec<TemplatePluginDto>,
@@ -2588,6 +2590,15 @@ impl From<&Template> for TemplateDto {
     fn from(t: &Template) -> Self {
         let mut keys: Vec<String> = t.properties.iter().map(|p| p.key.clone()).collect();
         keys.dedup();
+        let default_properties = t
+            .properties
+            .iter()
+            .filter(|p| p.until.is_none())
+            .map(|p| TemplatePropertyDto {
+                key: p.key.clone(),
+                value: p.value.clone(),
+            })
+            .collect();
         Self {
             id: t.id.clone(),
             name: t.name.clone(),
@@ -2599,6 +2610,7 @@ impl From<&Template> for TemplateDto {
                 max: m.max,
             }),
             property_keys: keys,
+            default_properties,
             backup_interval_minutes: t.backups.as_ref().map(|b| b.interval_minutes),
             auto_restart: t.auto_restart,
             plugins: t.plugins.iter().map(plugin_dto).collect(),
