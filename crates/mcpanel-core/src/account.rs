@@ -10,14 +10,23 @@ use crate::cloud::loopback::{Callback, Loopback};
 use crate::cloud::pkce;
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::ports::{SecretStore, SettingsRepository};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 const REFRESH_SECRET: &str = "account-refresh-token";
 const PROFILE_KEY: &str = "account.profile";
+pub const OAUTH_CREDENTIALS_SETTINGS_KEY: &str = "account.oauth_credentials";
+pub const GOOGLE_SECRET_KEY: &str = "account-google-secret";
 const GOOGLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SavedOAuthCredentials {
+    pub firebase_api_key: Option<String>,
+    pub google_client_id: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccountProfile {
@@ -65,6 +74,14 @@ pub trait AuthBackend: Send + Sync {
         verifier: &str,
         redirect: &str,
     ) -> CoreResult<SecretString>;
+    /// Update or configure credentials dynamically at runtime.
+    fn configure_credentials(
+        &self,
+        _firebase_api_key: Option<String>,
+        _google_client_id: Option<String>,
+        _google_secret: Option<SecretString>,
+    ) {
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +99,7 @@ pub struct AccountStatus {
     pub signed_in: bool,
     pub profile: Option<AccountProfile>,
     pub google: Option<GoogleSignIn>,
+    pub custom_oauth_configured: bool,
 }
 
 /// A pending Google sign-in: its progress and the task waiting for the redirect.
@@ -92,6 +110,7 @@ pub struct AccountService {
     secrets: Arc<dyn SecretStore>,
     settings: Arc<dyn SettingsRepository>,
     google: Mutex<Option<GoogleFlow>>,
+    credentials_loaded: AtomicBool,
 }
 
 /// A plausible email address (Firebase does the real check).
@@ -127,6 +146,7 @@ impl AccountService {
             secrets,
             settings,
             google: Mutex::new(None),
+            credentials_loaded: AtomicBool::new(false),
         }
     }
 
@@ -145,6 +165,86 @@ impl AccountService {
                     "Accounts are not available in this build of MCPanel.",
                 )
             })
+    }
+
+    pub async fn load_saved_credentials(&self) -> CoreResult<()> {
+        let creds: Option<SavedOAuthCredentials> = self
+            .settings
+            .get(OAUTH_CREDENTIALS_SETTINGS_KEY)
+            .await?
+            .and_then(|v| serde_json::from_value(v).ok());
+        let secret = self.secrets.get(GOOGLE_SECRET_KEY).ok().flatten();
+        if let Some(b) = self.backend.get() {
+            if let Some(ref c) = creds {
+                b.configure_credentials(
+                    c.firebase_api_key.clone(),
+                    c.google_client_id.clone(),
+                    secret,
+                );
+            } else if secret.is_some() {
+                b.configure_credentials(None, None, secret);
+            }
+        }
+        self.credentials_loaded.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    pub async fn configure_credentials(
+        &self,
+        firebase_api_key: Option<String>,
+        google_client_id: Option<String>,
+        google_client_secret: Option<SecretString>,
+    ) -> CoreResult<()> {
+        let mut creds: SavedOAuthCredentials = self
+            .settings
+            .get(OAUTH_CREDENTIALS_SETTINGS_KEY)
+            .await?
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+
+        if let Some(key) = firebase_api_key {
+            let k = key.trim().to_string();
+            creds.firebase_api_key = if k.is_empty() { None } else { Some(k) };
+        }
+        if let Some(id) = google_client_id {
+            let i = id.trim().to_string();
+            creds.google_client_id = if i.is_empty() { None } else { Some(i) };
+        }
+
+        let val = serde_json::to_value(&creds).map_err(|e| CoreError::internal(e.to_string()))?;
+        self.settings
+            .set(OAUTH_CREDENTIALS_SETTINGS_KEY, &val)
+            .await?;
+
+        if let Some(ref sec) = google_client_secret {
+            let s = sec.expose_secret().trim();
+            if s.is_empty() {
+                self.secrets.delete(GOOGLE_SECRET_KEY)?;
+            } else {
+                self.secrets.set(GOOGLE_SECRET_KEY, sec)?;
+            }
+        }
+
+        let current_secret = match google_client_secret {
+            Some(sec) => {
+                if sec.expose_secret().trim().is_empty() {
+                    None
+                } else {
+                    Some(sec)
+                }
+            }
+            None => self.secrets.get(GOOGLE_SECRET_KEY).ok().flatten(),
+        };
+
+        if let Some(b) = self.backend.get() {
+            b.configure_credentials(
+                creds.firebase_api_key.clone(),
+                creds.google_client_id.clone(),
+                current_secret,
+            );
+        }
+        self.credentials_loaded.store(true, Ordering::Release);
+        Ok(())
     }
 
     async fn cached_profile(&self) -> CoreResult<Option<AccountProfile>> {
@@ -172,8 +272,20 @@ impl AccountService {
     }
 
     pub async fn status(&self) -> CoreResult<AccountStatus> {
+        if !self.credentials_loaded.load(Ordering::Acquire) {
+            let _ = self.load_saved_credentials().await;
+        }
         let backend = self.backend.get();
         let signed_in = self.secrets.get(REFRESH_SECRET)?.is_some();
+        let custom_oauth_configured = self
+            .settings
+            .get(OAUTH_CREDENTIALS_SETTINGS_KEY)
+            .await?
+            .and_then(|v| serde_json::from_value::<SavedOAuthCredentials>(v).ok())
+            .map(|c| c.google_client_id.is_some() || c.firebase_api_key.is_some())
+            .unwrap_or(false)
+            || self.secrets.get(GOOGLE_SECRET_KEY)?.is_some();
+
         Ok(AccountStatus {
             configured: backend.is_some_and(|b| b.configured()),
             google_available: backend.is_some_and(|b| b.configured() && b.google_available()),
@@ -184,6 +296,7 @@ impl AccountService {
                 None
             },
             google: self.google_progress(),
+            custom_oauth_configured,
         })
     }
 
@@ -363,8 +476,9 @@ impl AccountService {
         Ok(profile)
     }
 
-    /// At start: refresh the cached profile when signed in (offline is fine).
+    /// At start: load saved credentials and refresh the cached profile when signed in (offline is fine).
     pub async fn on_startup(&self) {
+        let _ = self.load_saved_credentials().await;
         if matches!(self.secrets.get(REFRESH_SECRET), Ok(Some(_)))
             && self.backend().is_ok()
             && let Err(e) = self.refresh_profile().await

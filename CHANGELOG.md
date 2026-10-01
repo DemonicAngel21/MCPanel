@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Runtime Google OAuth configuration: enter and securely persist Google OAuth Client ID,
+  client secret, and Firebase API keys dynamically at runtime, enabling "Continue with Google"
+  without rebuilding or setting environment variables.
 - Multihost cluster management: monitor and manage Minecraft servers across multiple
   host nodes (local machine and remote nodes). Remote node enrollment and management
   requires an active MCPanel account (Firebase Authentication). Unauthenticated users
@@ -32,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - playit.gg: start and stop the playit agent, link it to a playit.gg account through
   the official `playit setup` flow, and save a tunnel's public address per server.
   Tunnels are still created on playit.gg (no public API).
+
+### Fixed
+
+- Fixed off-centered online status dot on host machine badges by using the standardized
+  StatusDot component.
 
 ### Changed
 

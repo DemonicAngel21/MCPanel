@@ -9,4 +9,4 @@ configured: boolean, googleAvailable: boolean, signedIn: boolean, profile: Accou
 /**
  * "waiting" | "done" | "failed" for a Google sign-in started in MCPanel.
  */
-googleState: string | null, googleError: string | null, };
+googleState: string | null, googleError: string | null, customOauthConfigured: boolean, };

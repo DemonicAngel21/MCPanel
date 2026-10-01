@@ -27,6 +27,7 @@ import type { EncryptionStatusDto } from "@/bindings/EncryptionStatusDto";
 import type { NotificationDto } from "@/bindings/NotificationDto";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import type { AccountDto } from "@/bindings/AccountDto";
+import type { ConfigureOauthDto } from "@/bindings/ConfigureOauthDto";
 import type { AddHostDto } from "@/bindings/AddHostDto";
 import type { HostDto } from "@/bindings/HostDto";
 import type { HostEnrollmentTokenDto } from "@/bindings/HostEnrollmentTokenDto";
@@ -257,6 +258,7 @@ export const api = {
     resendVerification: () => call<void>("account_resend_verification"),
     resetPassword: (email: string) => call<void>("account_reset_password", { email }),
     setName: (name: string) => call<AccountDto>("account_set_name", { name }),
+    configureOauth: (req: ConfigureOauthDto) => call<AccountDto>("account_configure_oauth", { req }),
   },
   playit: {
     status: () => call<PlayitAgentDto>("playit_status"),

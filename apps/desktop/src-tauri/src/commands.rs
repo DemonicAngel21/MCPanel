@@ -628,6 +628,14 @@ pub async fn account_set_name(s: State<'_, AppState>, name: String) -> R<Account
     s.api.account_set_name(&s.principal(), &name).await
 }
 
+#[tauri::command]
+pub async fn account_configure_oauth(
+    s: State<'_, AppState>,
+    req: ConfigureOauthDto,
+) -> R<AccountDto> {
+    s.api.account_configure_oauth(&s.principal(), req).await
+}
+
 // ─────────────────────── MCPanel's playit agent ───────────────────────
 
 #[tauri::command]

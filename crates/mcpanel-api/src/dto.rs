@@ -2126,6 +2126,16 @@ pub struct AccountDto {
     /// "waiting" | "done" | "failed" for a Google sign-in started in MCPanel.
     pub google_state: Option<String>,
     pub google_error: Option<String>,
+    pub custom_oauth_configured: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ConfigureOauthDto {
+    pub firebase_api_key: Option<String>,
+    pub google_client_id: Option<String>,
+    pub google_client_secret: Option<String>,
 }
 
 impl From<mcpanel_core::account::AccountProfile> for AccountProfileDto {
@@ -2157,6 +2167,7 @@ impl From<mcpanel_core::account::AccountStatus> for AccountDto {
             profile: s.profile.map(Into::into),
             google_state,
             google_error,
+            custom_oauth_configured: s.custom_oauth_configured,
         }
     }
 }

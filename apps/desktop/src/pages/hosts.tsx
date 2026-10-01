@@ -34,7 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/overlays";
-import { Badge, Card, EmptyState, Field, Input, SkeletonRows, Spinner } from "@/components/ui/primitives";
+import { Badge, Card, EmptyState, Field, Input, SkeletonRows, Spinner, StatusDot } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatCount, formatRelative } from "@/lib/format";
 import { qk, useMultihostStatus } from "@/lib/queries";
@@ -218,7 +218,7 @@ export function HostsPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-fg">{localHost.name}</span>
                         <Badge tone="success">
-                          <span className="bg-success mr-1 inline-block size-1.5 animate-pulse rounded-full" />
+                          <StatusDot tone="success" pulse />
                           Online
                         </Badge>
                         <Badge tone="neutral">Loopback</Badge>

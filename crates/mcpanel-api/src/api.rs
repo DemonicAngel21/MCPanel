@@ -1494,6 +1494,21 @@ impl Api {
         Ok(self.core.account.status().await?.into())
     }
 
+    pub async fn account_configure_oauth(
+        &self,
+        p: &Principal,
+        req: ConfigureOauthDto,
+    ) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let secret = req.google_client_secret.map(secrecy::SecretString::from);
+        self.core
+            .account
+            .configure_credentials(req.firebase_api_key, req.google_client_id, secret)
+            .await?;
+        self.audit_account(p, "account.configure_oauth").await;
+        Ok(self.core.account.status().await?.into())
+    }
+
     /// Host hook: the Firebase backend.
     pub fn account_attach_backend(&self, backend: Arc<dyn mcpanel_core::account::AuthBackend>) {
         self.core.account.set_backend(backend);

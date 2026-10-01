@@ -259,6 +259,7 @@ fn main() {
             commands::account_resend_verification,
             commands::account_reset_password,
             commands::account_set_name,
+            commands::account_configure_oauth,
             commands::playit_link,
             commands::playit_relink,
             commands::playit_cancel_link,

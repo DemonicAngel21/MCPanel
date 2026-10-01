@@ -15,6 +15,7 @@ use mcpanel_core::account::{AccountProfile, AuthBackend, AuthSession};
 use mcpanel_core::error::{CoreError, CoreResult, ErrorCode};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{Value, json};
+use std::sync::RwLock;
 use std::time::Duration;
 
 pub const FIREBASE_API_KEY_VAR: &str = "MCPANEL_FIREBASE_API_KEY";
@@ -45,9 +46,9 @@ fn select_api_key(runtime: Option<String>, build: Option<&str>) -> Option<String
 
 pub struct FirebaseAuth {
     client: reqwest::Client,
-    api_key: Option<String>,
-    google_client_id: Option<String>,
-    google_secret: Option<SecretString>,
+    api_key: RwLock<Option<String>>,
+    google_client_id: RwLock<Option<String>>,
+    google_secret: RwLock<Option<SecretString>>,
     identity: String,
     secure_token: String,
     google_token: String,
@@ -57,9 +58,9 @@ impl FirebaseAuth {
     pub fn new(http: &HttpClient, api_key: Option<String>, ids: &CloudClientIds) -> Self {
         Self {
             client: http.inner().clone(),
-            api_key,
-            google_client_id: ids.google.clone(),
-            google_secret: ids.google_secret.clone(),
+            api_key: RwLock::new(api_key),
+            google_client_id: RwLock::new(ids.google.clone()),
+            google_secret: RwLock::new(ids.google_secret.clone()),
             identity: IDENTITY.into(),
             secure_token: SECURE_TOKEN.into(),
             google_token: GOOGLE_TOKEN.into(),
@@ -71,22 +72,26 @@ impl FirebaseAuth {
     fn for_test(base: &str) -> Self {
         Self {
             client: reqwest::Client::new(),
-            api_key: Some("test-key".into()),
-            google_client_id: Some("123-abc.apps.googleusercontent.com".into()),
-            google_secret: Some(SecretString::from("GOCSPX-test".to_string())),
+            api_key: RwLock::new(Some("test-key".into())),
+            google_client_id: RwLock::new(Some("123-abc.apps.googleusercontent.com".into())),
+            google_secret: RwLock::new(Some(SecretString::from("GOCSPX-test".to_string()))),
             identity: format!("{base}/v1"),
             secure_token: format!("{base}/token"),
             google_token: format!("{base}/google-token"),
         }
     }
 
-    fn key(&self) -> CoreResult<&str> {
-        self.api_key.as_deref().ok_or_else(|| {
-            CoreError::new(
-                ErrorCode::Unsupported,
-                "Accounts are not available in this build of MCPanel.",
-            )
-        })
+    fn key(&self) -> CoreResult<String> {
+        self.api_key
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::Unsupported,
+                    "Accounts are not available in this build of MCPanel.",
+                )
+            })
     }
 
     async fn identity(&self, method: &str, body: Value) -> CoreResult<Value> {
@@ -320,11 +325,40 @@ fn urlencode(s: &str) -> String {
 #[async_trait::async_trait]
 impl AuthBackend for FirebaseAuth {
     fn configured(&self) -> bool {
-        self.api_key.is_some()
+        self.api_key
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
 
     fn google_available(&self) -> bool {
-        self.google_client_id.is_some() && self.google_secret.is_some()
+        self.google_client_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
+    }
+
+    fn configure_credentials(
+        &self,
+        firebase_api_key: Option<String>,
+        google_client_id: Option<String>,
+        google_secret: Option<SecretString>,
+    ) {
+        if let Some(key) = firebase_api_key {
+            *self.api_key.write().unwrap_or_else(|e| e.into_inner()) = Some(key);
+        }
+        if let Some(id) = google_client_id {
+            *self
+                .google_client_id
+                .write()
+                .unwrap_or_else(|e| e.into_inner()) = Some(id);
+        }
+        if let Some(secret) = google_secret {
+            *self
+                .google_secret
+                .write()
+                .unwrap_or_else(|e| e.into_inner()) = Some(secret);
+        }
     }
 
     async fn sign_up(&self, email: &str, password: &str) -> CoreResult<AuthSession> {
@@ -430,7 +464,11 @@ impl AuthBackend for FirebaseAuth {
         challenge: &str,
         state: &str,
     ) -> CoreResult<String> {
-        let id = self.google_client_id.as_deref().ok_or_else(|| {
+        let guard = self
+            .google_client_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        let id = guard.as_deref().ok_or_else(|| {
             CoreError::new(
                 ErrorCode::Unsupported,
                 "Google sign-in is not available in this build.",
@@ -457,15 +495,35 @@ impl AuthBackend for FirebaseAuth {
         verifier: &str,
         redirect: &str,
     ) -> CoreResult<SecretString> {
-        let (Some(id), Some(secret)) = (
-            self.google_client_id.as_deref(),
-            self.google_secret.as_ref(),
-        ) else {
-            return Err(CoreError::new(
-                ErrorCode::Unsupported,
-                "Google sign-in is not available in this build.",
-            ));
+        let id = {
+            let guard = self
+                .google_client_id
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
+            guard.clone().ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::Unsupported,
+                    "Google sign-in is not available in this build.",
+                )
+            })?
         };
+        let secret = {
+            let guard = self.google_secret.read().unwrap_or_else(|e| e.into_inner());
+            guard.clone()
+        };
+
+        let mut params = vec![
+            ("client_id", id.as_str()),
+            ("code", code),
+            ("code_verifier", verifier),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect),
+        ];
+        let secret_val = secret.as_ref().map(|s| s.expose_secret());
+        if let Some(sec) = secret_val {
+            params.push(("client_secret", sec));
+        }
+
         let resp = self
             .client
             .post(&self.google_token)
@@ -474,14 +532,7 @@ impl AuthBackend for FirebaseAuth {
                 reqwest::header::CONTENT_TYPE,
                 "application/x-www-form-urlencoded",
             )
-            .body(form(&[
-                ("client_id", id),
-                ("client_secret", secret.expose_secret()),
-                ("code", code),
-                ("code_verifier", verifier),
-                ("grant_type", "authorization_code"),
-                ("redirect_uri", redirect),
-            ]))
+            .body(form(&params))
             .send()
             .await
             .map_err(unreachable_err)?;
