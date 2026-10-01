@@ -120,6 +120,10 @@ export function GoogleConfigDialog({ open, onOpenChange, onSaved }: { open: bool
               . Create credentials with type <strong>Desktop app</strong> (or Web application with redirect URI{" "}
               <code className="rounded bg-surface-3 px-1 font-mono text-[11px]">http://127.0.0.1</code>).
             </p>
+            <p className="mt-2 text-[11px] text-faint">
+              <strong>Note:</strong> In production releases of MCPanel, credentials are pre-configured so your end users sign in with 1 click without
+              ever seeing this setup.
+            </p>
             {account?.customOauthConfigured && <p className="text-success mt-2 font-medium">✓ Custom credentials are saved on this device.</p>}
           </div>
 
