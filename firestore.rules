@@ -1,0 +1,126 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: /users/{userId}/synced_settings
+// Document ID: preferences
+// Fields:
+//   - schema_version: int (required, must equal 1)
+//   - updated_at: int (required, epoch millis >= 0) or timestamp
+//   - theme: string (optional, allowed: 'light', 'dark', 'system')
+//   - accent: string (optional, 1..32 characters)
+//   - console_buffer_lines: int (optional, 100..100000)
+//   - quit_stop_timeout_secs: int (optional, 1..300)
+//   - tick_sampling: bool (optional)
+//
+// Collection: /users/{userId}/servers
+// Document ID: {serverId}
+//   - Reserved for future multi-server management & linking
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------
+    // Global Default Deny
+    // -------------------------------------------------------------
+    // Deny all reads and writes across the database by default.
+    // Specific paths below grant least-privilege, authenticated access.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------
+
+    // Returns true if the client request is authenticated.
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // Returns true if the authenticated user matches the specified owner userId.
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validates the structure and constraints of the user preferences document.
+    // Applied on both create and update to prevent Update Bypass and Schema Pollution.
+    function isValidPreferences(data) {
+      return data.keys().hasOnly([
+          'schema_version',
+          'updated_at',
+          'theme',
+          'accent',
+          'console_buffer_lines',
+          'quit_stop_timeout_secs',
+          'tick_sampling'
+        ])
+        // schema_version: int, required, must be 1
+        && ('schema_version' in data)
+        && (data.schema_version is int)
+        && (data.schema_version == 1)
+
+        // updated_at: required, epoch millis int (>= 0) or Firestore timestamp
+        && ('updated_at' in data)
+        && ((data.updated_at is int && data.updated_at >= 0) || (data.updated_at is timestamp))
+
+        // theme: string, optional, restricted to known enum values
+        && (!('theme' in data) || data.theme == null || (data.theme is string && data.theme in ['light', 'dark', 'system']))
+
+        // accent: string, optional, length bounded to 1..32 chars to prevent DoS/resource exhaustion
+        && (!('accent' in data) || data.accent == null || (data.accent is string && data.accent.size() > 0 && data.accent.size() <= 32))
+
+        // console_buffer_lines: int, optional, bounded within valid operating range [100, 100000]
+        && (!('console_buffer_lines' in data) || data.console_buffer_lines == null || (data.console_buffer_lines is int && data.console_buffer_lines >= 100 && data.console_buffer_lines <= 100000))
+
+        // quit_stop_timeout_secs: int, optional, bounded within [1, 300] seconds
+        && (!('quit_stop_timeout_secs' in data) || data.quit_stop_timeout_secs == null || (data.quit_stop_timeout_secs is int && data.quit_stop_timeout_secs >= 1 && data.quit_stop_timeout_secs <= 300))
+
+        // tick_sampling: bool, optional
+        && (!('tick_sampling' in data) || data.tick_sampling == null || (data.tick_sampling is bool));
+    }
+
+    // -------------------------------------------------------------
+    // User Settings / Preferences Sync
+    // -------------------------------------------------------------
+    // Path: /users/{userId}/synced_settings/{docId}
+    // Only the 'preferences' document is allowed.
+    // Read and write operations are strictly isolated to the authenticated owner.
+    match /users/{userId}/synced_settings/{docId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && docId == 'preferences'
+        && isValidPreferences(request.resource.data);
+      allow delete: if isOwner(userId)
+        && docId == 'preferences';
+    }
+
+    // Backwards-compatibility alias for clients reading or writing /users/{userId}/settings/{docId}
+    match /users/{userId}/settings/{docId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && docId == 'preferences'
+        && isValidPreferences(request.resource.data);
+      allow delete: if isOwner(userId)
+        && docId == 'preferences';
+    }
+
+    // -------------------------------------------------------------
+    // Reserved Collection: Linked Servers
+    // -------------------------------------------------------------
+    // Path: /users/{userId}/servers/{serverId}
+    // Reserved for future server linking and management features.
+    // Read access is isolated to the document owner.
+    // Write operations are locked down until the server linking schema is finalized.
+    match /users/{userId}/servers/{serverId} {
+      allow read: if isOwner(userId);
+      allow write: if false; // Locked down for defense-in-depth until schema is released
+    }
+  }
+}

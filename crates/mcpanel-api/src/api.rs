@@ -1465,6 +1465,32 @@ impl Api {
         Ok(())
     }
 
+    /// Start "Continue with Microsoft"; returns Microsoft's consent page.
+    pub async fn account_microsoft(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::SettingsWrite)?;
+        Ok(self.core.account.begin_microsoft().await?)
+    }
+
+    pub fn account_cancel_microsoft(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.cancel_microsoft();
+        Ok(())
+    }
+
+    pub async fn account_guest_sign_in(&self, p: &Principal) -> ApiResult<AccountDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.enter_guest_mode().await?;
+        self.audit_account(p, "account.guest_sign_in").await;
+        Ok(self.core.account.status().await?.into())
+    }
+
+    pub async fn account_sync_settings(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        self.core.account.sync_settings().await?;
+        self.audit_account(p, "account.sync_settings").await;
+        Ok(())
+    }
+
     pub async fn account_sign_out(&self, p: &Principal) -> ApiResult<AccountDto> {
         p.authorize(Permission::SettingsWrite)?;
         self.core.account.sign_out().await?;
@@ -1500,10 +1526,17 @@ impl Api {
         req: ConfigureOauthDto,
     ) -> ApiResult<AccountDto> {
         p.authorize(Permission::SettingsWrite)?;
-        let secret = req.google_client_secret.map(secrecy::SecretString::from);
+        let google_secret = req.google_client_secret.map(secrecy::SecretString::from);
+        let microsoft_secret = req.microsoft_client_secret.map(secrecy::SecretString::from);
         self.core
             .account
-            .configure_credentials(req.firebase_api_key, req.google_client_id, secret)
+            .configure_credentials(
+                req.firebase_api_key,
+                req.google_client_id,
+                google_secret,
+                req.microsoft_client_id,
+                microsoft_secret,
+            )
             .await?;
         self.audit_account(p, "account.configure_oauth").await;
         Ok(self.core.account.status().await?.into())

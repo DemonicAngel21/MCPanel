@@ -16,8 +16,6 @@ import {
   Server,
   Trash2,
   UserCheck,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -37,12 +35,13 @@ import {
 import { Badge, Card, EmptyState, Field, Input, SkeletonRows, Spinner, StatusDot } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatCount, formatRelative } from "@/lib/format";
-import { qk, useMultihostStatus } from "@/lib/queries";
+import { qk, useAccount, useMultihostStatus } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
 
 export function HostsPage() {
   const qc = useQueryClient();
   const { data: status, isLoading } = useMultihostStatus();
+  const { data: account } = useAccount();
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [activeToken, setActiveToken] = useState<HostEnrollmentTokenDto | null>(null);
@@ -127,38 +126,29 @@ export function HostsPage() {
           <>
             {/* Account requirement banner when signed out */}
             {!signedIn && (
-              <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-r from-accent/10 via-surface to-surface p-6 shadow-sm">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-accent">
+              <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-r from-accent/10 via-surface to-surface p-5 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3.5">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-accent">
                       <Lock className="size-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-base font-semibold text-fg">MCPanel Account Required for Multihost</h2>
-                        <Badge tone="warning">Account Needed</Badge>
+                        <h2 className="text-sm font-semibold text-fg">
+                          {account?.isGuest ? "Multihost Locked in Guest Mode" : "Account Required for Multihost"}
+                        </h2>
+                        <Badge tone="warning">{account?.isGuest ? "Guest Mode" : "Account Needed"}</Badge>
                       </div>
-                      <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-muted">
-                        Multihost clustering allows you to enroll remote nodes running{" "}
-                        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-fg">mcpanel-node</code>, monitor latency, and
-                        operate servers across physical machines in one unified view.
+                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted">
+                        {account?.isGuest
+                          ? "Local servers on this machine are fully active. Sign in to an MCPanel account to link and manage remote nodes."
+                          : "Sign in or create an MCPanel account to enroll remote nodes, monitor latency, and operate distributed Minecraft servers."}
                       </p>
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-                        <span className="flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1">
-                          <Network className="size-3.5 text-accent" /> Remote Node Management
-                        </span>
-                        <span className="flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1">
-                          <Radio className="text-success size-3.5" /> Live Latency Pings
-                        </span>
-                        <span className="flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1">
-                          <UserCheck className="size-3.5 text-accent" /> Secure Token Pairing
-                        </span>
-                      </div>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Button asChild variant="primary">
-                      <Link to="/account">Sign In or Create Account</Link>
+                    <Button asChild variant="primary" size="sm">
+                      <Link to="/account">{account?.isGuest ? "Upgrade Account" : "Sign In or Register"}</Link>
                     </Button>
                   </div>
                 </div>
@@ -219,7 +209,7 @@ export function HostsPage() {
                         <span className="font-semibold text-fg">{localHost.name}</span>
                         <Badge tone="success">
                           <StatusDot tone="success" pulse />
-                          Online
+                          <span>Online</span>
                         </Badge>
                         <Badge tone="neutral">Loopback</Badge>
                       </div>
@@ -311,8 +301,8 @@ export function HostsPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-fg">{host.name}</span>
                                 <Badge tone={host.status === "online" ? "success" : host.status === "offline" ? "neutral" : "warning"}>
-                                  {host.status === "online" ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
-                                  {host.status}
+                                  {host.status === "online" ? <StatusDot tone="success" pulse /> : <StatusDot tone="neutral" />}
+                                  <span className="capitalize">{host.status}</span>
                                 </Badge>
                               </div>
                               {host.endpoint && (

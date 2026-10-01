@@ -18,6 +18,8 @@ fn sign_in(h: &Harness, uid: &str, email: &str) {
         .set("account-refresh-token", &SecretString::from("fake-token"))
         .unwrap();
     let profile = AccountProfile {
+        account_id: uid.to_string(),
+        account_type: mcpanel_core::account::AccountType::Email,
         uid: uid.to_string(),
         email: Some(email.to_string()),
         email_verified: true,

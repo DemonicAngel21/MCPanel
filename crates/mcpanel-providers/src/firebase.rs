@@ -23,6 +23,9 @@ const IDENTITY: &str = "https://identitytoolkit.googleapis.com/v1";
 const SECURE_TOKEN: &str = "https://securetoken.googleapis.com/v1/token";
 const GOOGLE_AUTH: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
+const MICROSOFT_AUTH: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
+const MICROSOFT_TOKEN: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const FIRESTORE: &str = "https://firestore.googleapis.com/v1";
 
 /// The Firebase Web API key: runtime environment first, then the build.
 pub fn firebase_api_key() -> Option<String> {
@@ -49,9 +52,13 @@ pub struct FirebaseAuth {
     api_key: RwLock<Option<String>>,
     google_client_id: RwLock<Option<String>>,
     google_secret: RwLock<Option<SecretString>>,
+    microsoft_client_id: RwLock<Option<String>>,
+    microsoft_secret: RwLock<Option<SecretString>>,
     identity: String,
     secure_token: String,
     google_token: String,
+    microsoft_token: String,
+    firestore: String,
 }
 
 impl FirebaseAuth {
@@ -61,9 +68,13 @@ impl FirebaseAuth {
             api_key: RwLock::new(api_key),
             google_client_id: RwLock::new(ids.google.clone()),
             google_secret: RwLock::new(ids.google_secret.clone()),
+            microsoft_client_id: RwLock::new(ids.microsoft.clone()),
+            microsoft_secret: RwLock::new(ids.microsoft_secret.clone()),
             identity: IDENTITY.into(),
             secure_token: SECURE_TOKEN.into(),
             google_token: GOOGLE_TOKEN.into(),
+            microsoft_token: MICROSOFT_TOKEN.into(),
+            firestore: FIRESTORE.into(),
         }
     }
 
@@ -75,9 +86,13 @@ impl FirebaseAuth {
             api_key: RwLock::new(Some("test-key".into())),
             google_client_id: RwLock::new(Some("123-abc.apps.googleusercontent.com".into())),
             google_secret: RwLock::new(Some(SecretString::from("GOCSPX-test".to_string()))),
+            microsoft_client_id: RwLock::new(Some("ms-client-123".into())),
+            microsoft_secret: RwLock::new(Some(SecretString::from("ms-secret-test".to_string()))),
             identity: format!("{base}/v1"),
             secure_token: format!("{base}/token"),
             google_token: format!("{base}/google-token"),
+            microsoft_token: format!("{base}/microsoft-token"),
+            firestore: format!("{base}/firestore"),
         }
     }
 
@@ -282,7 +297,7 @@ pub fn parse_profile(v: &Value) -> CoreResult<AccountProfile> {
         .and_then(|p| {
             p.iter()
                 .filter_map(|x| x.get("providerId").and_then(Value::as_str))
-                .find(|id| *id == "google.com")
+                .find(|id| *id == "google.com" || *id == "microsoft.com")
                 .or_else(|| {
                     p.first()
                         .and_then(|x| x.get("providerId").and_then(Value::as_str))
@@ -290,8 +305,16 @@ pub fn parse_profile(v: &Value) -> CoreResult<AccountProfile> {
         })
         .unwrap_or("password")
         .to_string();
+    let account_type = match provider.as_str() {
+        "google.com" => mcpanel_core::account::AccountType::Google,
+        "microsoft.com" => mcpanel_core::account::AccountType::Microsoft,
+        _ => mcpanel_core::account::AccountType::Email,
+    };
+    let uid = str_of(u, "localId").unwrap_or_default();
     Ok(AccountProfile {
-        uid: str_of(u, "localId").unwrap_or_default(),
+        account_id: uid.clone(),
+        account_type,
+        uid,
         email: str_of(u, "email"),
         email_verified: u
             .get("emailVerified")
@@ -338,11 +361,20 @@ impl AuthBackend for FirebaseAuth {
             .is_some()
     }
 
+    fn microsoft_available(&self) -> bool {
+        self.microsoft_client_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
+    }
+
     fn configure_credentials(
         &self,
         firebase_api_key: Option<String>,
         google_client_id: Option<String>,
         google_secret: Option<SecretString>,
+        microsoft_client_id: Option<String>,
+        microsoft_secret: Option<SecretString>,
     ) {
         if let Some(key) = firebase_api_key {
             *self.api_key.write().unwrap_or_else(|e| e.into_inner()) = Some(key);
@@ -356,6 +388,18 @@ impl AuthBackend for FirebaseAuth {
         if let Some(secret) = google_secret {
             *self
                 .google_secret
+                .write()
+                .unwrap_or_else(|e| e.into_inner()) = Some(secret);
+        }
+        if let Some(id) = microsoft_client_id {
+            *self
+                .microsoft_client_id
+                .write()
+                .unwrap_or_else(|e| e.into_inner()) = Some(id);
+        }
+        if let Some(secret) = microsoft_secret {
+            *self
+                .microsoft_secret
                 .write()
                 .unwrap_or_else(|e| e.into_inner()) = Some(secret);
         }
@@ -545,6 +589,338 @@ impl AuthBackend for FirebaseAuth {
                     "Google did not return an identity token.",
                 )
             })
+    }
+
+    async fn sign_in_with_microsoft(
+        &self,
+        id_token: &SecretString,
+        access_token: Option<&SecretString>,
+    ) -> CoreResult<AuthSession> {
+        let mut pairs = vec![
+            ("id_token", id_token.expose_secret()),
+            ("providerId", "microsoft.com"),
+        ];
+        if let Some(tok) = access_token {
+            pairs.push(("access_token", tok.expose_secret()));
+        }
+        let post_body = form(&pairs);
+        session(
+            &self
+                .identity(
+                    "signInWithIdp",
+                    json!({
+                        "postBody": post_body,
+                        "requestUri": "http://localhost",
+                        "returnIdpCredential": false,
+                        "returnSecureToken": true,
+                    }),
+                )
+                .await?,
+        )
+    }
+
+    fn microsoft_authorize_url(
+        &self,
+        redirect: &str,
+        challenge: &str,
+        state: &str,
+    ) -> CoreResult<String> {
+        let guard = self
+            .microsoft_client_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        let id = guard.as_deref().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                "Microsoft sign-in is not available in this build.",
+            )
+        })?;
+        Ok(format!(
+            "{MICROSOFT_AUTH}?{}",
+            form(&[
+                ("client_id", id),
+                ("response_type", "code"),
+                ("redirect_uri", redirect),
+                ("response_mode", "query"),
+                ("scope", "openid email profile offline_access"),
+                ("code_challenge", challenge),
+                ("code_challenge_method", "S256"),
+                ("state", state),
+                ("prompt", "select_account"),
+            ])
+        ))
+    }
+
+    async fn microsoft_exchange(
+        &self,
+        code: &str,
+        verifier: &str,
+        redirect: &str,
+    ) -> CoreResult<(SecretString, Option<SecretString>)> {
+        let id = {
+            let guard = self
+                .microsoft_client_id
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
+            guard.clone().ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::Unsupported,
+                    "Microsoft sign-in is not available in this build.",
+                )
+            })?
+        };
+        let secret = {
+            let guard = self
+                .microsoft_secret
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
+            guard.clone()
+        };
+
+        let mut params = vec![
+            ("client_id", id.as_str()),
+            ("code", code),
+            ("code_verifier", verifier),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect),
+            ("scope", "openid email profile offline_access"),
+        ];
+        let secret_val = secret.as_ref().map(|s| s.expose_secret());
+        if let Some(sec) = secret_val {
+            params.push(("client_secret", sec));
+        }
+
+        let resp = self
+            .client
+            .post(&self.microsoft_token)
+            .timeout(Duration::from_secs(30))
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body(form(&params))
+            .send()
+            .await
+            .map_err(unreachable_err)?;
+        let v = read(resp).await?;
+        let id_tok = str_of(&v, "id_token")
+            .map(SecretString::from)
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::ProviderError,
+                    "Microsoft did not return an identity token.",
+                )
+            })?;
+        let access_tok = str_of(&v, "access_token").map(SecretString::from);
+        Ok((id_tok, access_tok))
+    }
+
+    fn sync_backend(&self) -> Option<&dyn mcpanel_core::sync::SettingsSyncBackend> {
+        Some(self)
+    }
+}
+
+fn base64url_decode(s: &str) -> Option<Vec<u8>> {
+    let mut bits = 0u32;
+    let mut bit_count = 0;
+    let mut out = Vec::with_capacity(s.len() * 3 / 4);
+    for b in s.bytes() {
+        let val = match b {
+            b'A'..=b'Z' => b - b'A',
+            b'a'..=b'z' => b - b'a' + 26,
+            b'0'..=b'9' => b - b'0' + 52,
+            b'-' | b'+' => 62,
+            b'_' | b'/' => 63,
+            b'=' | b' ' | b'\r' | b'\n' => continue,
+            _ => return None,
+        };
+        bits = (bits << 6) | (val as u32);
+        bit_count += 6;
+        if bit_count >= 8 {
+            bit_count -= 8;
+            out.push((bits >> bit_count) as u8);
+        }
+    }
+    Some(out)
+}
+
+fn project_id_from_jwt(id_token: &str) -> Option<String> {
+    if let Ok(env_id) = std::env::var("MCPANEL_FIREBASE_PROJECT_ID") {
+        let trimmed = env_id.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    let parts: Vec<&str> = id_token.split('.').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let payload = base64url_decode(parts[1])?;
+    let val: serde_json::Value = serde_json::from_slice(&payload).ok()?;
+    val.get("aud")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+#[async_trait::async_trait]
+impl mcpanel_core::sync::SettingsSyncBackend for FirebaseAuth {
+    async fn pull_settings(
+        &self,
+        id_token: &SecretString,
+        uid: &str,
+    ) -> CoreResult<Option<mcpanel_core::sync::SyncedSettings>> {
+        let Some(proj_id) = project_id_from_jwt(id_token.expose_secret()) else {
+            tracing::warn!(target: "mcpanel::firebase", "Could not determine Firebase project ID from ID token");
+            return Ok(None);
+        };
+        let url = format!(
+            "{}/projects/{}/databases/(default)/documents/users/{}/settings/preferences",
+            self.firestore, proj_id, uid
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .timeout(Duration::from_secs(15))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", id_token.expose_secret()),
+            )
+            .send()
+            .await
+            .map_err(unreachable_err)?;
+
+        let status = resp.status().as_u16();
+        if status == 404 {
+            return Ok(None);
+        }
+        if status != 200 {
+            let body = resp.text().await.unwrap_or_default();
+            tracing::warn!(target: "mcpanel::firebase", status, body, "Failed to pull cloud settings");
+            return Err(CoreError::new(
+                ErrorCode::ProviderError,
+                "Failed to pull settings from cloud storage.",
+            ));
+        }
+
+        let val: Value = resp.json().await.map_err(|e| {
+            CoreError::new(
+                ErrorCode::ProviderError,
+                format!("Invalid Firestore JSON: {e}"),
+            )
+        })?;
+
+        let fields = val.get("fields").and_then(Value::as_object);
+        let schema_version = fields
+            .and_then(|f| f.get("schema_version"))
+            .and_then(|v| v.get("integerValue"))
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1);
+        let updated_at = fields
+            .and_then(|f| f.get("updated_at"))
+            .and_then(|v| v.get("integerValue"))
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let theme_str = fields
+            .and_then(|f| f.get("theme"))
+            .and_then(|v| v.get("stringValue"))
+            .and_then(Value::as_str)
+            .unwrap_or("system");
+        let theme = match theme_str {
+            "dark" => mcpanel_core::settings::ThemePreference::Dark,
+            "light" => mcpanel_core::settings::ThemePreference::Light,
+            _ => mcpanel_core::settings::ThemePreference::System,
+        };
+        let accent = fields
+            .and_then(|f| f.get("accent"))
+            .and_then(|v| v.get("stringValue"))
+            .and_then(Value::as_str)
+            .unwrap_or("green")
+            .to_string();
+        let console_buffer_lines = fields
+            .and_then(|f| f.get("console_buffer_lines"))
+            .and_then(|v| v.get("integerValue"))
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(20_000);
+        let quit_stop_timeout_secs = fields
+            .and_then(|f| f.get("quit_stop_timeout_secs"))
+            .and_then(|v| v.get("integerValue"))
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(90);
+        let tick_sampling = fields
+            .and_then(|f| f.get("tick_sampling"))
+            .and_then(|v| v.get("booleanValue"))
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+
+        Ok(Some(mcpanel_core::sync::SyncedSettings {
+            schema_version,
+            updated_at,
+            theme,
+            accent,
+            console_buffer_lines,
+            quit_stop_timeout_secs,
+            tick_sampling,
+        }))
+    }
+
+    async fn push_settings(
+        &self,
+        id_token: &SecretString,
+        uid: &str,
+        settings: &mcpanel_core::sync::SyncedSettings,
+    ) -> CoreResult<()> {
+        let Some(proj_id) = project_id_from_jwt(id_token.expose_secret()) else {
+            tracing::warn!(target: "mcpanel::firebase", "Could not determine Firebase project ID from ID token");
+            return Ok(());
+        };
+        let query = "updateMask.fieldPaths=schema_version&updateMask.fieldPaths=updated_at&updateMask.fieldPaths=theme&updateMask.fieldPaths=accent&updateMask.fieldPaths=console_buffer_lines&updateMask.fieldPaths=quit_stop_timeout_secs&updateMask.fieldPaths=tick_sampling";
+        let url = format!(
+            "{}/projects/{}/databases/(default)/documents/users/{}/settings/preferences?{}",
+            self.firestore, proj_id, uid, query
+        );
+        let theme_str = match settings.theme {
+            mcpanel_core::settings::ThemePreference::Dark => "dark",
+            mcpanel_core::settings::ThemePreference::Light => "light",
+            mcpanel_core::settings::ThemePreference::System => "system",
+        };
+        let body = json!({
+            "fields": {
+                "schema_version": { "integerValue": settings.schema_version.to_string() },
+                "updated_at": { "integerValue": settings.updated_at.to_string() },
+                "theme": { "stringValue": theme_str },
+                "accent": { "stringValue": settings.accent },
+                "console_buffer_lines": { "integerValue": settings.console_buffer_lines.to_string() },
+                "quit_stop_timeout_secs": { "integerValue": settings.quit_stop_timeout_secs.to_string() },
+                "tick_sampling": { "booleanValue": settings.tick_sampling }
+            }
+        });
+        let resp = self
+            .client
+            .patch(&url)
+            .timeout(Duration::from_secs(15))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", id_token.expose_secret()),
+            )
+            .json(&body)
+            .send()
+            .await
+            .map_err(unreachable_err)?;
+
+        let status = resp.status().as_u16();
+        if status != 200 && status != 204 {
+            let text = resp.text().await.unwrap_or_default();
+            tracing::warn!(target: "mcpanel::firebase", status, text, "Failed to push cloud settings");
+            return Err(CoreError::new(
+                ErrorCode::ProviderError,
+                "Failed to sync settings to cloud storage.",
+            ));
+        }
+        Ok(())
     }
 }
 

@@ -5,8 +5,12 @@ export type AccountDto = {
 /**
  * A Firebase project is configured in this build.
  */
-configured: boolean, googleAvailable: boolean, signedIn: boolean, profile: AccountProfileDto | null, 
+configured: boolean, googleAvailable: boolean, microsoftAvailable: boolean, signedIn: boolean, isGuest: boolean, profile: AccountProfileDto | null, 
 /**
  * "waiting" | "done" | "failed" for a Google sign-in started in MCPanel.
  */
-googleState: string | null, googleError: string | null, customOauthConfigured: boolean, };
+googleState: string | null, googleError: string | null, 
+/**
+ * "waiting" | "done" | "failed" for a Microsoft sign-in started in MCPanel.
+ */
+microsoftState: string | null, microsoftError: string | null, customOauthConfigured: boolean, };

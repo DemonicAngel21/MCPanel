@@ -603,6 +603,39 @@ pub fn account_cancel_google(s: State<'_, AppState>) -> R<()> {
     s.api.account_cancel_google(&s.principal())
 }
 
+/// Start "Continue with Microsoft" and open Microsoft's consent page in the browser.
+#[tauri::command]
+pub async fn account_microsoft(app: AppHandle, s: State<'_, AppState>) -> R<()> {
+    let url = s.api.account_microsoft(&s.principal()).await?;
+    let ok = tauri::Url::parse(&url)
+        .is_ok_and(|u| u.scheme() == "https" && u.host_str() == Some("login.microsoftonline.com"));
+    if !ok {
+        s.api.account_cancel_microsoft(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected sign-in address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(e) = app.opener().open_url(url, None::<&str>) {
+        s.api.account_cancel_microsoft(&s.principal())?;
+        return Err(ApiError::new("IO", format!("Cannot open the browser: {e}")));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn account_cancel_microsoft(s: State<'_, AppState>) -> R<()> {
+    s.api.account_cancel_microsoft(&s.principal())
+}
+
+#[tauri::command]
+pub async fn account_guest_sign_in(s: State<'_, AppState>) -> R<AccountDto> {
+    s.api.account_guest_sign_in(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn account_sync_settings(s: State<'_, AppState>) -> R<()> {
+    s.api.account_sync_settings(&s.principal()).await
+}
+
 #[tauri::command]
 pub async fn account_sign_out(s: State<'_, AppState>) -> R<AccountDto> {
     s.api.account_sign_out(&s.principal()).await

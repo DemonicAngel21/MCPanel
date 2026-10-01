@@ -119,7 +119,10 @@ const toneClasses: Record<Tone, string> = {
 
 export function Badge({ tone = "neutral", className, children, ...props }: HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium", toneClasses[tone], className)} {...props}>
+    <span
+      className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] leading-none font-medium", toneClasses[tone], className)}
+      {...props}
+    >
       {children}
     </span>
   );
@@ -133,9 +136,9 @@ const dotClasses: Record<Tone, string> = {
   info: "bg-info",
 };
 
-export function StatusDot({ tone, pulse }: { tone: Tone; pulse?: boolean }) {
+export function StatusDot({ tone, pulse, className }: { tone: Tone; pulse?: boolean; className?: string }) {
   return (
-    <span className="relative inline-flex size-2">
+    <span className={cn("relative inline-flex size-2 shrink-0 items-center justify-center self-center", className)}>
       {pulse && <span className={cn("animate-status-pulse absolute inset-0 rounded-full opacity-60", dotClasses[tone])} />}
       <span className={cn("status-dot-core relative inline-flex size-2 rounded-full", dotClasses[tone])} />
     </span>

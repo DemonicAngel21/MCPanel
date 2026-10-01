@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Microsoft account authentication: desktop OAuth 2.0 PKCE flow with loopback redirect,
+  runtime Azure client configuration, and Firebase identity provider sign-in.
+- Guest account mode: allows full local server-management without an account, with an inline
+  upgrade path that migrates local preferences upon sign-in.
+- Cloud preferences synchronization: Firestore-backed cloud synchronization for approved
+  non-sensitive settings (theme, accent, console buffer lines, quit timeout, tick sampling)
+  with schema versioning, last-write-wins timestamp conflict resolution, and offline resilience.
+- Server linking architecture (ADR 009): account identity domain model supporting future
+  MCPanel Minecraft server plugin enrollment with revocable secrets, server-scoped tokens,
+  and decoupled server identities.
+- Hardened Firestore security rules (`firestore.rules`) enforcing default-deny, owner-only
+  access boundaries, and strict field whitelisting.
 - Runtime Google OAuth configuration: enter and securely persist Google OAuth Client ID,
   client secret, and Firebase API keys dynamically at runtime, enabling "Continue with Google"
   without rebuilding or setting environment variables.

@@ -2105,12 +2105,14 @@ impl From<TunnelStatus> for TunnelStatusDto {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AccountProfileDto {
+    pub account_id: String,
+    pub account_type: String,
     pub uid: String,
     pub email: Option<String>,
     pub email_verified: bool,
     pub display_name: Option<String>,
     pub photo_url: Option<String>,
-    /// "password" | "google.com"
+    /// "password" | "google.com" | "microsoft.com" | "guest"
     pub provider: String,
 }
 
@@ -2121,11 +2123,16 @@ pub struct AccountDto {
     /// A Firebase project is configured in this build.
     pub configured: bool,
     pub google_available: bool,
+    pub microsoft_available: bool,
     pub signed_in: bool,
+    pub is_guest: bool,
     pub profile: Option<AccountProfileDto>,
     /// "waiting" | "done" | "failed" for a Google sign-in started in MCPanel.
     pub google_state: Option<String>,
     pub google_error: Option<String>,
+    /// "waiting" | "done" | "failed" for a Microsoft sign-in started in MCPanel.
+    pub microsoft_state: Option<String>,
+    pub microsoft_error: Option<String>,
     pub custom_oauth_configured: bool,
 }
 
@@ -2136,11 +2143,15 @@ pub struct ConfigureOauthDto {
     pub firebase_api_key: Option<String>,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
+    pub microsoft_client_id: Option<String>,
+    pub microsoft_client_secret: Option<String>,
 }
 
 impl From<mcpanel_core::account::AccountProfile> for AccountProfileDto {
     fn from(p: mcpanel_core::account::AccountProfile) -> Self {
         Self {
+            account_id: p.account_id,
+            account_type: p.account_type.to_string(),
             uid: p.uid,
             email: p.email,
             email_verified: p.email_verified,
@@ -2153,20 +2164,30 @@ impl From<mcpanel_core::account::AccountProfile> for AccountProfileDto {
 
 impl From<mcpanel_core::account::AccountStatus> for AccountDto {
     fn from(s: mcpanel_core::account::AccountStatus) -> Self {
-        use mcpanel_core::account::GoogleSignIn;
+        use mcpanel_core::account::{GoogleSignIn, MicrosoftSignIn};
         let (google_state, google_error) = match s.google {
             Some(GoogleSignIn::Waiting { .. }) => (Some("waiting".into()), None),
             Some(GoogleSignIn::Done) => (Some("done".into()), None),
             Some(GoogleSignIn::Failed { message }) => (Some("failed".into()), Some(message)),
             None => (None, None),
         };
+        let (microsoft_state, microsoft_error) = match s.microsoft {
+            Some(MicrosoftSignIn::Waiting { .. }) => (Some("waiting".into()), None),
+            Some(MicrosoftSignIn::Done) => (Some("done".into()), None),
+            Some(MicrosoftSignIn::Failed { message }) => (Some("failed".into()), Some(message)),
+            None => (None, None),
+        };
         Self {
             configured: s.configured,
             google_available: s.google_available,
+            microsoft_available: s.microsoft_available,
             signed_in: s.signed_in,
+            is_guest: s.is_guest,
             profile: s.profile.map(Into::into),
             google_state,
             google_error,
+            microsoft_state,
+            microsoft_error,
             custom_oauth_configured: s.custom_oauth_configured,
         }
     }

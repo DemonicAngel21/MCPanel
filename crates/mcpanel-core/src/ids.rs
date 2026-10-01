@@ -65,3 +65,7 @@ id_type!(
     /// Identifies a backup archive.
     BackupId
 );
+id_type!(
+    /// Identifies a remote Minecraft server linked to an MCPanel account.
+    ServerLinkId
+);

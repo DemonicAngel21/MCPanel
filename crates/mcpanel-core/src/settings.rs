@@ -62,6 +62,19 @@ impl Default for AppSettings {
     }
 }
 
+impl AppSettings {
+    pub async fn load(repo: &dyn SettingsRepository) -> CoreResult<Self> {
+        let Some(v) = repo.get(KEY).await? else {
+            return Ok(Self::default());
+        };
+        let mut s = Self::default();
+        if let Ok(patch) = serde_json::from_value::<AppSettingsPatch>(v) {
+            apply(&mut s, patch);
+        }
+        Ok(s)
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppSettingsPatch {
     pub theme: Option<ThemePreference>,

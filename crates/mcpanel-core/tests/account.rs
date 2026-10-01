@@ -114,7 +114,14 @@ impl AuthBackend for FakeFirebase {
     }
     async fn lookup(&self, id: &SecretString) -> CoreResult<AccountProfile> {
         let uid = id.expose_secret().trim_start_matches("id:").to_string();
+        let account_type = if uid == "google-user" {
+            mcpanel_core::account::AccountType::Google
+        } else {
+            mcpanel_core::account::AccountType::Email
+        };
         Ok(AccountProfile {
+            account_id: uid.clone(),
+            account_type,
             email: Some(match uid.as_str() {
                 "google-user" => "g@gmail.com".into(),
                 "existing" => "taken@example.com".into(),
@@ -340,4 +347,46 @@ async fn without_a_firebase_project_accounts_are_unavailable() {
     assert!(!s.configured);
     let e = a.sign_in("x@example.com", "long enough").await.unwrap_err();
     assert_eq!(e.code, ErrorCode::Unsupported);
+}
+
+#[tokio::test]
+async fn guest_mode_lifecycle_and_migration() {
+    let (a, _, _) = service();
+
+    // Initially not signed in, not guest
+    let s0 = a.status().await.unwrap();
+    assert!(!s0.signed_in);
+    assert!(!s0.is_guest);
+    assert!(s0.profile.is_none());
+
+    // Enter guest mode
+    let guest_prof = a.enter_guest_mode().await.unwrap();
+    assert_eq!(guest_prof.uid, "guest");
+    assert!(guest_prof.is_guest());
+
+    let s1 = a.status().await.unwrap();
+    assert!(!s1.signed_in);
+    assert!(s1.is_guest);
+    assert_eq!(s1.profile.as_ref().unwrap().account_id, "guest");
+
+    // Upgrade / sign in from guest mode
+    let prof = a
+        .sign_in("taken@example.com", "right password")
+        .await
+        .unwrap();
+    assert_eq!(prof.uid, "existing");
+    assert!(!prof.is_guest());
+
+    // Guest mode should be cleared after authenticated sign in
+    let s2 = a.status().await.unwrap();
+    assert!(s2.signed_in);
+    assert!(!s2.is_guest);
+    assert_eq!(s2.profile.as_ref().unwrap().uid, "existing");
+
+    // Sign out clears both authenticated and guest session
+    a.sign_out().await.unwrap();
+    let s3 = a.status().await.unwrap();
+    assert!(!s3.signed_in);
+    assert!(!s3.is_guest);
+    assert!(s3.profile.is_none());
 }

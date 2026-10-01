@@ -37,6 +37,33 @@ The owner specifically requested:
   accessibility, dark/light, empty/loading/error states, window sizes, and feature
   regression review. Fix regressions before handoff.
 
+### Cloud Sync, Guest Mode, Microsoft Auth & Server Linking (Completed)
+
+1. **Guest Mode**:
+   - `mcpanel-core` now supports guest accounts (`is_guest`, `enter_guest_mode`).
+   - Guest users can manage all local servers without cloud sign-in.
+   - Distinctive guest badge and clear upgrade flow in UI.
+   - Upgrading from guest to an authenticated account migrates local preferences smoothly without data loss.
+
+2. **Microsoft Account Authentication**:
+   - Native desktop OAuth 2.0 PKCE flow on loopback redirect (`127.0.0.1:{port}`).
+   - Firebase Identity Provider token exchange (`signInWithIdp` with `providerId: "microsoft.com"`).
+   - Configurable Microsoft Client ID and optional secret via OAuth settings modal and environment variables.
+
+3. **Cloud Settings Synchronization**:
+   - Versioned (`schema_version: 1`), Firestore-backed sync for non-sensitive preferences (`theme`, `accent`, `console_buffer_lines`, `quit_stop_timeout_secs`, `tick_sampling`).
+   - Last-write-wins timestamp conflict resolution.
+   - Offline resilience: local settings operate unimpeded; sync is attempted on login and manual trigger.
+   - Strict safety: passwords, secrets, backup directories, server files, and auth tokens are never uploaded.
+
+4. **Future Server Linking Architecture (ADR 009)**:
+   - Added `mcpanel_core::server_link` domain module with `ServerScope`, `ServerEnrollmentToken`, `ServerCredentialSecret`, `LinkedServerRecord`.
+   - Clear boundary: server identity is decoupled from user identity, preventing Microsoft/OAuth token reuse as server credentials.
+   - Created `docs/architecture/adr-009-server-linking.md`.
+
+5. **Security & Firestore Rules**:
+   - Production-ready `firestore.rules` created by `firestore-rules-author` subagent with default-deny, owner isolation (`request.auth.uid == userId`), and strict field whitelisting.
+
 ### Current refinement work (completed and verified locally)
 
 The major UI/UX refinement requested by the owner has been implemented, formatted, and

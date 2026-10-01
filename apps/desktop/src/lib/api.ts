@@ -253,6 +253,11 @@ export const api = {
     /** Opens Google's consent page in the browser; the result shows up in `status`. */
     google: () => call<void>("account_google"),
     cancelGoogle: () => call<void>("account_cancel_google"),
+    /** Opens Microsoft's consent page in the browser; the result shows up in `status`. */
+    microsoft: () => call<void>("account_microsoft"),
+    cancelMicrosoft: () => call<void>("account_cancel_microsoft"),
+    guestSignIn: () => call<AccountDto>("account_guest_sign_in"),
+    syncSettings: () => call<void>("account_sync_settings"),
     signOut: () => call<AccountDto>("account_sign_out"),
     refresh: () => call<AccountDto>("account_refresh"),
     resendVerification: () => call<void>("account_resend_verification"),

@@ -20,23 +20,84 @@ const REFRESH_SECRET: &str = "account-refresh-token";
 const PROFILE_KEY: &str = "account.profile";
 pub const OAUTH_CREDENTIALS_SETTINGS_KEY: &str = "account.oauth_credentials";
 pub const GOOGLE_SECRET_KEY: &str = "account-google-secret";
+pub const MICROSOFT_SECRET_KEY: &str = "account-microsoft-secret";
+pub const GUEST_KEY: &str = "account.is_guest";
 const GOOGLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const MICROSOFT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountType {
+    Guest,
+    #[default]
+    Email,
+    Google,
+    Microsoft,
+}
+
+impl std::fmt::Display for AccountType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Guest => write!(f, "guest"),
+            Self::Email => write!(f, "email"),
+            Self::Google => write!(f, "google"),
+            Self::Microsoft => write!(f, "microsoft"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AccountId(pub String);
+
+impl AccountId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    pub fn guest() -> Self {
+        Self("guest".to_string())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SavedOAuthCredentials {
     pub firebase_api_key: Option<String>,
     pub google_client_id: Option<String>,
+    pub microsoft_client_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccountProfile {
+    #[serde(default)]
+    pub account_id: String,
+    #[serde(default)]
+    pub account_type: AccountType,
     pub uid: String,
     pub email: Option<String>,
     pub email_verified: bool,
     pub display_name: Option<String>,
     pub photo_url: Option<String>,
-    /// "password" | "google.com"
+    /// "password" | "google.com" | "microsoft.com" | "guest"
     pub provider: String,
+}
+
+impl AccountProfile {
+    pub fn guest() -> Self {
+        Self {
+            account_id: "guest".to_string(),
+            account_type: AccountType::Guest,
+            uid: "guest".to_string(),
+            email: None,
+            email_verified: false,
+            display_name: Some("Guest".to_string()),
+            photo_url: None,
+            provider: "guest".to_string(),
+        }
+    }
+
+    pub fn is_guest(&self) -> bool {
+        self.account_type == AccountType::Guest || self.provider == "guest"
+    }
 }
 
 /// A Firebase session (the ID token is short-lived; the refresh token is kept).
@@ -51,10 +112,25 @@ pub trait AuthBackend: Send + Sync {
     fn configured(&self) -> bool;
     /// Google sign-in is possible (Google OAuth client configured too).
     fn google_available(&self) -> bool;
+    /// Microsoft sign-in is possible (Microsoft OAuth client configured too).
+    fn microsoft_available(&self) -> bool {
+        false
+    }
     async fn sign_up(&self, email: &str, password: &str) -> CoreResult<AuthSession>;
     async fn sign_in(&self, email: &str, password: &str) -> CoreResult<AuthSession>;
     /// Firebase session from a Google ID token.
     async fn sign_in_with_google(&self, google_id_token: &SecretString) -> CoreResult<AuthSession>;
+    /// Firebase session from a Microsoft ID token and optional access token.
+    async fn sign_in_with_microsoft(
+        &self,
+        _id_token: &SecretString,
+        _access_token: Option<&SecretString>,
+    ) -> CoreResult<AuthSession> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Microsoft sign-in is not supported.",
+        ))
+    }
     async fn refresh(&self, refresh_token: &SecretString) -> CoreResult<AuthSession>;
     async fn lookup(&self, id_token: &SecretString) -> CoreResult<AccountProfile>;
     async fn send_verification(&self, id_token: &SecretString) -> CoreResult<()>;
@@ -74,12 +150,42 @@ pub trait AuthBackend: Send + Sync {
         verifier: &str,
         redirect: &str,
     ) -> CoreResult<SecretString>;
+    /// Microsoft's consent page for `redirect` with a PKCE `challenge`.
+    fn microsoft_authorize_url(
+        &self,
+        _redirect: &str,
+        _challenge: &str,
+        _state: &str,
+    ) -> CoreResult<String> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Microsoft sign-in is not supported.",
+        ))
+    }
+    /// Exchange Microsoft's code for its ID token and access token.
+    async fn microsoft_exchange(
+        &self,
+        _code: &str,
+        _verifier: &str,
+        _redirect: &str,
+    ) -> CoreResult<(SecretString, Option<SecretString>)> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Microsoft sign-in is not supported.",
+        ))
+    }
+    /// Remote settings sync backend provider if supported.
+    fn sync_backend(&self) -> Option<&dyn crate::sync::SettingsSyncBackend> {
+        None
+    }
     /// Update or configure credentials dynamically at runtime.
     fn configure_credentials(
         &self,
         _firebase_api_key: Option<String>,
         _google_client_id: Option<String>,
         _google_secret: Option<SecretString>,
+        _microsoft_client_id: Option<String>,
+        _microsoft_secret: Option<SecretString>,
     ) {
     }
 }
@@ -92,24 +198,39 @@ pub enum GoogleSignIn {
     Failed { message: String },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum MicrosoftSignIn {
+    Waiting { url: String },
+    Done,
+    Failed { message: String },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountStatus {
     pub configured: bool,
     pub google_available: bool,
+    pub microsoft_available: bool,
     pub signed_in: bool,
+    pub is_guest: bool,
     pub profile: Option<AccountProfile>,
     pub google: Option<GoogleSignIn>,
+    pub microsoft: Option<MicrosoftSignIn>,
     pub custom_oauth_configured: bool,
 }
 
 /// A pending Google sign-in: its progress and the task waiting for the redirect.
 type GoogleFlow = (Arc<Mutex<GoogleSignIn>>, tokio::task::JoinHandle<()>);
+/// A pending Microsoft sign-in: its progress and the task waiting for the redirect.
+type MicrosoftFlow = (Arc<Mutex<MicrosoftSignIn>>, tokio::task::JoinHandle<()>);
 
 pub struct AccountService {
     backend: OnceLock<Arc<dyn AuthBackend>>,
     secrets: Arc<dyn SecretStore>,
     settings: Arc<dyn SettingsRepository>,
     google: Mutex<Option<GoogleFlow>>,
+    microsoft: Mutex<Option<MicrosoftFlow>>,
+    sync_service: crate::sync::SettingsSyncService,
     credentials_loaded: AtomicBool,
 }
 
@@ -144,8 +265,10 @@ impl AccountService {
         Self {
             backend: OnceLock::new(),
             secrets,
+            sync_service: crate::sync::SettingsSyncService::new(Arc::clone(&settings)),
             settings,
             google: Mutex::new(None),
+            microsoft: Mutex::new(None),
             credentials_loaded: AtomicBool::new(false),
         }
     }
@@ -173,16 +296,19 @@ impl AccountService {
             .get(OAUTH_CREDENTIALS_SETTINGS_KEY)
             .await?
             .and_then(|v| serde_json::from_value(v).ok());
-        let secret = self.secrets.get(GOOGLE_SECRET_KEY).ok().flatten();
+        let google_secret = self.secrets.get(GOOGLE_SECRET_KEY).ok().flatten();
+        let microsoft_secret = self.secrets.get(MICROSOFT_SECRET_KEY).ok().flatten();
         if let Some(b) = self.backend.get() {
             if let Some(ref c) = creds {
                 b.configure_credentials(
                     c.firebase_api_key.clone(),
                     c.google_client_id.clone(),
-                    secret,
+                    google_secret,
+                    c.microsoft_client_id.clone(),
+                    microsoft_secret,
                 );
-            } else if secret.is_some() {
-                b.configure_credentials(None, None, secret);
+            } else if google_secret.is_some() || microsoft_secret.is_some() {
+                b.configure_credentials(None, None, google_secret, None, microsoft_secret);
             }
         }
         self.credentials_loaded.store(true, Ordering::Release);
@@ -194,6 +320,8 @@ impl AccountService {
         firebase_api_key: Option<String>,
         google_client_id: Option<String>,
         google_client_secret: Option<SecretString>,
+        microsoft_client_id: Option<String>,
+        microsoft_client_secret: Option<SecretString>,
     ) -> CoreResult<()> {
         let mut creds: SavedOAuthCredentials = self
             .settings
@@ -210,6 +338,10 @@ impl AccountService {
             let i = id.trim().to_string();
             creds.google_client_id = if i.is_empty() { None } else { Some(i) };
         }
+        if let Some(id) = microsoft_client_id {
+            let i = id.trim().to_string();
+            creds.microsoft_client_id = if i.is_empty() { None } else { Some(i) };
+        }
 
         let val = serde_json::to_value(&creds).map_err(|e| CoreError::internal(e.to_string()))?;
         self.settings
@@ -224,8 +356,16 @@ impl AccountService {
                 self.secrets.set(GOOGLE_SECRET_KEY, sec)?;
             }
         }
+        if let Some(ref sec) = microsoft_client_secret {
+            let s = sec.expose_secret().trim();
+            if s.is_empty() {
+                self.secrets.delete(MICROSOFT_SECRET_KEY)?;
+            } else {
+                self.secrets.set(MICROSOFT_SECRET_KEY, sec)?;
+            }
+        }
 
-        let current_secret = match google_client_secret {
+        let current_google_secret = match google_client_secret {
             Some(sec) => {
                 if sec.expose_secret().trim().is_empty() {
                     None
@@ -235,12 +375,24 @@ impl AccountService {
             }
             None => self.secrets.get(GOOGLE_SECRET_KEY).ok().flatten(),
         };
+        let current_microsoft_secret = match microsoft_client_secret {
+            Some(sec) => {
+                if sec.expose_secret().trim().is_empty() {
+                    None
+                } else {
+                    Some(sec)
+                }
+            }
+            None => self.secrets.get(MICROSOFT_SECRET_KEY).ok().flatten(),
+        };
 
         if let Some(b) = self.backend.get() {
             b.configure_credentials(
                 creds.firebase_api_key.clone(),
                 creds.google_client_id.clone(),
-                current_secret,
+                current_google_secret,
+                creds.microsoft_client_id.clone(),
+                current_microsoft_secret,
             );
         }
         self.credentials_loaded.store(true, Ordering::Release);
@@ -271,31 +423,85 @@ impl AccountService {
             .map(|(p, _)| p.lock().unwrap_or_else(|e| e.into_inner()).clone())
     }
 
+    fn microsoft_progress(&self) -> Option<MicrosoftSignIn> {
+        self.microsoft
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|(p, _)| p.lock().unwrap_or_else(|e| e.into_inner()).clone())
+    }
+
+    pub async fn is_guest(&self) -> CoreResult<bool> {
+        let signed_in = self.secrets.get(REFRESH_SECRET)?.is_some();
+        if signed_in {
+            return Ok(false);
+        }
+        Ok(self
+            .settings
+            .get(GUEST_KEY)
+            .await?
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false))
+    }
+
+    pub async fn enter_guest_mode(&self) -> CoreResult<AccountProfile> {
+        self.cancel_google();
+        self.cancel_microsoft();
+        self.secrets.delete(REFRESH_SECRET)?;
+        self.settings
+            .set(GUEST_KEY, &serde_json::Value::Bool(true))
+            .await?;
+        let guest_profile = AccountProfile::guest();
+        self.save_profile(Some(&guest_profile)).await?;
+        Ok(guest_profile)
+    }
+
     pub async fn status(&self) -> CoreResult<AccountStatus> {
         if !self.credentials_loaded.load(Ordering::Acquire) {
             let _ = self.load_saved_credentials().await;
         }
         let backend = self.backend.get();
         let signed_in = self.secrets.get(REFRESH_SECRET)?.is_some();
+        let is_guest = if signed_in {
+            false
+        } else {
+            self.settings
+                .get(GUEST_KEY)
+                .await?
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+        };
         let custom_oauth_configured = self
             .settings
             .get(OAUTH_CREDENTIALS_SETTINGS_KEY)
             .await?
             .and_then(|v| serde_json::from_value::<SavedOAuthCredentials>(v).ok())
-            .map(|c| c.google_client_id.is_some() || c.firebase_api_key.is_some())
+            .map(|c| {
+                c.google_client_id.is_some()
+                    || c.microsoft_client_id.is_some()
+                    || c.firebase_api_key.is_some()
+            })
             .unwrap_or(false)
-            || self.secrets.get(GOOGLE_SECRET_KEY)?.is_some();
+            || self.secrets.get(GOOGLE_SECRET_KEY)?.is_some()
+            || self.secrets.get(MICROSOFT_SECRET_KEY)?.is_some();
+
+        let profile = if signed_in {
+            self.cached_profile().await?
+        } else if is_guest {
+            Some(AccountProfile::guest())
+        } else {
+            None
+        };
 
         Ok(AccountStatus {
             configured: backend.is_some_and(|b| b.configured()),
             google_available: backend.is_some_and(|b| b.configured() && b.google_available()),
+            microsoft_available: backend.is_some_and(|b| b.configured() && b.microsoft_available()),
             signed_in,
-            profile: if signed_in {
-                self.cached_profile().await?
-            } else {
-                None
-            },
+            is_guest,
+            profile,
             google: self.google_progress(),
+            microsoft: self.microsoft_progress(),
             custom_oauth_configured,
         })
     }
@@ -306,9 +512,37 @@ impl AccountService {
         backend: &dyn AuthBackend,
         s: AuthSession,
     ) -> CoreResult<AccountProfile> {
-        let profile = backend.lookup(&s.id_token).await?;
+        let mut profile = backend.lookup(&s.id_token).await?;
+        if profile.account_id.is_empty() {
+            profile.account_id = profile.uid.clone();
+        }
+        profile.account_type = match profile.provider.as_str() {
+            "google.com" => AccountType::Google,
+            "microsoft.com" => AccountType::Microsoft,
+            "guest" => AccountType::Guest,
+            _ => AccountType::Email,
+        };
+
         self.secrets.set(REFRESH_SECRET, &s.refresh_token)?;
+        self.settings
+            .set(GUEST_KEY, &serde_json::Value::Bool(false))
+            .await?;
         self.save_profile(Some(&profile)).await?;
+
+        // Sync preferences with cloud if sync backend is supported
+        if let Some(sync_backend) = backend.sync_backend() {
+            let app_settings = crate::settings::AppSettings::load(&*self.settings)
+                .await
+                .unwrap_or_default();
+            if let Err(e) = self
+                .sync_service
+                .sync_on_login(sync_backend, &s.id_token, &profile.uid, &app_settings)
+                .await
+            {
+                tracing::warn!(target: "mcpanel::account", "Cloud settings sync failed on login: {}", e.message);
+            }
+        }
+
         Ok(profile)
     }
 
@@ -434,9 +668,115 @@ impl AccountService {
         }
     }
 
+    /// Start "Continue with Microsoft": returns Microsoft's consent page; the result arrives
+    /// through the loopback redirect and is reported by [`Self::status`].
+    pub async fn begin_microsoft(self: &Arc<Self>) -> CoreResult<String> {
+        if let Some(MicrosoftSignIn::Waiting { url }) = self.microsoft_progress() {
+            return Ok(url);
+        }
+        let backend = self.backend()?;
+        if !backend.microsoft_available() {
+            return Err(CoreError::new(
+                ErrorCode::Unsupported,
+                "Microsoft sign-in is not available in this build of MCPanel.",
+            ));
+        }
+        let loopback = Loopback::bind("127.0.0.1", 0, "/").await?;
+        let redirect = format!("http://127.0.0.1:{}/", loopback.port);
+        let verifier = pkce::verifier();
+        let state = pkce::state();
+        let url =
+            backend.microsoft_authorize_url(&redirect, &pkce::challenge_s256(&verifier), &state)?;
+        let progress = Arc::new(Mutex::new(MicrosoftSignIn::Waiting { url: url.clone() }));
+        let prog = Arc::clone(&progress);
+        let this = Arc::clone(self);
+        let task = tokio::spawn(async move {
+            let result: CoreResult<()> = async {
+                let code = match loopback.wait(MICROSOFT_TIMEOUT).await? {
+                    Callback::Code { code, state: got } if got == state => code,
+                    Callback::Code { .. } => {
+                        return Err(CoreError::new(
+                            ErrorCode::GrantInvalid,
+                            "The sign-in response did not match. Try again.",
+                        ));
+                    }
+                    Callback::Error { error, .. } if error == "access_denied" => {
+                        return Err(CoreError::new(
+                            ErrorCode::Cancelled,
+                            "Microsoft sign-in was cancelled.",
+                        ));
+                    }
+                    Callback::Error {
+                        error, description, ..
+                    } => {
+                        return Err(CoreError::new(
+                            ErrorCode::ProviderError,
+                            format!("Microsoft sign-in failed: {}", description.unwrap_or(error)),
+                        ));
+                    }
+                };
+                let (ms_id_token, ms_access_token) = backend
+                    .microsoft_exchange(&code, &verifier, &redirect)
+                    .await?;
+                let s = backend
+                    .sign_in_with_microsoft(&ms_id_token, ms_access_token.as_ref())
+                    .await?;
+                this.establish(&*backend, s).await.map(drop)
+            }
+            .await;
+            *prog.lock().unwrap_or_else(|e| e.into_inner()) = match result {
+                Ok(()) => MicrosoftSignIn::Done,
+                Err(e) => MicrosoftSignIn::Failed { message: e.message },
+            };
+        });
+        if let Some((_, old)) = self
+            .microsoft
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .replace((progress, task))
+        {
+            old.abort();
+        }
+        Ok(url)
+    }
+
+    pub fn cancel_microsoft(&self) {
+        if let Some((_, task)) = self
+            .microsoft
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        {
+            task.abort();
+        }
+    }
+
+    /// Explicitly triggers a sync of non-sensitive preferences with the cloud.
+    pub async fn sync_settings(&self) -> CoreResult<()> {
+        let backend = self.backend()?;
+        let sync_backend = match backend.sync_backend() {
+            Some(sb) => sb,
+            None => return Ok(()),
+        };
+        let token = self.id_token(&*backend).await?;
+        let profile = backend.lookup(&token).await?;
+        let app_settings = crate::settings::AppSettings::load(&*self.settings)
+            .await
+            .unwrap_or_default();
+        let _ = self
+            .sync_service
+            .sync_on_login(sync_backend, &token, &profile.uid, &app_settings)
+            .await?;
+        Ok(())
+    }
+
     pub async fn sign_out(&self) -> CoreResult<()> {
         self.cancel_google();
+        self.cancel_microsoft();
         self.secrets.delete(REFRESH_SECRET)?;
+        self.settings
+            .set(GUEST_KEY, &serde_json::Value::Bool(false))
+            .await?;
         self.save_profile(None).await
     }
 

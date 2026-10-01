@@ -25,6 +25,8 @@ pub struct CloudClientIds {
     /// kept out of Git, logs, diagnostics and the UI.
     pub google_secret: Option<SecretString>,
     pub dropbox: Option<String>,
+    pub microsoft: Option<String>,
+    pub microsoft_secret: Option<SecretString>,
 }
 
 impl std::fmt::Debug for CloudClientIds {
@@ -36,6 +38,11 @@ impl std::fmt::Debug for CloudClientIds {
                 &self.google_secret.as_ref().map(|_| "[set]"),
             )
             .field("dropbox", &self.dropbox)
+            .field("microsoft", &self.microsoft)
+            .field(
+                "microsoft_secret",
+                &self.microsoft_secret.as_ref().map(|_| "[set]"),
+            )
             .finish()
     }
 }
@@ -43,6 +50,8 @@ impl std::fmt::Debug for CloudClientIds {
 pub const GOOGLE_CLIENT_ID_VAR: &str = "MCPANEL_GOOGLE_CLIENT_ID";
 pub const DROPBOX_CLIENT_ID_VAR: &str = "MCPANEL_DROPBOX_CLIENT_ID";
 pub const GOOGLE_CLIENT_SECRET_VAR: &str = "MCPANEL_GOOGLE_CLIENT_SECRET";
+pub const MICROSOFT_CLIENT_ID_VAR: &str = "MCPANEL_MICROSOFT_CLIENT_ID";
+pub const MICROSOFT_CLIENT_SECRET_VAR: &str = "MCPANEL_MICROSOFT_CLIENT_SECRET";
 
 fn pick(runtime: Option<String>, build: Option<&'static str>) -> Option<String> {
     runtime
@@ -73,6 +82,15 @@ impl CloudClientIds {
                 std::env::var(DROPBOX_CLIENT_ID_VAR).ok(),
                 option_env!("MCPANEL_DROPBOX_CLIENT_ID"),
             ),
+            microsoft: pick(
+                std::env::var(MICROSOFT_CLIENT_ID_VAR).ok(),
+                option_env!("MCPANEL_MICROSOFT_CLIENT_ID"),
+            ),
+            microsoft_secret: pick(
+                std::env::var(MICROSOFT_CLIENT_SECRET_VAR).ok(),
+                option_env!("MCPANEL_MICROSOFT_CLIENT_SECRET"),
+            )
+            .map(SecretString::from),
         }
     }
 }

@@ -60,13 +60,34 @@ describe("Account entry and states", () => {
     expect(screen.getByRole("tab", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("shows account state and controls when signed in", () => {
+  it("shows Google, Microsoft, and Guest options when signed out", () => {
     mockUseAccount.mockReturnValue({
       data: {
         configured: true,
         googleAvailable: true,
+        microsoftAvailable: true,
+        signedIn: false,
+        isGuest: false,
+        profile: null,
+      },
+    });
+    renderPanel();
+    expect(screen.getByRole("button", { name: /Continue with Google/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue with Microsoft/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue as Guest/ })).toBeInTheDocument();
+  });
+
+  it("shows account state, sync button and controls when signed in", () => {
+    mockUseAccount.mockReturnValue({
+      data: {
+        configured: true,
+        googleAvailable: true,
+        microsoftAvailable: true,
         signedIn: true,
+        isGuest: false,
         profile: {
+          accountId: "test-user",
+          accountType: "email",
           uid: "test-user",
           email: "user@example.test",
           emailVerified: true,
@@ -78,6 +99,34 @@ describe("Account entry and states", () => {
     });
     renderPanel();
     expect(screen.getByText("Test User")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sync Settings/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
+  });
+
+  it("shows guest mode state with upgrade and exit buttons", () => {
+    mockUseAccount.mockReturnValue({
+      data: {
+        configured: true,
+        googleAvailable: true,
+        microsoftAvailable: true,
+        signedIn: false,
+        isGuest: true,
+        profile: {
+          accountId: "guest",
+          accountType: "guest",
+          uid: "guest",
+          email: null,
+          emailVerified: false,
+          displayName: "Guest User",
+          photoUrl: null,
+          provider: "guest",
+        },
+      },
+    });
+    renderPanel();
+    expect(screen.getByText("Guest User")).toBeInTheDocument();
+    expect(screen.getByText("Guest Mode")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sign In or Create Account/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Exit Guest Mode/ })).toBeInTheDocument();
   });
 });
