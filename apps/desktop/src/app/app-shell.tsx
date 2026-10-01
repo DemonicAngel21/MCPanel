@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Activity, Archive, Coffee, Globe, LayoutDashboard, LayoutTemplate, Plus, Search, Server, Settings } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationInbox } from "@/components/notification-inbox";
@@ -16,6 +16,8 @@ import { useServers, useSettings } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
 import { cn } from "@/lib/utils";
 import { useUi } from "@/stores/ui";
+import { startupView } from "./startup-state";
+import { MAIN_NAV_ITEMS } from "./main-nav-items";
 
 function useThemeSync() {
   const { data } = useSettings();
@@ -71,6 +73,11 @@ function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; lab
       </Link>
     </Tooltip>
   );
+}
+
+function railItem(item: (typeof MAIN_NAV_ITEMS)[number]) {
+  const Icon = item.icon;
+  return <RailLink key={item.to} to={item.to} exact={item.exact} icon={<Icon />} label={item.label} />;
 }
 
 /** Fades a page in on navigation; server tabs animate inside the server layout. */
@@ -144,7 +151,8 @@ function ServerList() {
 
 export function AppShell() {
   const qc = useQueryClient();
-  const { data: settings } = useSettings();
+  const settingsQuery = useSettings();
+  const settings = settingsQuery.data;
   useThemeSync();
 
   useEffect(() => {
@@ -171,7 +179,29 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (settings && !settings.onboardingCompleted) {
+  const startup = startupView(settingsQuery.isPending, settingsQuery.isError, settings);
+  if (startup === "loading") {
+    return (
+      <div className="flex h-full items-center justify-center bg-background">
+        <span role="status" className="text-sm text-muted">
+          Loading MCPanel…
+        </span>
+      </div>
+    );
+  }
+
+  if (startup === "error") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-background text-center">
+        <p className="text-sm text-fg">MCPanel couldn’t load your setup status.</p>
+        <Button variant="outline" onClick={() => void settingsQuery.refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (startup === "setup") {
     return (
       <>
         <OnboardingPage />
@@ -186,16 +216,10 @@ export function AppShell() {
         <Link to="/" className="mb-3 flex size-9 items-center justify-center" aria-label="MCPanel home">
           <img src="/logo.svg" alt="" className="size-8" />
         </Link>
-        <RailLink to="/" exact icon={<LayoutDashboard />} label="Dashboard" />
-        <RailLink to="/servers" icon={<Server />} label="Servers" />
-        <RailLink to="/backups" icon={<Archive />} label="Backups" />
-        <RailLink to="/java" icon={<Coffee />} label="Java runtimes" />
-        <RailLink to="/templates" icon={<LayoutTemplate />} label="Templates" />
-        <RailLink to="/playit" icon={<Globe />} label="Playit.gg" />
-        <RailLink to="/activity" icon={<Activity />} label="Activity" />
+        {MAIN_NAV_ITEMS.slice(0, 8).map(railItem)}
         <div className="flex-1" />
         <NotificationInbox />
-        <RailLink to="/settings" icon={<Settings />} label="Settings" />
+        {MAIN_NAV_ITEMS.filter((item) => item.to === "/settings").map(railItem)}
       </nav>
       <ServerList />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">

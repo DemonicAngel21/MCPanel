@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Check, Coffee, Globe, Link2, Monitor, Moon, Palette, Rocket, Server, Sun, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Coffee, ExternalLink, Globe, Link2, Monitor, Moon, Palette, Rocket, Server, Sun, UserRound } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { SettingsPatchDto } from "@/bindings/SettingsPatchDto";
@@ -11,6 +11,9 @@ import { Badge, Card, Spinner } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { qk, useAccount, useJava, usePlayitAgent, useSettings } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
+
+const openPlayitDownload = () =>
+  api.app.openExternal("https://playit.gg/download").catch((e) => toast.error(errorMessage(e)));
 
 const STEPS = [
   { id: "welcome", label: "Welcome", icon: <Rocket /> },
@@ -56,7 +59,7 @@ function Welcome() {
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         {features.map((f) => (
-          <Card key={f.title} className="space-y-2 p-5">
+          <Card key={f.title} className="setup-feature-card space-y-2 p-5">
             <span className="flex size-9 items-center justify-center rounded-lg bg-accent-soft text-accent [&_svg]:size-5">{f.icon}</span>
             <p className="text-sm font-medium text-fg">{f.title}</p>
             <p className="text-xs text-muted">{f.text}</p>
@@ -75,7 +78,7 @@ function AccountStep({ next }: { next: () => void }) {
         title="Your MCPanel account"
         description="Create an account with your email or Google, or sign in. An account is optional; MCPanel and your servers work without one."
       />
-      <Card className="p-5">{account?.signedIn ? <AccountSummary /> : <AccountForms onSignedIn={next} />}</Card>
+      <Card className="p-5">{account?.configured && account.signedIn ? <AccountSummary /> : <AccountForms onSignedIn={next} />}</Card>
     </div>
   );
 }
@@ -192,9 +195,15 @@ function InternetStep() {
         {!agent ? (
           <Spinner />
         ) : !agent.installed ? (
-          <p className="text-xs text-muted">
-            The playit program is not installed. You can install it later from playit.gg and link it on the Playit.gg page.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-fg">Add Playit.gg Agent</p>
+              <p className="text-xs text-muted">Download the official Windows installer, then return here to link your agent.</p>
+            </div>
+            <Button variant="outline" onClick={() => void openPlayitDownload()}>
+              Install Playit agent <ExternalLink />
+            </Button>
+          </div>
         ) : agent.linked ? (
           <p className="flex items-center gap-2 text-sm text-fg">
             <Badge tone="success">Linked</Badge> MCPanel's playit agent is linked to your account.
@@ -244,7 +253,7 @@ export function OnboardingPage() {
 
   return (
     <div className="flex h-full bg-background">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-6">
+      <aside className="setup-sidebar flex w-64 shrink-0 flex-col border-r border-border bg-surface p-6">
         <p className="mb-6 flex items-center gap-2 text-sm font-semibold text-fg">
           <img src="/logo.svg" alt="" className="size-6" /> MCPanel setup
         </p>
@@ -255,7 +264,7 @@ export function OnboardingPage() {
                 onClick={() => i <= step && setStep(i)}
                 aria-current={i === step ? "step" : undefined}
                 className={cn(
-                  "flex w-full cursor-default items-center gap-3 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors duration-150 [&_svg]:size-4",
+                  "setup-step flex w-full cursor-default items-center gap-3 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors duration-150 [&_svg]:size-4",
                   i === step ? "bg-accent-soft font-medium text-fg" : i < step ? "text-fg hover:bg-surface-3" : "text-faint",
                 )}
               >
@@ -278,7 +287,23 @@ export function OnboardingPage() {
         </button>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-10 py-10">
+        <div className="setup-content min-h-0 flex-1 overflow-y-auto px-10 py-10">
+          <div className="mx-auto mb-8 max-w-5xl">
+            <div className="mb-2 flex items-center justify-between text-[11px] text-muted">
+              <span>{STEPS[step]?.label}</span>
+              <span>{step + 1} of {STEPS.length}</span>
+            </div>
+            <div
+              className="h-1 overflow-hidden rounded-full bg-surface-3"
+              role="progressbar"
+              aria-label="Setup progress"
+              aria-valuemin={1}
+              aria-valuemax={STEPS.length}
+              aria-valuenow={step + 1}
+            >
+              <div className="setup-progress h-full rounded-full bg-accent" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+            </div>
+          </div>
           <div key={id} className="animate-page-in">
             {id === "welcome" && <Welcome />}
             {id === "account" && <AccountStep next={next} />}

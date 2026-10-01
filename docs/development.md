@@ -117,8 +117,10 @@ Their client IDs are **not** stored in the repository. MCPanel reads, in this or
   compiled-in value.
 - **Release:** the release workflow passes the repository secrets
   `MCPANEL_GOOGLE_CLIENT_ID`, `MCPANEL_GOOGLE_CLIENT_SECRET` and
-  `MCPANEL_DROPBOX_CLIENT_ID` to `pnpm build`; the values are compiled into the
-  binary. Users of an installed release never enter anything.
+  `MCPANEL_DROPBOX_CLIENT_ID` and `MCPANEL_FIREBASE_API_KEY` to `pnpm build`; the
+  values are compiled into the binary. A local `pnpm build` only embeds values already
+  present in that PowerShell process environment; `.env.local` is not loaded automatically.
+  Users of an installed release never enter anything.
 - **Local release builds** embed whatever is set in your environment at build time. The
   build prints `This build embeds cloud OAuth configuration from the environment: …`
   (names only) so you notice; unset the variables (`Remove-Item Env:MCPANEL_…`) for a
@@ -139,6 +141,23 @@ Accounts use Firebase Authentication's REST API. Set up a Firebase project:
 The Web API key only identifies the project (Firebase documents that it is not a
 secret); it is still kept out of Git like the other values. Without it, the account
 step of the first-time setup says accounts are unavailable and can be skipped.
+
+### Firebase authentication verification status
+
+The REST adapter and account flows have automated tests against local stand-ins. They
+do not prove that a Firebase project or Google OAuth registration is configured
+correctly. After setting `MCPANEL_FIREBASE_API_KEY`, verify with a dedicated test email:
+
+1. Create an account; confirm Firebase creates it and sends the verification email.
+2. Sign out and sign back in; confirm the profile is restored.
+3. Follow the email link, refresh the profile, and confirm it reports **Verified**.
+4. Request a password reset and confirm the email arrives and its link works.
+5. If Google is configured, complete browser sign-in and confirm the account provider
+   and profile are shown.
+
+Do not use a personal password for these checks. Google sign-in also requires the
+configured Desktop OAuth client to be enabled for the Firebase project's Google
+provider. The real Firebase flows have not yet been validated for this project.
 
 **Why Google has a client secret at all:** Google's token endpoint rejects "Desktop app"
 clients without `client_secret` (`invalid_request` "client_secret is missing."), even

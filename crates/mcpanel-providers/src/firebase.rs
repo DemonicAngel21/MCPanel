@@ -25,9 +25,15 @@ const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
 
 /// The Firebase Web API key: runtime environment first, then the build.
 pub fn firebase_api_key() -> Option<String> {
-    std::env::var(FIREBASE_API_KEY_VAR)
-        .ok()
-        .or_else(|| option_env!("MCPANEL_FIREBASE_API_KEY").map(str::to_string))
+    select_api_key(
+        std::env::var(FIREBASE_API_KEY_VAR).ok(),
+        option_env!("MCPANEL_FIREBASE_API_KEY"),
+    )
+}
+
+fn select_api_key(runtime: Option<String>, build: Option<&str>) -> Option<String> {
+    runtime
+        .or_else(|| build.map(str::to_string))
         .map(|s| s.trim().to_string())
         .filter(|s| {
             !s.is_empty()
@@ -94,6 +100,37 @@ impl FirebaseAuth {
             .await
             .map_err(unreachable_err)?;
         read(resp).await
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::select_api_key;
+
+    #[test]
+    fn uses_the_compiled_firebase_key_when_no_runtime_value_is_set() {
+        assert_eq!(
+            select_api_key(None, Some("compiled-key")),
+            Some("compiled-key".into())
+        );
+    }
+
+    #[test]
+    fn runtime_firebase_key_takes_precedence_over_the_compiled_value() {
+        assert_eq!(
+            select_api_key(Some("runtime-key".into()), Some("compiled-key")),
+            Some("runtime-key".into())
+        );
+    }
+
+    #[test]
+    fn no_firebase_configuration_stays_unconfigured() {
+        assert_eq!(select_api_key(None, None), None);
+    }
+
+    #[test]
+    fn invalid_firebase_values_are_rejected() {
+        assert_eq!(select_api_key(Some("not a key".into()), None), None);
     }
 }
 

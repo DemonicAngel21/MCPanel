@@ -84,6 +84,68 @@ pub struct SettingsService {
     events: EventBus,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ports::SettingsRepository;
+    use async_trait::async_trait;
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct MemorySettings(Mutex<HashMap<String, serde_json::Value>>);
+
+    #[async_trait]
+    impl SettingsRepository for MemorySettings {
+        async fn get(&self, key: &str) -> CoreResult<Option<serde_json::Value>> {
+            Ok(self.0.lock().unwrap().get(key).cloned())
+        }
+        async fn set(&self, key: &str, value: &serde_json::Value) -> CoreResult<()> {
+            self.0.lock().unwrap().insert(key.into(), value.clone());
+            Ok(())
+        }
+        async fn all(&self) -> CoreResult<Vec<(String, serde_json::Value)>> {
+            Ok(self.0.lock().unwrap().clone().into_iter().collect())
+        }
+    }
+
+    fn service() -> SettingsService {
+        SettingsService::new(Arc::new(MemorySettings::default()), EventBus::default())
+    }
+
+    #[tokio::test]
+    async fn fresh_install_starts_with_setup_incomplete() {
+        assert!(!service().get().await.unwrap().onboarding_completed);
+    }
+
+    #[tokio::test]
+    async fn completed_setup_is_persisted() {
+        let settings = service();
+        settings
+            .update(AppSettingsPatch {
+                onboarding_completed: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(settings.get().await.unwrap().onboarding_completed);
+    }
+
+    #[tokio::test]
+    async fn skipped_setup_uses_the_same_persisted_completion_flag() {
+        let settings = service();
+        // Skip setup intentionally marks the one-time flow complete so it is not shown again.
+        settings
+            .update(AppSettingsPatch {
+                onboarding_completed: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(settings.get().await.unwrap().onboarding_completed);
+    }
+}
+
 const KEY: &str = "app";
 
 impl SettingsService {

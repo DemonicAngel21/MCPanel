@@ -411,3 +411,19 @@ access posts; Dropbox staff answers on dropboxforum.com)
 | Cloud sign-in with real app registrations; upload APIs (resumable upload per provider) | v0.4 |
 | Adoptium API (Java downloader) | later |
 | Tauri NSIS per-user install directory default | v0.5 |
+
+## 2026-09-30 — Firebase Authentication (implementation status)
+
+MCPanel implements email/password sign-up and sign-in, verification and password-reset
+emails, profile lookup/update, refresh-token rotation, and Google sign-in using the
+Google OAuth Desktop client with PKCE followed by Firebase `accounts:signInWithIdp`.
+The REST calls follow the [Firebase Auth REST API](https://firebase.google.com/docs/reference/rest/auth).
+Refresh tokens are stored through the platform secret store; passwords are not stored.
+
+Provider and core tests use local stand-ins. One live request confirmed an invalid API
+key is mapped to a safe configuration error; it did not validate a real Firebase
+project. Real sign-up, email delivery and verification, password reset, and Google
+sign-in remain unverified until project configuration is available. See
+`docs/development.md` → “Firebase authentication verification status” for the live
+checklist. Accounts currently identify the user only; they do not enable sync or cloud
+backup.

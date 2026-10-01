@@ -69,11 +69,7 @@ export function AccountForms({ onSignedIn, initialMode = "create" }: { onSignedI
 
   if (!account) return <Spinner />;
   if (!account.configured) {
-    return (
-      <p className="rounded-md border border-border bg-surface-2 px-3 py-2.5 text-xs text-muted">
-        Accounts are not available in this build of MCPanel (no Firebase project is configured). You can use MCPanel without an account.
-      </p>
-    );
+    return <AccountUnavailable />;
   }
   const waitingGoogle = account.googleState === "waiting";
 
@@ -211,6 +207,14 @@ export function AccountForms({ onSignedIn, initialMode = "create" }: { onSignedI
   );
 }
 
+function AccountUnavailable() {
+  return (
+    <p className="rounded-md border border-border bg-surface-2 px-3 py-2.5 text-xs text-muted">
+      Accounts are not available in this build of MCPanel (no Firebase project is configured). You can use MCPanel without an account.
+    </p>
+  );
+}
+
 /** The signed-in account: picture, name, email, verification and sign-out. */
 export function AccountSummary() {
   const qc = useQueryClient();
@@ -275,5 +279,6 @@ export function AccountSummary() {
 export function AccountPanel() {
   const { data: account } = useAccount();
   if (!account) return <Spinner />;
+  if (!account.configured) return <AccountUnavailable />;
   return account.signedIn ? <AccountSummary /> : <AccountForms initialMode="signin" />;
 }

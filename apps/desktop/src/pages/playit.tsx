@@ -93,7 +93,7 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted">The playit program is needed to run the agent. Install it from its official site.</p>
             <Button size="sm" variant="primary" onClick={() => open("https://playit.gg/download")}>
-              Download playit <ExternalLink />
+              Install Playit agent <ExternalLink />
             </Button>
           </div>
         ) : agent.linkState === "waiting" && agent.linkUrl ? (

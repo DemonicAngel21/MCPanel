@@ -12,16 +12,23 @@ const VARS: &[&str] = &[
 
 fn main() {
     let mut set = Vec::new();
+    let mut firebase_configured = false;
     for v in VARS {
         println!("cargo:rerun-if-env-changed={v}");
         if std::env::var(v).is_ok_and(|s| !s.trim().is_empty()) {
             set.push(*v);
+            firebase_configured |= *v == "MCPANEL_FIREBASE_API_KEY";
         }
     }
     if !set.is_empty() {
         println!(
             "cargo:warning=This build embeds cloud OAuth configuration from the environment: {}",
             set.join(", ")
+        );
+    }
+    if !firebase_configured {
+        println!(
+            "cargo:warning=Firebase accounts will be unavailable in this build: MCPANEL_FIREBASE_API_KEY is unset"
         );
     }
 }

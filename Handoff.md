@@ -139,6 +139,6 @@ Done in the last sessions (details in `CHANGELOG.md` and `git log`):
 12. **Polish backlog:** see `docs/polish-backlog.md` (e.g. stop during first-run patching
     waits the full timeout, install dir equals data dir, empty backup folder left after
     deleting the last backup, active tab not scrolled into view at narrow widths).
-13. **Docs:** user docs cover playit and troubleshooting; add user docs for accounts and
-    the setup wizard, and a verification-log entry once Firebase and playit are tested
-    live.
+13. **Docs:** user docs now cover accounts (`docs/user/accounts.md`); add a guide for
+    the setup wizard, and update the verification log after Firebase and playit are
+    tested live.

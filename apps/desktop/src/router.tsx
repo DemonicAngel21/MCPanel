@@ -13,6 +13,7 @@ import { ActivityPage } from "@/pages/activity";
 import { TemplatesPage } from "@/pages/templates";
 import { BackupsPage } from "@/pages/backups";
 import { SettingsPage } from "@/pages/settings";
+import { AccountPage } from "@/pages/account";
 import { ServerLayout } from "@/pages/server/layout";
 import { ServerOverview } from "@/pages/server/overview";
 import { ServerManage } from "@/pages/server/manage";
@@ -46,6 +47,7 @@ const backups = createRoute({ getParentRoute: () => rootRoute, path: "/backups",
 const activity = createRoute({ getParentRoute: () => rootRoute, path: "/activity", component: ActivityPage });
 const playit = createRoute({ getParentRoute: () => rootRoute, path: "/playit", component: PlayitPage });
 const settings = createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: SettingsPage });
+const account = createRoute({ getParentRoute: () => rootRoute, path: "/account", component: AccountPage });
 
 export const serverRoute = createRoute({ getParentRoute: () => rootRoute, path: "/servers/$serverId", component: ServerLayout });
 const serverManage = createRoute({ getParentRoute: () => serverRoute, path: "/", component: ServerManage });
@@ -81,6 +83,7 @@ const routeTree = rootRoute.addChildren([
   backups,
   activity,
   settings,
+  account,
   playit,
   serverRoute.addChildren([
     serverManage,

@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use sysinfo::{Disks, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, UpdateKind};
 
-/// `%LOCALAPPDATA%\MCPanel` for data and `%USERPROFILE%\MCPanel\Servers` for servers
+/// Release builds use `%LOCALAPPDATA%\MCPanel`; debug builds use
+/// `%LOCALAPPDATA%\MCPanel-dev`. Servers and backups use the matching profile directory.
 /// (deliberately not Documents/Desktop, which are often redirected into OneDrive).
 ///
 /// `MCPANEL_DATA_DIR` / `MCPANEL_SERVERS_DIR` override both locations (development,
@@ -39,21 +40,31 @@ fn platform_default_paths() -> CoreResult<AppPaths> {
         let profile = std::env::var_os("USERPROFILE")
             .map(PathBuf::from)
             .ok_or_else(|| CoreError::internal("USERPROFILE is not set"))?;
-        Ok(AppPaths::new(
-            local.join("MCPanel"),
-            profile.join("MCPanel").join("Servers"),
+        let app_dir = if cfg!(debug_assertions) {
+            "MCPanel-dev"
+        } else {
+            "MCPanel"
+        };
+        Ok(
+            AppPaths::new(local.join(app_dir), profile.join(app_dir).join("Servers"))
+                .with_backups_dir(profile.join(app_dir).join("Backups")),
         )
-        .with_backups_dir(profile.join("MCPanel").join("Backups")))
     }
     #[cfg(not(windows))]
     {
         let home = std::env::var_os("HOME")
             .map(PathBuf::from)
             .ok_or_else(|| CoreError::internal("HOME is not set"))?;
+        let app_dir = if cfg!(debug_assertions) {
+            "mcpanel-dev"
+        } else {
+            "mcpanel"
+        };
         Ok(AppPaths::new(
-            home.join(".local/share/mcpanel"),
-            home.join("MCPanel/Servers"),
-        ))
+            home.join(".local/share").join(app_dir),
+            home.join("MCPanel").join(app_dir).join("Servers"),
+        )
+        .with_backups_dir(home.join("MCPanel").join(app_dir).join("Backups")))
     }
 }
 

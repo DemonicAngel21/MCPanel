@@ -28,6 +28,7 @@ type Started = (
 /// never touches the real Backup Master Key.
 fn secret_namespace() -> String {
     match std::env::var_os("MCPANEL_DATA_DIR") {
+        None if cfg!(debug_assertions) => "MCPanel-dev".into(),
         None => "MCPanel".into(),
         Some(dir) => {
             // FNV-1a: stable across builds.
@@ -43,9 +44,12 @@ fn secret_namespace() -> String {
 
 async fn build_api() -> Result<Started, String> {
     let paths = mcpanel_platform::default_paths().map_err(|e| e.message)?;
+    let data_dir = paths.data_dir.clone();
     let guards = logging::init(&paths.logs_dir());
     tracing::info!(target: "mcpanel_desktop", version = env!("CARGO_PKG_VERSION"), "MCPanel starting");
-    let (db, report) = mcpanel_db::Database::open(&paths.database_file())
+    let database_file = paths.database_file();
+    let database_existed = database_file.is_file();
+    let (db, report) = mcpanel_db::Database::open(&database_file)
         .await
         .map_err(|e| e.message)?;
     if let Some(b) = &report.backup {
@@ -63,6 +67,22 @@ async fn build_api() -> Result<Started, String> {
     })
     .await
     .map_err(|e| e.message)?;
+    let firebase_key = mcpanel_providers::firebase::firebase_api_key();
+    let onboarding_completed = core
+        .settings
+        .get()
+        .await
+        .ok()
+        .map(|settings| settings.onboarding_completed);
+    tracing::info!(
+        target: "mcpanel::startup",
+        data_dir = %data_dir.display(),
+        database_file = %database_file.display(),
+        database_existed,
+        onboarding_completed = ?onboarding_completed,
+        firebase_configured = firebase_key.is_some(),
+        "MCPanel startup state"
+    );
     // Discover Java runtimes in the background on every launch.
     {
         let java = Arc::clone(&core.java);
@@ -78,7 +98,7 @@ async fn build_api() -> Result<Started, String> {
     )));
     api.account_attach_backend(Arc::new(mcpanel_providers::firebase::FirebaseAuth::new(
         &http,
-        mcpanel_providers::firebase::firebase_api_key(),
+        firebase_key,
         &mcpanel_providers::cloud::CloudClientIds::from_env(),
     )));
     let startup = Arc::clone(&api);

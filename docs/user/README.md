@@ -6,6 +6,7 @@ ordinary folders: you can run them without MCPanel at any time.
 | Guide | What it covers |
 |---|---|
 | [Getting started](getting-started.md) | Install, first server, the EULA, starting and stopping |
+| [MCPanel accounts](accounts.md) | Optional email or Google sign-in, verification, password reset, and local account data |
 | [Servers](servers.md) | Server software, Java, memory, properties, import, templates |
 | [Players](players.md) | Operators, whitelist, bans, Bedrock players |
 | [Plugins and mods](plugins-and-mods.md) | Modrinth, Hangar, SpigotMC, GeyserMC; updates; safety |
