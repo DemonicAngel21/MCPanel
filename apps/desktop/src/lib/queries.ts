@@ -22,6 +22,7 @@ export const qk = {
   restartPolicy: (serverId: string) => ["servers", serverId, "restart-policy"] as const,
   crashes: (serverId: string) => ["servers", serverId, "crashes"] as const,
   content: (serverId: string) => ["servers", serverId, "content"] as const,
+  contentRecommendations: (serverId: string) => ["servers", serverId, "content", "recommendations"] as const,
   bedrock: (serverId: string) => ["servers", serverId, "bedrock"] as const,
   tunnel: ["tunnel"] as const,
   playit: ["playit"] as const,
@@ -78,6 +79,8 @@ export const useBackupLocation = () => useQuery({ queryKey: qk.backupLocation, q
 export const usePlayers = (serverId: string, enabled = true) =>
   useQuery({ queryKey: qk.players(serverId), queryFn: () => api.players.get(serverId), enabled });
 export const useContent = (serverId: string) => useQuery({ queryKey: qk.content(serverId), queryFn: () => api.content.list(serverId) });
+export const useContentRecommendations = (serverId: string) =>
+  useQuery({ queryKey: qk.contentRecommendations(serverId), queryFn: () => api.content.recommendations(serverId) });
 export const useRestartPolicy = (serverId: string) => useQuery({ queryKey: qk.restartPolicy(serverId), queryFn: () => api.crashes.policy(serverId) });
 export const useNotifications = (enabled: boolean) => useQuery({ queryKey: qk.notifications, queryFn: () => api.notifications.list(100), enabled });
 export const useUnreadNotifications = () => useQuery({ queryKey: qk.unreadNotifications, queryFn: api.notifications.unread });

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowUpCircle,
+  CheckCircle2,
   Download,
   ExternalLink,
   MoreHorizontal,
@@ -12,6 +13,8 @@ import {
   RotateCcw,
   Search,
   SearchX,
+  Sparkles,
+  Tag,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -19,6 +22,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { ContentEntryDto } from "@/bindings/ContentEntryDto";
 import type { ContentListDto } from "@/bindings/ContentListDto";
+import type { PluginRecommendationDto } from "@/bindings/PluginRecommendationDto";
 import type { ProjectDto } from "@/bindings/ProjectDto";
 import type { UpdateInfoDto } from "@/bindings/UpdateInfoDto";
 import { PageBody } from "@/app/app-shell";
@@ -35,11 +39,11 @@ import {
   DropdownMenuTrigger,
   Select,
 } from "@/components/ui/overlays";
-import { Badge, Banner, Card, CardHeader, Checkbox, EmptyState, Input, SkeletonRows, Spinner, Tooltip } from "@/components/ui/primitives";
+import { Badge, Banner, Card, CardHeader, Checkbox, EmptyState, Field, Input, SkeletonRows, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatRelative } from "@/lib/format";
 import { waitForJob } from "@/lib/jobs";
-import { qk, useContent, useServer } from "@/lib/queries";
+import { qk, useContent, useContentRecommendations, useServer } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
 import { useServerId } from "./use-server-id";
 
@@ -193,6 +197,82 @@ function InstallDialog({
   );
 }
 
+function IdentifyDialog({ serverId, entry, onClose }: { serverId: string; entry: ContentEntryDto; onClose: () => void }) {
+  const qc = useQueryClient();
+  const det = entry.detection;
+  const [provider, setProvider] = useState(entry.provider ?? det?.provider ?? "modrinth");
+  const [projectId, setProjectId] = useState(entry.projectId ?? det?.projectId ?? "");
+  const [name, setName] = useState(entry.name);
+  const [version, setVersion] = useState(entry.version ?? det?.version ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!projectId.trim()) {
+      toast.error("Please enter a project ID or slug");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.content.identify(serverId, {
+        fileName: entry.fileName,
+        provider,
+        projectId: projectId.trim(),
+        name: name.trim() || null,
+        versionNumber: version.trim() || null,
+      });
+      await qc.invalidateQueries({ queryKey: qk.content(serverId) });
+      await qc.invalidateQueries({ queryKey: qk.contentRecommendations(serverId) });
+      toast.success("Plugin identification saved");
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent title="Identify / Link Plugin">
+        <div className="space-y-4 text-xs">
+          <p className="text-muted">
+            Connect <span className="font-mono font-medium text-fg">{entry.fileName}</span> to a recognized provider project to enable automatic
+            update checking and compatibility tracking.
+          </p>
+          <Field label="Provider">
+            <Select
+              value={provider}
+              onValueChange={setProvider}
+              options={[
+                { value: "modrinth", label: "Modrinth" },
+                { value: "hangar", label: "Hangar" },
+                { value: "spiget", label: "SpigotMC" },
+              ]}
+            />
+          </Field>
+          <Field label="Project ID or Slug" hint="e.g. essentialsx, luckperms, authmereloaded">
+            <Input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="project-slug" />
+          </Field>
+          <Field label="Display Name">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Plugin Name" />
+          </Field>
+          <Field label="Version (Optional)">
+            <Input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="1.0.0" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <DialogClose asChild>
+              <Button variant="ghost">Cancel</Button>
+            </DialogClose>
+            <Button variant="primary" disabled={saving || !projectId.trim()} onClick={save}>
+              {saving ? <Spinner /> : <CheckCircle2 />} Save & Link
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Browser({ serverId, list, onInstall }: { serverId: string; list: ContentListDto; onInstall: (p: ProjectDto) => void }) {
   const [provider, setProvider] = useState(list.providers[0]?.id ?? "");
   const [text, setText] = useState("");
@@ -274,6 +354,79 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
   );
 }
 
+function RecommendationsCard({ recs, onInstall }: { recs: PluginRecommendationDto[]; onInstall: (rec: PluginRecommendationDto) => void }) {
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const categories = Array.from(new Set(recs.map((r) => r.category)));
+
+  const filtered = selectedCategory === "all" ? recs : recs.filter((r) => r.category === selectedCategory);
+
+  return (
+    <Card>
+      <CardHeader
+        title="Recommended For Your Server"
+        description="Curated based on server software, offline mode, and setup."
+        actions={
+          categories.length > 1 ? (
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("all")}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs transition-colors",
+                  selectedCategory === "all" ? "bg-surface-3 font-medium text-fg" : "text-muted hover:text-fg",
+                )}
+              >
+                All ({recs.length})
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-xs transition-colors",
+                    selectedCategory === cat ? "bg-surface-3 font-medium text-fg" : "text-muted hover:text-fg",
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          ) : undefined
+        }
+      />
+      <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((rec) => (
+          <div
+            key={rec.id}
+            className="bg-surface-1 flex flex-col justify-between rounded-md border border-border p-3 transition-colors hover:border-border-strong hover:bg-surface-2"
+          >
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[13px] font-medium text-fg">{rec.name}</span>
+                <Badge tone="info">{rec.category}</Badge>
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs text-muted">{rec.description}</p>
+              {rec.reason && (
+                <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-accent">
+                  <Sparkles className="size-3 shrink-0" />
+                  <span className="truncate">{rec.reason}</span>
+                </p>
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-2 text-[11px] text-faint">
+              <span className="capitalize">{rec.provider}</span>
+              <Button size="sm" variant="secondary" onClick={() => onInstall(rec)}>
+                Install…
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function EntryRow({
   e,
   list,
@@ -281,6 +434,7 @@ function EntryRow({
   serverId,
   onUpdate,
   onRemove,
+  onIdentify,
 }: {
   e: ContentEntryDto;
   list: ContentListDto;
@@ -288,8 +442,10 @@ function EntryRow({
   serverId: string;
   onUpdate: () => void;
   onRemove: () => void;
+  onIdentify: (e: ContentEntryDto) => void;
 }) {
   const provider = list.providers.find((p) => p.id === e.provider);
+  const det = e.detection;
   const toggle = async () => {
     try {
       const deferred = await api.content.setEnabled(serverId, e.fileName, !e.enabled);
@@ -308,18 +464,46 @@ function EntryRow({
       </td>
       <td className="px-4 py-2 text-muted">{e.version ?? "—"}</td>
       <td className="px-4 py-2">
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {provider ? (
             <Badge tone="info">{provider.displayName}</Badge>
+          ) : det ? (
+            det.confidence === "exact" || det.confidence === "high" ? (
+              <Tooltip content={det.description ?? `Detected as ${det.name}. Click to verify or link.`}>
+                <button type="button" onClick={() => onIdentify(e)}>
+                  <Badge tone="success" className="cursor-pointer hover:opacity-80">
+                    Detected: {det.name}
+                  </Badge>
+                </button>
+              </Tooltip>
+            ) : det.confidence === "medium" ? (
+              <Tooltip content="Recognized from metadata. Click to link and enable updates.">
+                <button type="button" onClick={() => onIdentify(e)}>
+                  <Badge tone="info" className="cursor-pointer hover:opacity-80">
+                    Detected: {det.name}
+                  </Badge>
+                </button>
+              </Tooltip>
+            ) : (
+              <Tooltip content="Unverified imported file. Click to identify or verify source.">
+                <button type="button" onClick={() => onIdentify(e)}>
+                  <Badge tone="warning" className="cursor-pointer hover:opacity-80">
+                    Needs verification
+                  </Badge>
+                </button>
+              </Tooltip>
+            )
           ) : (
-            <Tooltip content="Not installed by MCPanel. “Check for updates” identifies files from Modrinth by their hash.">
-              <Badge>Manual</Badge>
+            <Tooltip content="Not installed by MCPanel. Click to link with a provider for update checks.">
+              <button type="button" onClick={() => onIdentify(e)}>
+                <Badge className="cursor-pointer hover:opacity-80">Manual</Badge>
+              </button>
             </Tooltip>
           )}
           {!e.enabled && <Badge>Disabled</Badge>}
           {!e.descriptorFormat && (
             <Tooltip content="No plugin.yml / mod descriptor found in this jar">
-              <Badge tone="warning">Unknown</Badge>
+              <Badge tone="warning">Unknown format</Badge>
             </Tooltip>
           )}
           {e.pending && <Badge tone="warning">{PENDING_LABEL[e.pending] ?? e.pending}</Badge>}
@@ -351,6 +535,11 @@ function EntryRow({
                 </>
               )}
             </DropdownMenuItem>
+            {!provider && (
+              <DropdownMenuItem onSelect={() => onIdentify(e)}>
+                <Tag /> Identify / Link…
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem destructive onSelect={onRemove}>
               <Trash2 /> Remove…
@@ -367,8 +556,10 @@ export function ServerContent() {
   const qc = useQueryClient();
   const { data: server } = useServer(id);
   const { data: list, isLoading, error } = useContent(id);
+  const { data: recs } = useContentRecommendations(id);
   const [browse, setBrowse] = useState(false);
   const [installing, setInstalling] = useState<{ provider: string; id: string; name: string; version: string | null } | null>(null);
+  const [identifying, setIdentifying] = useState<ContentEntryDto | null>(null);
   const [removing, setRemoving] = useState<ContentEntryDto | null>(null);
   const [updates, setUpdates] = useState<UpdateInfoDto[] | null>(null);
   const [checking, setChecking] = useState(false);
@@ -465,6 +656,7 @@ export function ServerContent() {
                     update={update}
                     serverId={id}
                     onRemove={() => setRemoving(e)}
+                    onIdentify={setIdentifying}
                     onUpdate={() =>
                       update &&
                       e.provider &&
@@ -505,11 +697,16 @@ export function ServerContent() {
         )}
       </Card>
 
+      {recs && recs.length > 0 && (
+        <RecommendationsCard recs={recs} onInstall={(r) => setInstalling({ provider: r.provider, id: r.projectId, name: r.name, version: null })} />
+      )}
+
       {browse && (
         <Browser serverId={id} list={list} onInstall={(p) => setInstalling({ provider: p.provider, id: p.id, name: p.name, version: null })} />
       )}
 
       {installing && <InstallDialog serverId={id} project={installing} versionId={installing.version} onClose={() => setInstalling(null)} />}
+      {identifying && <IdentifyDialog serverId={id} entry={identifying} onClose={() => setIdentifying(null)} />}
       <ConfirmDialog
         open={!!removing}
         onOpenChange={(o) => !o && setRemoving(null)}

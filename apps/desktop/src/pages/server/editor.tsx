@@ -15,6 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { errorMessage } from "@/lib/utils";
 import { serverEditorRoute } from "@/router";
+import { useUi } from "@/stores/ui";
 import { useServerId } from "./use-server-id";
 
 // Bundle Monaco locally (no CDN; CSP-compatible).
@@ -46,9 +47,7 @@ function languageFor(path: string): string {
 
 const EOL_LABEL: Record<string, string> = { lf: "LF", cr_lf: "CRLF", mixed: "Mixed", none: "—" };
 
-export default function ServerEditor() {
-  const serverId = useServerId();
-  const { path } = serverEditorRoute.useSearch();
+function ServerEditorInner({ serverId, path }: { serverId: string; path: string }) {
   const qc = useQueryClient();
   const docQuery = useQuery({
     queryKey: ["servers", serverId, "document", path],
@@ -62,10 +61,22 @@ export default function ServerEditor() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
-  const [autosave, setAutosave] = useState(false);
+  const autosave = useUi((s) => s.editorAutosave);
+  const setAutosave = useUi((s) => s.setEditorAutosave);
   const [problems, setProblems] = useState<string | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const timer = useRef<number | null>(null);
+
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const next = document.documentElement.dataset.theme ?? "dark";
+      setTheme(next);
+      monaco.editor.setTheme(next === "light" ? "vs" : "vs-dark");
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   const reload = () => {
     setSaved(null);
@@ -141,11 +152,11 @@ export default function ServerEditor() {
   useEffect(() => {
     if (!autosave || !dirty || conflict) return;
     if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void save(), 1500);
+    timer.current = window.setTimeout(() => void saveRef.current(), 1500);
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [autosave, dirty, conflict, save]);
+  }, [autosave, dirty, conflict]);
 
   useBlocker({
     shouldBlockFn: () => dirty && !window.confirm("You have unsaved changes. Leave without saving?"),
@@ -214,7 +225,7 @@ export default function ServerEditor() {
               key={`${path}-${doc.sha256}-${conflict}`}
               defaultValue={doc.content}
               language={language}
-              theme={document.documentElement.dataset.theme === "light" ? "vs" : "vs-dark"}
+              theme={theme === "light" ? "vs" : "vs-dark"}
               onMount={onMount}
               onChange={(v) => {
                 setDirty(true);
@@ -254,4 +265,10 @@ export default function ServerEditor() {
       )}
     </div>
   );
+}
+
+export default function ServerEditor() {
+  const serverId = useServerId();
+  const { path } = serverEditorRoute.useSearch();
+  return <ServerEditorInner key={`${serverId}:${path}`} serverId={serverId} path={path} />;
 }

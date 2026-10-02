@@ -329,9 +329,15 @@ export function ServerPlayers() {
           Add players to the whitelist or turn it off. Minecraft 26.x turns the whitelist on for new servers.
         </Banner>
       )}
-      {!data.onlineMode && (
-        <Banner tone="warning" title="Offline mode">
-          Names aren’t verified; anyone can join as anyone, including an operator. Enable the whitelist or online mode.
+      {!data.onlineMode && !data.whitelistEnabled && (
+        <Banner tone="warning" title="Offline mode (whitelist disabled)">
+          Names aren’t verified; anyone can join with any username, including an operator. Enable the whitelist, turn on online mode, or install an
+          authentication plugin.
+        </Banner>
+      )}
+      {!data.onlineMode && data.whitelistEnabled && (
+        <Banner tone="info" title="Offline mode (whitelist active)">
+          Online verification is disabled, but only whitelisted player names can connect to the server.
         </Banner>
       )}
 
@@ -390,6 +396,22 @@ export function ServerPlayers() {
 
           {tab === "whitelist" && (
             <>
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <div>
+                  <p className="text-[13px] font-medium text-fg">Whitelist enforcement</p>
+                  <p className="text-xs text-muted">
+                    {data.whitelistEnabled
+                      ? "Only players on this list can join the server."
+                      : "The whitelist is disabled; anyone can join unless banned."}
+                  </p>
+                </div>
+                <Switch
+                  checked={data.whitelistEnabled}
+                  disabled={ro || busy}
+                  onCheckedChange={(enabled) => void run({ action: "set_whitelist", enabled })}
+                  aria-label="Toggle whitelist enforcement"
+                />
+              </div>
               <NameForm label="Add" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "whitelist_add", name })} />
               <SimpleList
                 rows={data.whitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid, uuid: w.uuid }))}

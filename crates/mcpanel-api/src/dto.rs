@@ -1522,6 +1522,76 @@ pub struct ContentProviderDto {
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+pub struct DetectedPluginDto {
+    pub file_name: String,
+    pub name: String,
+    pub version: Option<String>,
+    pub provider: Option<String>,
+    pub project_id: Option<String>,
+    pub platform: Option<String>,
+    /// "exact" | "high" | "medium" | "low" | "unknown"
+    pub confidence: String,
+    pub description: Option<String>,
+}
+
+impl From<mcpanel_core::content::DetectedPlugin> for DetectedPluginDto {
+    fn from(d: mcpanel_core::content::DetectedPlugin) -> Self {
+        Self {
+            file_name: d.file_name,
+            name: d.name,
+            version: d.version,
+            provider: d.provider,
+            project_id: d.project_id,
+            platform: d.platform,
+            confidence: d.confidence.as_str().to_string(),
+            description: d.description,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PluginRecommendationDto {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub provider: String,
+    pub project_id: String,
+    pub icon_url: Option<String>,
+    pub reason: String,
+}
+
+impl From<mcpanel_core::content::PluginRecommendation> for PluginRecommendationDto {
+    fn from(r: mcpanel_core::content::PluginRecommendation) -> Self {
+        Self {
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            category: r.category.as_str().to_string(),
+            provider: r.provider,
+            project_id: r.project_id,
+            icon_url: r.icon_url,
+            reason: r.reason,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IdentifyContentRequestDto {
+    pub file_name: String,
+    pub provider: String,
+    pub project_id: String,
+    pub version_number: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct ContentEntryDto {
     pub file_name: String,
     pub enabled: bool,
@@ -1536,6 +1606,7 @@ pub struct ContentEntryDto {
     pub version_id: Option<String>,
     /// Queued change: "install" | "remove" | "disable" | "enable".
     pub pending: Option<String>,
+    pub detection: Option<DetectedPluginDto>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -1768,6 +1839,7 @@ impl ContentListDto {
                         file_name: e.file_name,
                         enabled: e.enabled,
                         size_bytes: e.size,
+                        detection: e.detection.map(Into::into),
                     }
                 })
                 .collect(),

@@ -1,5 +1,5 @@
 import { AlertTriangle, Archive, ArchiveRestore, FolderSearch, KeyRound, Lock, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { BackupDto } from "@/bindings/BackupDto";
@@ -39,6 +39,7 @@ async function verify(b: BackupDto) {
 }
 
 function RestoreDialog({ backup, running, onClose }: { backup: BackupDto; running: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
   const q = useQuery({ queryKey: ["backups", "preview", backup.id], queryFn: () => api.backups.restorePreview(backup.id), gcTime: 0, retry: false });
   const preview: RestorePreviewDto | undefined = q.data;
   const error = q.error ? errorMessage(q.error) : null;
@@ -54,6 +55,7 @@ function RestoreDialog({ backup, running, onClose }: { backup: BackupDto; runnin
       onConfirm={async () => {
         try {
           await api.backups.restore(backup.id);
+          await qc.invalidateQueries({ queryKey: ["backups"] });
         } catch (e) {
           toast.error(errorMessage(e));
         }
@@ -150,6 +152,7 @@ export function BackupList({
   isRunning: (serverId: string | null) => boolean;
   showServer?: boolean;
 }) {
+  const qc = useQueryClient();
   const [restore, setRestore] = useState<BackupDto | null>(null);
   const [remove, setRemove] = useState<BackupDto | null>(null);
   const [reveal, setReveal] = useState<BackupDto | null>(null);
@@ -269,6 +272,7 @@ export function BackupList({
           try {
             await api.backups.delete(remove.id);
             toast.success("Backup deleted");
+            await qc.invalidateQueries({ queryKey: ["backups"] });
           } catch (e) {
             toast.error(errorMessage(e));
           }

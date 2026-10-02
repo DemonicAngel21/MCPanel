@@ -79,6 +79,7 @@ pub struct ContentEntry {
     pub record: Option<InstalledContent>,
     /// A queued change for this file (applies when the server stops or next starts).
     pub pending: Option<PendingKind>,
+    pub detection: Option<super::DetectedPlugin>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +149,9 @@ pub struct ContentService {
     events: EventBus,
     /// Serialises file changes (install/apply) across all servers.
     apply_lock: AsyncMutex<()>,
+    detection_cache: std::sync::RwLock<
+        std::collections::HashMap<(ServerId, String, u64), super::DetectedPlugin>,
+    >,
 }
 
 fn safe_file_name(name: &str) -> CoreResult<String> {
@@ -277,6 +281,7 @@ impl ContentService {
             audit: deps.audit,
             events: deps.events,
             apply_lock: AsyncMutex::new(()),
+            detection_cache: std::sync::RwLock::new(std::collections::HashMap::new()),
         })
     }
 
@@ -356,20 +361,42 @@ impl ContentService {
         .map_err(|e| CoreError::internal(e.to_string()))?;
         let entries = scanned
             .into_iter()
-            .map(|(file_name, enabled, size, descriptor)| ContentEntry {
-                record: records
+            .map(|(file_name, enabled, size, descriptor)| {
+                let record = records
                     .iter()
                     .find(|r| r.kind == kind && r.file_name.eq_ignore_ascii_case(&file_name))
-                    .cloned(),
-                pending: pending
-                    .iter()
-                    .rev()
-                    .find(|p| p.change.file_name().eq_ignore_ascii_case(&file_name))
-                    .map(|p| p.change.clone()),
-                file_name,
-                enabled,
-                size,
-                descriptor,
+                    .cloned();
+
+                let detection = {
+                    let cache_key = (server_id, file_name.clone(), size);
+                    if let Ok(c) = self.detection_cache.read() {
+                        c.get(&cache_key).cloned()
+                    } else {
+                        None
+                    }
+                }
+                .or_else(|| {
+                    let det =
+                        super::detect_plugin(&file_name, descriptor.as_ref(), record.as_ref());
+                    if let Ok(mut c) = self.detection_cache.write() {
+                        c.insert((server_id, file_name.clone(), size), det.clone());
+                    }
+                    Some(det)
+                });
+
+                ContentEntry {
+                    record,
+                    pending: pending
+                        .iter()
+                        .rev()
+                        .find(|p| p.change.file_name().eq_ignore_ascii_case(&file_name))
+                        .map(|p| p.change.clone()),
+                    file_name,
+                    enabled,
+                    size,
+                    descriptor,
+                    detection,
+                }
             })
             .collect::<Vec<_>>();
         let pending_installs = pending
@@ -424,6 +451,108 @@ impl ContentService {
         self.provider(&target, provider)?
             .versions(project_id, &target)
             .await
+    }
+
+    pub async fn recommendations(
+        &self,
+        server_id: ServerId,
+    ) -> CoreResult<Vec<super::PluginRecommendation>> {
+        let server = self.servers.get(server_id).await?;
+        let target = self.target(&server)?;
+        let props = self.servers.properties(server_id).await?;
+        let online_mode = props
+            .properties
+            .iter()
+            .find(|p| p.key == "online-mode")
+            .and_then(|p| p.value.as_deref())
+            .is_none_or(|v| v.trim().eq_ignore_ascii_case("true"));
+
+        let list = self.list(server_id).await?;
+        let mut installed = Vec::new();
+        for e in &list.entries {
+            installed.push(e.file_name.clone());
+            if let Some(d) = &e.descriptor {
+                if let Some(n) = &d.name {
+                    installed.push(n.clone());
+                }
+                if let Some(id) = &d.id {
+                    installed.push(id.clone());
+                }
+            }
+            if let Some(r) = &e.record {
+                installed.push(r.name.clone());
+                if let Some(src) = &r.source {
+                    installed.push(src.project_id.clone());
+                }
+            }
+            if let Some(det) = &e.detection {
+                installed.push(det.name.clone());
+                if let Some(pid) = &det.project_id {
+                    installed.push(pid.clone());
+                }
+            }
+        }
+
+        let has_bedrock = list.entries.iter().any(|e| {
+            e.file_name.to_ascii_lowercase().contains("geyser")
+                || e.descriptor
+                    .as_ref()
+                    .and_then(|d| d.name.as_deref())
+                    .is_some_and(|n| n.to_ascii_lowercase().contains("geyser"))
+                || e.detection
+                    .as_ref()
+                    .is_some_and(|d| d.name.to_ascii_lowercase().contains("geyser"))
+        });
+
+        let ctx = super::RecommendationContext {
+            software_id: target.software_id,
+            game_version: target.game_version,
+            ecosystems: target.ecosystems,
+            online_mode,
+            has_bedrock,
+            installed,
+        };
+
+        Ok(super::filter_recommendations(&ctx))
+    }
+
+    pub async fn identify(
+        &self,
+        server_id: ServerId,
+        file_name: &str,
+        provider: &str,
+        project_id: &str,
+        version_number: Option<String>,
+        name: Option<String>,
+    ) -> CoreResult<()> {
+        let server = self.servers.get(server_id).await?;
+        let target = self.target(&server)?;
+        let clean_file = safe_file_name(file_name)?;
+        let display_name = name.unwrap_or_else(|| clean_file.trim_end_matches(".jar").to_string());
+
+        let record = InstalledContent {
+            server_id,
+            kind: target.kind,
+            file_name: clean_file.clone(),
+            name: display_name,
+            version_number,
+            source: Some(super::ContentSource {
+                provider: provider.to_string(),
+                project_id: project_id.to_string(),
+                version_id: "".to_string(),
+            }),
+            sha512: None,
+            installed_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
+        };
+
+        self.repo.upsert(&record).await?;
+        if let Ok(mut c) = self.detection_cache.write() {
+            c.retain(|(sid, f, _), _| *sid != server_id || *f != clean_file);
+        }
+        self.events
+            .publish(DomainEvent::ContentChanged { server_id });
+        Ok(())
     }
 
     // ───────────────────────────── planning ─────────────────────────────

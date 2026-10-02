@@ -486,7 +486,7 @@ impl PlayerService {
         let action = Self::validate(action)?;
         let server = self.servers.get(server_id).await?;
         let result = match self.mode(server_id) {
-            Ok(true) => self.apply_live(&server, &action).await,
+            Ok(true) => self.apply_live(&server, &action, actor).await,
             Ok(false) => self.apply_files(&server, &action, actor).await,
             Err(e) => Err(e),
         };
@@ -515,7 +515,21 @@ impl PlayerService {
         &self,
         server: &Server,
         action: &PlayerAction,
+        actor: &str,
     ) -> CoreResult<ActionOutcome> {
+        if let PlayerAction::SetWhitelist { enabled } = action {
+            let _ = self
+                .servers
+                .update_properties(
+                    server.id,
+                    vec![crate::server::PropertyChange {
+                        key: "white-list".into(),
+                        value: Some(enabled.to_string()),
+                    }],
+                    actor,
+                )
+                .await;
+        }
         let console = self.servers.console(server.id);
         let mut sub = console.subscribe(None, 0);
         self.servers

@@ -46,6 +46,8 @@ import type { ImportServerDto } from "@/bindings/ImportServerDto";
 import type { InstallPlanDto } from "@/bindings/InstallPlanDto";
 import type { InstallPreviewDto } from "@/bindings/InstallPreviewDto";
 import type { InstallRequestDto } from "@/bindings/InstallRequestDto";
+import type { IdentifyContentRequestDto } from "@/bindings/IdentifyContentRequestDto";
+import type { PluginRecommendationDto } from "@/bindings/PluginRecommendationDto";
 import type { JavaRuntimeDto } from "@/bindings/JavaRuntimeDto";
 import type { JobDto } from "@/bindings/JobDto";
 import type { LocationCheckDto } from "@/bindings/LocationCheckDto";
@@ -303,6 +305,8 @@ export const api = {
     setEnabled: (serverId: string, fileName: string, enabled: boolean) => call<boolean>("content_set_enabled", { serverId, fileName, enabled }),
     discardPending: (serverId: string, id: string) => call<void>("content_discard_pending", { serverId, id }),
     checkUpdates: (serverId: string) => call<UpdateInfoDto[]>("content_check_updates", { serverId }),
+    recommendations: (serverId: string) => call<PluginRecommendationDto[]>("content_recommendations", { serverId }),
+    identify: (serverId: string, request: IdentifyContentRequestDto) => call<void>("content_identify", { serverId, request }),
   },
   players: {
     get: (serverId: string) => call<ServerPlayersDto>("players_get", { serverId }),

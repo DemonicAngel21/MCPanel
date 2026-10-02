@@ -8,8 +8,15 @@
 //! Windows) and applied when it stops or before it next starts.
 
 pub mod descriptor;
+pub mod detection;
+pub mod recommendations;
 pub mod service;
 
+pub use detection::{DetectedPlugin, DetectionConfidence, detect_plugin, parse_plugin_filename};
+pub use recommendations::{
+    PluginRecommendation, RecommendationCategory, RecommendationContext, catalog,
+    filter_recommendations,
+};
 pub use service::{
     ContentEntry, ContentService, ContentServiceDeps, InstallPlan, InstallRequest, PendingChange,
     PendingKind, PlannedInstall, UpdateInfo,

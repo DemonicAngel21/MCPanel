@@ -17,6 +17,14 @@ pub struct Descriptor {
     pub format: String,
     pub name: Option<String>,
     pub version: Option<String>,
+    #[serde(default)]
+    pub main: Option<String>,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub website: Option<String>,
     /// The mod declares it only runs on the client (`"environment": "client"`).
     #[serde(default)]
     pub client_only: bool,
@@ -81,10 +89,15 @@ pub fn read(jar: &Path) -> CoreResult<Option<Descriptor>> {
         zip::ZipArchive::new(file).map_err(|e| rejected(format!("Not a valid jar: {e}")))?;
     for yml in ["paper-plugin.yml", "plugin.yml"] {
         if let Some(t) = read_entry(&mut zip, yml)? {
+            let name = yaml_scalar(&t, "name");
             return Ok(Some(Descriptor {
                 format: yml.into(),
-                name: yaml_scalar(&t, "name"),
+                id: name.clone(),
+                name,
                 version: yaml_scalar(&t, "version"),
+                main: yaml_scalar(&t, "main"),
+                description: yaml_scalar(&t, "description"),
+                website: yaml_scalar(&t, "website"),
                 client_only: false,
             }));
         }
@@ -92,34 +105,57 @@ pub fn read(jar: &Path) -> CoreResult<Option<Descriptor>> {
     for json in ["fabric.mod.json", "quilt.mod.json"] {
         if let Some(t) = read_entry(&mut zip, json)? {
             let v: serde_json::Value = serde_json::from_str(&t).unwrap_or_default();
-            let (name, version, env) = if json == "quilt.mod.json" {
+            let (id, name, version, env, desc, site) = if json == "quilt.mod.json" {
                 let l = &v["quilt_loader"];
                 (
-                    l["metadata"]["name"].as_str().or(l["id"].as_str()),
-                    l["version"].as_str(),
+                    l["id"].as_str().map(String::from),
+                    l["metadata"]["name"]
+                        .as_str()
+                        .or(l["id"].as_str())
+                        .map(String::from),
+                    l["version"].as_str().map(String::from),
                     v["minecraft"]["environment"].as_str(),
+                    l["metadata"]["description"].as_str().map(String::from),
+                    l["metadata"]["contact"]["homepage"]
+                        .as_str()
+                        .map(String::from),
                 )
             } else {
                 (
-                    v["name"].as_str().or(v["id"].as_str()),
-                    v["version"].as_str(),
+                    v["id"].as_str().map(String::from),
+                    v["name"].as_str().or(v["id"].as_str()).map(String::from),
+                    v["version"].as_str().map(String::from),
                     v["environment"].as_str(),
+                    v["description"].as_str().map(String::from),
+                    v["contact"]["homepage"]
+                        .as_str()
+                        .or_else(|| v["contact"]["sources"].as_str())
+                        .map(String::from),
                 )
             };
             return Ok(Some(Descriptor {
                 format: json.into(),
-                name: name.map(String::from),
-                version: version.map(String::from),
+                id,
+                name,
+                version,
+                main: None,
+                description: desc,
+                website: site,
                 client_only: env == Some("client"),
             }));
         }
     }
     for toml in ["META-INF/neoforge.mods.toml", "META-INF/mods.toml"] {
         if let Some(t) = read_entry(&mut zip, toml)? {
+            let mod_id = toml_scalar(&t, "modId");
             return Ok(Some(Descriptor {
                 format: toml.into(),
-                name: toml_scalar(&t, "displayName").or_else(|| toml_scalar(&t, "modId")),
+                name: toml_scalar(&t, "displayName").or_else(|| mod_id.clone()),
+                id: mod_id,
                 version: toml_scalar(&t, "version"),
+                main: None,
+                description: toml_scalar(&t, "description"),
+                website: toml_scalar(&t, "displayURL"),
                 client_only: false,
             }));
         }
@@ -173,6 +209,8 @@ pub(crate) mod tests {
             (desc.name.as_deref(), desc.version.as_deref()),
             (Some("LuckPerms"), Some("5.5.71"))
         );
+        assert_eq!(desc.main.as_deref(), Some("me.lucko.Plugin"));
+        assert_eq!(desc.id.as_deref(), Some("LuckPerms"));
         assert_eq!(
             validate(&p, ContentKind::Mod).unwrap_err().code,
             ErrorCode::ArchiveRejected

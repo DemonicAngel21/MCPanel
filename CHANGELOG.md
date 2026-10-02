@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cracked / Offline-mode server setting: dedicated `OnlineModeCard` in Server Settings with toggle switch for `online-mode=false` and advisory warning banners explaining that unauthenticated/cracked clients are allowed. Also integrated cracked-mode awareness into server creation and properties synchronization without disrupting Geyser/Floodgate or other configurations.
+- Recommended plugins system: extensible, contextual recommendation engine in the core layer that surfaces plugins based on server software (Paper, Purpur, Spigot, Fabric, etc.), Minecraft version, offline-mode security (AuthMe, FastLogin, SkinsRestorer), and Bedrock crossplay (Geyser, Floodgate) across 10 categories, complete with category filtering and dependency-verified direct installation.
+- Automatic imported plugin detection: heuristic detection engine that inspects descriptor metadata (`plugin.yml`, `fabric.mod.json`, `quilt.mod.json`, `mods.toml`), main classes, and filename patterns to automatically identify imported jars with confidence levels (`Exact`, `High`, `Medium`, `Low`, `Unknown`). Includes an "Identify / Link" dialog allowing users to connect or correct plugin providers and cache results.
 - Microsoft account authentication: desktop OAuth 2.0 PKCE flow with loopback redirect,
   runtime Azure client configuration, and Firebase identity provider sign-in.
 - Guest account mode: allows full local server-management without an account, with an inline
@@ -50,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Whitelist and offline-mode player management bug: fixed source-of-truth discrepancy where the Players tab instructed users to enable the whitelist even when it was already enabled in offline mode. The tab now accurately distinguishes between offline mode with whitelist active (info banner) and offline mode with whitelist disabled (warning banner). Added instant disk synchronization when toggling whitelist state and comprehensive Vitest regression tests.
 - Microsoft sign-in auto-polling: fixed `refetchInterval` in account status query to poll
   when `microsoftState === "waiting"`, automatically reflecting sign-in upon browser redirect.
 - Onboarding guest mode handling: fixed `AccountStep` in setup wizard to recognize guest users
@@ -71,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Synced editor autosave preference: elevated editor autosave from an isolated per-file toggle to a synchronized application-wide setting persisted in local storage. Toggling autosave in any file or folder now instantly applies across all files, folders, and servers without requiring manual activation per file.
 - Enhanced CSP configuration in `tauri.conf.json` to permit Google user avatar CDN domains (`lh3.googleusercontent.com`).
 - Refined Dashboard Players stat card to display active player head stacks and symmetric session status.
 - Refined Servers table row hierarchy with flush software-mark alignment for server paths.

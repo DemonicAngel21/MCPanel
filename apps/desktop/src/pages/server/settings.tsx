@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Save, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -148,6 +148,8 @@ function ServerSettingsForm({ server }: { server: ServerDto }) {
         </div>
       </Card>
 
+      <OnlineModeCard serverId={id} running={running} />
+
       <RestartPolicyCard serverId={id} />
 
       <Card className="border-danger/30">
@@ -249,6 +251,74 @@ function RestartPolicyForm({ serverId, policy }: { serverId: string; policy: Res
         <Button variant="primary" onClick={save} disabled={saving}>
           {saving ? <Spinner className="text-accent-fg" /> : <Save />} Save
         </Button>
+      </div>
+    </Card>
+  );
+}
+
+function OnlineModeCard({ serverId, running }: { serverId: string; running: boolean }) {
+  const qc = useQueryClient();
+  const { data: props, isLoading } = useQuery({
+    queryKey: qk.serverProperties(serverId),
+    queryFn: () => api.servers.properties(serverId),
+  });
+  const rawOnlineMode = props?.properties.find((p) => p.key === "online-mode")?.value;
+  const isOnline = rawOnlineMode == null || rawOnlineMode.toLowerCase() !== "false";
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const current = enabled ?? isOnline;
+
+  const save = async (newVal: boolean) => {
+    setEnabled(newVal);
+    setSaving(true);
+    try {
+      await api.servers.updateProperties(serverId, [{ key: "online-mode", value: String(newVal) }]);
+      await qc.invalidateQueries({ queryKey: qk.serverProperties(serverId) });
+      await qc.invalidateQueries({ queryKey: qk.players(serverId) });
+      await qc.invalidateQueries({ queryKey: qk.contentRecommendations(serverId) });
+      toast.success(
+        running
+          ? `Online mode set to ${newVal ? "enabled" : "disabled (cracked)"}. Restart the server to apply.`
+          : `Online mode ${newVal ? "enabled" : "disabled (cracked)"}.`,
+      );
+    } catch (e) {
+      toast.error(errorMessage(e));
+      setEnabled(isOnline);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Online Mode & Cracked Clients"
+        description="Controls account authentication with Microsoft and Mojang session servers."
+        actions={
+          <label className="flex items-center gap-2 text-xs text-muted">
+            {current ? "Online (Verified)" : "Cracked (Offline)"}
+            <Switch checked={current} disabled={isLoading || saving} onCheckedChange={(val) => void save(val)} aria-label="Toggle Online Mode" />
+          </label>
+        }
+      />
+      <div className="space-y-3 p-4">
+        {current ? (
+          <p className="text-xs text-muted">
+            <span className="font-medium text-fg">Online mode is active (default).</span> All players must authenticate through Mojang / Microsoft
+            with legitimate Minecraft accounts. Usernames, UUIDs, and skins are cryptographically verified.
+          </p>
+        ) : (
+          <Banner tone="warning" title="Cracked / Offline mode is enabled">
+            Unauthenticated clients can join using any username, including operator and staff names. Anyone can impersonate other players unless you
+            enforce a whitelist or install an authentication plugin (like AuthMe Reloaded or FastLogin).
+          </Banner>
+        )}
+        {running && enabled !== null && (
+          <p className="text-[11px] text-faint">
+            Note: Minecraft only reads online-mode when starting. Restart the server for this change to take effect.
+          </p>
+        )}
       </div>
     </Card>
   );

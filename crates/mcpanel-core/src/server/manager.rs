@@ -862,12 +862,15 @@ impl ServerManager {
         };
         let stop_cmd = self.stop_command(&server);
         let bare = command.trim_start_matches('/');
+        if bare.is_empty() {
+            return Err(CoreError::invalid("Command is empty"));
+        }
         if bare.eq_ignore_ascii_case(&stop_cmd) {
             rt.lock().stop_requested = true;
             self.transition(&rt, LifecycleState::Stopping);
         }
         rt.console.push(ConsoleStream::Command, command);
-        tx.send(command.to_string()).await.map_err(|_| {
+        tx.send(bare.to_string()).await.map_err(|_| {
             CoreError::new(ErrorCode::ServerNotRunning, "The console is not connected")
         })
     }

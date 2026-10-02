@@ -316,6 +316,8 @@ fn main() {
             commands::content_set_enabled,
             commands::content_discard_pending,
             commands::content_check_updates,
+            commands::content_recommendations,
+            commands::content_identify,
             commands::players_get,
             commands::players_action,
             commands::backups_list,

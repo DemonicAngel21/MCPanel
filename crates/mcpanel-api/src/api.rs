@@ -1858,6 +1858,39 @@ impl Api {
             .collect())
     }
 
+    pub async fn content_recommendations(
+        &self,
+        p: &Principal,
+        server: &str,
+    ) -> ApiResult<Vec<PluginRecommendationDto>> {
+        p.authorize(Permission::ServersRead)?;
+        let id = server_id(server)?;
+        let recs = self.core.content.recommendations(id).await?;
+        Ok(recs.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn content_identify(
+        &self,
+        p: &Principal,
+        server: &str,
+        req: IdentifyContentRequestDto,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::ContentManage)?;
+        let id = server_id(server)?;
+        self.core
+            .content
+            .identify(
+                id,
+                &req.file_name,
+                &req.provider,
+                &req.project_id,
+                req.version_number,
+                req.name,
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn content_plan(
         &self,
         p: &Principal,

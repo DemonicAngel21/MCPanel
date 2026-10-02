@@ -85,3 +85,52 @@ This document records functional bugs identified, diagnosed, and resolved during
   2. Updated `account-panel.tsx` sign-out and guest actions to immediately reset `qk.multihost` cache (`signedIn: false`, `userEmail: null`, removing remote nodes) and trigger background query invalidation.
 - **Status**: Resolved & Verified.
 
+---
+
+## Batch 3: Offline Mode & Whitelist Logic, Theme Sync, Console Stdin, and Backup Invalidation
+
+### Bug 8: Whitelist Misinterpreted as Disabled on Offline-Mode Servers
+- **Severity**: High (Misleading security state)
+- **Component**: Server Players Whitelist View & Core Live Properties
+- **Files**: [`apps/desktop/src/pages/server/players.tsx`](file:///C:/MCPanel/apps/desktop/src/pages/server/players.tsx), [`crates/mcpanel-core/src/players/service.rs`](file:///C:/MCPanel/crates/mcpanel-core/src/players/service.rs)
+- **Symptom**: On cracked/offline-mode servers (`online-mode=false`), the Players tab displayed a warning telling the user to "Enable the whitelist or online mode" even when the server whitelist was already active (`white-list=true`).
+- **Root Cause**: The UI conditionally displayed the warning purely based on `!data.onlineMode` without checking `!data.whitelistEnabled`. In addition, changes made via live console commands (`whitelist on`/`off`) were not immediately synchronized to `server.properties` on disk.
+- **Fix**:
+  1. Updated the Players banner logic: `!onlineMode && !whitelistEnabled` displays a warning that whitelist is disabled; `!onlineMode && whitelistEnabled` displays an informative banner that whitelist enforcement is active with offline mode.
+  2. Updated `crates/mcpanel-core/src/players/service.rs` to persist `white-list` changes to `server.properties` immediately when applying live actions.
+  3. Added comprehensive regression tests in [`apps/desktop/src/pages/server/players.test.tsx`](file:///C:/MCPanel/apps/desktop/src/pages/server/players.test.tsx).
+- **Status**: Resolved & Verified.
+
+---
+
+### Bug 9: Monaco Editor Theme Desynchronization on App Theme Change
+- **Severity**: Medium (Visual / UX)
+- **Component**: Server File Editor
+- **File**: [`apps/desktop/src/pages/server/editor.tsx`](file:///C:/MCPanel/apps/desktop/src/pages/server/editor.tsx)
+- **Symptom**: When toggling between dark and light themes (or using the Ctrl+K palette command), the Monaco code editor remained permanently locked in the initial theme it was mounted with (e.g. dark editor on light background).
+- **Root Cause**: The editor component read `document.documentElement.dataset.theme` once on mount without observing DOM attribute mutations on `data-theme` or notifying Monaco via `monaco.editor.setTheme`.
+- **Fix**: Added a `MutationObserver` on `document.documentElement` watching `data-theme` that updates local reactive `theme` state and explicitly calls `monaco.editor.setTheme(next === "light" ? "vs" : "vs-dark")`.
+- **Status**: Resolved & Verified.
+
+---
+
+### Bug 10: Server Console Commands With Leading Slash Fail on Dedicated Server Stdin
+- **Severity**: Medium (Command execution failure)
+- **Component**: Server Runtime Console Manager
+- **File**: [`crates/mcpanel-core/src/server/manager.rs`](file:///C:/MCPanel/crates/mcpanel-core/src/server/manager.rs#L863-L873)
+- **Symptom**: When server operators typed commands with a leading slash in the MCPanel console (e.g. `/say hello`, `/whitelist add Steve`, `/stop`), Minecraft dedicated server printed `"Unknown or incomplete command"` errors.
+- **Root Cause**: The server console stdin reader expects commands without a leading slash (slashes are only parsed by the client chat protocol). `send_command` stripped the slash only for internal stop detection, but passed the raw command with the slash directly into the server process stdin.
+- **Fix**: Stripped the leading slash before forwarding the command string to process stdin (`tx.send(bare.to_string())`) while preserving the full command in the console history log.
+- **Status**: Resolved & Verified.
+
+---
+
+### Bug 11: Stale Deleted or Restored Backups in BackupList Due to Missing Query Invalidation
+- **Severity**: Low / Medium (State synchronization)
+- **Component**: Backup Table & Restore Modal
+- **File**: [`apps/desktop/src/components/backup-list.tsx`](file:///C:/MCPanel/apps/desktop/src/components/backup-list.tsx)
+- **Symptom**: Deleting a backup in the backups table or restoring a backup left stale rows in the table until the user manually refreshed or navigated away from the route.
+- **Root Cause**: `BackupList` and `RestoreDialog` executed `api.backups.delete` and `api.backups.restore` without invalidating the `["backups"]` TanStack Query cache.
+- **Fix**: Added `useQueryClient` and called `await qc.invalidateQueries({ queryKey: ["backups"] })` upon successful deletion and restoration.
+- **Status**: Resolved & Verified.
+

@@ -466,6 +466,14 @@ export function CreateServerPage() {
                         </Field>
                       );
                     })}
+                    {value("online-mode") === "false" && (
+                      <div className="col-span-2">
+                        <Banner tone="warning" title="Cracked / Offline mode is selected">
+                          Unauthenticated players can join with any username. For security, enable the whitelist or plan to install an authentication
+                          plugin.
+                        </Banner>
+                      </div>
+                    )}
                   </Card>
                 )}
 

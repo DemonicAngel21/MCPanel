@@ -962,6 +962,27 @@ pub async fn content_check_updates(
         .await
 }
 
+#[tauri::command]
+pub async fn content_recommendations(
+    s: State<'_, AppState>,
+    server_id: String,
+) -> R<Vec<PluginRecommendationDto>> {
+    s.api
+        .content_recommendations(&s.principal(), &server_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn content_identify(
+    s: State<'_, AppState>,
+    server_id: String,
+    request: IdentifyContentRequestDto,
+) -> R<()> {
+    s.api
+        .content_identify(&s.principal(), &server_id, request)
+        .await
+}
+
 // ───────────────────────────── players ────────────────────────────
 
 #[tauri::command]
