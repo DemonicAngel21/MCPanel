@@ -9,7 +9,7 @@ import { CloudCard } from "@/components/cloud-card";
 import { EncryptionCard } from "@/components/encryption-card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Card, CardHeader, Checkbox, Field, Input, Switch } from "@/components/ui/primitives";
+import { Badge, Card, CardHeader, Checkbox, Field, Input, Switch } from "@/components/ui/primitives";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import { api } from "@/lib/api";
 import { qk, useAppInfo, useNotificationPrefs, useSettings, useSoftware } from "@/lib/queries";
@@ -80,6 +80,12 @@ function Row({ label, description, children }: { label: string; description?: st
 
 function NumberSetting({ value, onSave, label }: { value: number; onSave: (n: number) => void; label: string }) {
   const [text, setText] = useState(String(value));
+  // Sync local text when the canonical value changes externally (e.g. cloud sync, settings reload).
+  const [prev, setPrev] = useState(value);
+  if (value !== prev) {
+    setPrev(value);
+    setText(String(value));
+  }
   return (
     <div className="flex items-center gap-2">
       <Input className="w-24" inputMode="numeric" aria-label={label} value={text} onChange={(e) => setText(e.target.value.replace(/\D/g, ""))} />
@@ -204,7 +210,10 @@ export function SettingsPage() {
           <CardHeader title="About" />
           <div className="space-y-3 px-4 py-3">
             <Field label="Version">
-              <p className="text-[13px] text-fg">MCPanel {info?.version}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-semibold text-fg">MCPanel {info?.version}</span>
+                <Badge tone="success">Desktop Release</Badge>
+              </div>
             </Field>
             <Field label="Data folder">
               <p className="selectable font-mono text-xs text-muted">{info?.dataDir}</p>

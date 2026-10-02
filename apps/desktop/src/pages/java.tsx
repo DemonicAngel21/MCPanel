@@ -69,64 +69,66 @@ export function JavaPage() {
               description="Install a 64-bit Java runtime (for example Eclipse Temurin 21 or 25), then press Detect — or add a java.exe manually."
             />
           ) : (
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted">
-                  <th className="px-4 py-2 font-medium">Version</th>
-                  <th className="px-4 py-2 font-medium">Vendor</th>
-                  <th className="px-4 py-2 font-medium">Location</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {runtimes?.map((j) => (
-                  <tr key={j.id} className="hover:bg-surface-2">
-                    <td className="px-4 py-2.5">
-                      <span className="font-semibold text-fg">Java {j.major || "?"}</span>
-                      <span className="ml-2 text-xs text-muted">{j.version}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-muted">{j.vendor ?? "—"}</td>
-                    <td className="max-w-md px-4 py-2.5">
-                      <p className="selectable truncate font-mono text-[11px] text-muted" title={j.path}>
-                        {j.path}
-                      </p>
-                      <p className="text-[11px] text-faint">
-                        {j.source === "manual" ? "Added manually" : "Detected"} · checked {formatRelative(j.validatedAt)}
-                      </p>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {j.valid ? (
-                        <Badge tone="success">Ready · {j.is64bit ? "64-bit" : "32-bit"}</Badge>
-                      ) : (
-                        <Badge tone="danger" title={j.validationError ?? undefined}>
-                          {j.validationError ?? "Invalid"}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" aria-label="Actions">
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onSelect={() => act(() => api.java.revalidate(j.id))}>
-                            <RefreshCw /> Check again
-                          </DropdownMenuItem>
-                          <DropdownMenuItem destructive onSelect={() => act(() => api.java.remove(j.id))}>
-                            <Trash2 /> Remove from MCPanel
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
+            <div className="table-scroll">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted">
+                    <th className="px-4 py-2 font-medium">Version</th>
+                    <th className="px-4 py-2 font-medium">Vendor</th>
+                    <th className="px-4 py-2 font-medium">Location</th>
+                    <th className="px-4 py-2 font-medium">Status</th>
+                    <th className="px-4 py-2">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {runtimes?.map((j) => (
+                    <tr key={j.id} className="hover:bg-surface-2">
+                      <td className="px-4 py-2.5">
+                        <span className="font-semibold text-fg">Java {j.major || "?"}</span>
+                        <span className="ml-2 text-xs text-muted">{j.version}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted">{j.vendor ?? "—"}</td>
+                      <td className="max-w-md px-4 py-2.5">
+                        <p className="selectable truncate font-mono text-[11px] text-muted" title={j.path}>
+                          {j.path}
+                        </p>
+                        <p className="text-[11px] text-faint">
+                          {j.source === "manual" ? "Added manually" : "Detected"} · checked {formatRelative(j.validatedAt)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {j.valid ? (
+                          <Badge tone="success">Ready · {j.is64bit ? "64-bit" : "32-bit"}</Badge>
+                        ) : (
+                          <Badge tone="danger" title={j.validationError ?? undefined}>
+                            {j.validationError ?? "Invalid"}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label="Actions">
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onSelect={() => act(() => api.java.revalidate(j.id))}>
+                              <RefreshCw /> Check again
+                            </DropdownMenuItem>
+                            <DropdownMenuItem destructive onSelect={() => act(() => api.java.remove(j.id))}>
+                              <Trash2 /> Remove from MCPanel
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
         <p className="mt-3 text-xs text-faint">

@@ -60,12 +60,12 @@ describe("Account entry and states", () => {
     expect(screen.getByRole("tab", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("shows Google, Microsoft, and Guest options when signed out", () => {
+  it("shows Google and Guest options when signed out (Microsoft temporarily blocked)", () => {
     mockUseAccount.mockReturnValue({
       data: {
         configured: true,
         googleAvailable: true,
-        microsoftAvailable: true,
+        microsoftAvailable: false,
         signedIn: false,
         isGuest: false,
         profile: null,
@@ -73,7 +73,7 @@ describe("Account entry and states", () => {
     });
     renderPanel();
     expect(screen.getByRole("button", { name: /Continue with Google/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Continue with Microsoft/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Continue with Microsoft/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Continue as Guest/ })).toBeInTheDocument();
   });
 

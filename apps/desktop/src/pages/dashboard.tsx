@@ -266,16 +266,29 @@ export function DashboardPage() {
           </Stat>
           <Stat icon={<Users />} tint="text-tint-players" label="Players" value={`${onlineCount}`} sub="online">
             <div className="mt-auto flex h-[38px] flex-col justify-end gap-1.5">
-              <div className="flex items-center gap-1.5 overflow-hidden text-[11px] text-faint">
-                {onlineCount > 0 ? (
-                  <span className="truncate text-tint-players">
-                    Active across {servers?.filter((s) => s.onlinePlayers.length > 0).length ?? 0} server
+              {onlineCount > 0 ? (
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex -space-x-1 overflow-hidden">
+                    {servers
+                      ?.flatMap((s) => s.onlinePlayers)
+                      .slice(0, 4)
+                      .map((name) => (
+                        <PlayerHead key={name} name={name} size="sm" className="size-5 rounded-md ring-1 ring-surface" />
+                      ))}
+                  </div>
+                  <span className="truncate text-[11px] text-tint-players">
+                    {servers?.filter((s) => s.onlinePlayers.length > 0).length ?? 0} active server
                     {(servers?.filter((s) => s.onlinePlayers.length > 0).length ?? 0) === 1 ? "" : "s"}
                   </span>
-                ) : (
-                  <span>No active sessions</span>
-                )}
-              </div>
+                </div>
+              ) : (
+                <>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                    <div className="h-full rounded-full bg-surface-3" style={{ width: "0%" }} />
+                  </div>
+                  <span className="text-[11px] text-faint">No active player sessions</span>
+                </>
+              )}
             </div>
           </Stat>
           <Stat

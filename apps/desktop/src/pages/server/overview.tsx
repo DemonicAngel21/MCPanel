@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, FileArchive } from "lucide-react";
+import { Check, Copy, FileArchive } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { PageBody } from "@/app/app-shell";
 import { ActivityList } from "@/components/activity-list";
@@ -31,9 +32,22 @@ export function ServerOverview() {
   const { data: server } = useServer(id);
   const { data: java } = useJava();
   const { data: audit } = useAudit(id, 8);
+  const [copied, setCopied] = useState(false);
+
   if (!server) return null;
   const runtime = java?.find((j) => j.id === server.launch.javaRuntimeId);
   const address = `localhost:${server.port ?? 25565}`;
+
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      toast.success("Address copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy address");
+    }
+  };
 
   return (
     <PageBody className="space-y-5">
@@ -43,14 +57,11 @@ export function ServerOverview() {
           <div className="space-y-3 p-4">
             <div className="flex items-center gap-2">
               <code className="selectable rounded-md border border-border bg-surface-2 px-2.5 py-1.5 font-mono text-[13px] text-fg">{address}</code>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Copy address"
-                onClick={() => navigator.clipboard.writeText(address).then(() => toast.success("Address copied"))}
-              >
-                <Copy />
-              </Button>
+              <Tooltip content={copied ? "Copied!" : "Copy address"}>
+                <Button variant="ghost" size="icon-sm" aria-label="Copy address" onClick={() => void copyAddress()}>
+                  {copied ? <Check className="text-success size-3.5" /> : <Copy className="size-3.5" />}
+                </Button>
+              </Tooltip>
             </div>
             <p className="text-xs text-muted">
               Other devices on your network use this computer's LAN IP address with port {server.port ?? 25565}. Windows may ask to allow Java through

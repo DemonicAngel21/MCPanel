@@ -17,6 +17,10 @@ function ProviderRow({ p }: { p: CloudStatusDto }) {
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const timer = useRef<number | null>(null);
+  const displayNameRef = useRef(p.displayName);
+  useEffect(() => {
+    displayNameRef.current = p.displayName;
+  }, [p.displayName]);
   const refresh = () => void qc.invalidateQueries({ queryKey: qk.cloud });
 
   // Follow the browser sign-in until it finishes.
@@ -28,8 +32,9 @@ function ProviderRow({ p }: { p: CloudStatusDto }) {
         if (f.state === "waiting") return;
         setFlow(null);
         refresh();
-        if (f.state === "connected") toast.success(`${p.displayName} connected`);
-        else if (f.state === "failed") toast.error(f.message ?? `${p.displayName} sign-in failed`, { duration: 10_000 });
+        const displayName = displayNameRef.current;
+        if (f.state === "connected") toast.success(`${displayName} connected`);
+        else if (f.state === "failed") toast.error(f.message ?? `${displayName} sign-in failed`, { duration: 10_000 });
       } catch (e) {
         setFlow(null);
         toast.error(errorMessage(e));

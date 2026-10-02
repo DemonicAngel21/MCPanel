@@ -92,7 +92,9 @@ function AccountStep({ next }: { next: () => void }) {
         title="Your MCPanel account"
         description="Create an account with your email or Google, or sign in. An account is optional; MCPanel and your servers work without one."
       />
-      <Card className="p-5">{account?.configured && account.signedIn ? <AccountSummary /> : <AccountForms onSignedIn={next} />}</Card>
+      <Card className="p-5">
+        {account?.configured && (account.signedIn || account.isGuest) ? <AccountSummary /> : <AccountForms onSignedIn={next} />}
+      </Card>
     </div>
   );
 }

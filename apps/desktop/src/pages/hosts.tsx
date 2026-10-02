@@ -89,10 +89,11 @@ export function HostsPage() {
 
   const hosts = status?.hosts ?? [];
   const localHost = hosts.find((h) => h.isLocal);
-  const remoteHosts = hosts.filter((h) => !h.isLocal);
-  const signedIn = status?.signedIn ?? false;
-  const totalServers = hosts.reduce((acc, h) => acc + h.serversCount, 0);
-  const runningServers = hosts.reduce((acc, h) => acc + h.runningServersCount, 0);
+  // Account query is the immediate source of truth for login state.
+  const signedIn = Boolean(account?.signedIn && status?.signedIn);
+  const remoteHosts = signedIn ? hosts.filter((h) => !h.isLocal) : [];
+  const totalServers = (signedIn ? hosts : localHost ? [localHost] : []).reduce((acc, h) => acc + h.serversCount, 0);
+  const runningServers = (signedIn ? hosts : localHost ? [localHost] : []).reduce((acc, h) => acc + h.runningServersCount, 0);
 
   return (
     <>
@@ -171,8 +172,8 @@ export function HostsPage() {
                     <span>Account</span>
                     <UserCheck className="text-success size-4" />
                   </div>
-                  <div className="mt-1 truncate text-sm font-semibold text-fg" title={status?.userEmail ?? ""}>
-                    {status?.userEmail ?? "Connected"}
+                  <div className="mt-1 truncate text-sm font-semibold text-fg" title={account?.profile?.email ?? status?.userEmail ?? ""}>
+                    {account?.profile?.email ?? status?.userEmail ?? "Connected"}
                   </div>
                   <div className="text-success mt-0.5 text-[11px]">Cluster active</div>
                 </Card>

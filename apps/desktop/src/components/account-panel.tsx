@@ -25,6 +25,9 @@ function GoogleMark() {
   );
 }
 
+/** Temporary feature flag to block Microsoft authentication until Azure account is configured */
+export const ENABLE_MICROSOFT_AUTH = false;
+
 /** Microsoft 4-square brand mark */
 function MicrosoftMark() {
   return (
@@ -85,8 +88,7 @@ function useMicrosoftOutcome(account: AccountDto | undefined, onDone?: () => voi
   }, [account?.microsoftState, account?.microsoftError, onDone]);
 }
 
-/** Dialog to configure Google, Microsoft, and Firebase OAuth credentials */
-export function GoogleConfigDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChange: (open: boolean) => void; onSaved?: () => void }) {
+function GoogleConfigContent({ onOpenChange, onSaved }: { onOpenChange: (open: boolean) => void; onSaved?: () => void }) {
   const qc = useQueryClient();
   const { data: account } = useAccount();
   const [googleClientId, setGoogleClientId] = useState("");
@@ -119,68 +121,77 @@ export function GoogleConfigDialog({ open, onOpenChange, onSaved }: { open: bool
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title="OAuth & Cloud Provider Setup"
-        description="Configure desktop OAuth Client IDs for Google or Microsoft sign-in."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={() => void save()} disabled={busy}>
-              {busy && <Spinner className="text-accent-fg" />} Save Credentials
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4 text-xs">
-          <div className="rounded-md border border-border bg-surface-2 p-3 text-muted">
-            <p className="leading-relaxed">
-              In production releases, credentials are built-in so users sign in with 1 click. In custom or development builds, you can provide client
-              IDs from{" "}
-              <a
-                href="https://console.cloud.google.com/apis/credentials"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-0.5 text-accent underline"
-              >
-                Google Cloud Console <ExternalLink className="inline size-3" />
-              </a>{" "}
-              or{" "}
-              <a
-                href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-0.5 text-accent underline"
-              >
-                Microsoft Entra ID <ExternalLink className="inline size-3" />
-              </a>
-              .
-            </p>
-            {account?.customOauthConfigured && <p className="mt-2 font-medium text-accent">Custom credentials are configured.</p>}
-          </div>
+    <DialogContent
+      title="OAuth & Cloud Provider Setup"
+      description={
+        ENABLE_MICROSOFT_AUTH
+          ? "Configure desktop OAuth Client IDs for Google or Microsoft sign-in."
+          : "Configure desktop OAuth Client IDs for Google sign-in."
+      }
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={() => void save()} disabled={busy}>
+            {busy && <Spinner className="text-accent-fg" />} Save Credentials
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4 text-xs">
+        <div className="rounded-md border border-border bg-surface-2 p-3 text-muted">
+          <p className="leading-relaxed">
+            In production releases, credentials are built-in so users sign in with 1 click. In custom or development builds, you can provide client
+            IDs from{" "}
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-0.5 text-accent underline"
+            >
+              Google Cloud Console <ExternalLink className="inline size-3" />
+            </a>
+            {ENABLE_MICROSOFT_AUTH && (
+              <>
+                {" "}
+                or{" "}
+                <a
+                  href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-0.5 text-accent underline"
+                >
+                  Microsoft Entra ID <ExternalLink className="inline size-3" />
+                </a>
+              </>
+            )}
+            .
+          </p>
+          {account?.customOauthConfigured && <p className="mt-2 font-medium text-accent">Custom credentials are configured.</p>}
+        </div>
 
-          <div className="space-y-3">
-            <h4 className="font-semibold text-fg">Google OAuth</h4>
-            <Field label="Google Client ID" hint="Desktop app type">
-              <Input
-                placeholder="e.g. 123456789-xxxxxx.apps.googleusercontent.com"
-                value={googleClientId}
-                onChange={(e) => setGoogleClientId(e.target.value)}
-              />
-            </Field>
+        <div className="space-y-3">
+          <h4 className="font-semibold text-fg">Google OAuth</h4>
+          <Field label="Google Client ID" hint="Desktop app type">
+            <Input
+              placeholder="e.g. 123456789-xxxxxx.apps.googleusercontent.com"
+              value={googleClientId}
+              onChange={(e) => setGoogleClientId(e.target.value)}
+            />
+          </Field>
 
-            <Field label="Google Client Secret" hint="Optional for Desktop apps">
-              <Input
-                type="password"
-                placeholder="e.g. GOCSPX-xxxxxxxxxxxxxxxx"
-                value={googleClientSecret}
-                onChange={(e) => setGoogleClientSecret(e.target.value)}
-              />
-            </Field>
-          </div>
+          <Field label="Google Client Secret" hint="Optional for Desktop apps">
+            <Input
+              type="password"
+              placeholder="e.g. GOCSPX-xxxxxxxxxxxxxxxx"
+              value={googleClientSecret}
+              onChange={(e) => setGoogleClientSecret(e.target.value)}
+            />
+          </Field>
+        </div>
 
+        {ENABLE_MICROSOFT_AUTH && (
           <div className="space-y-3 border-t border-border pt-3">
             <h4 className="font-semibold text-fg">Microsoft OAuth</h4>
             <Field label="Microsoft Client ID" hint="Application (client) ID from Azure">
@@ -196,25 +207,30 @@ export function GoogleConfigDialog({ open, onOpenChange, onSaved }: { open: bool
               />
             </Field>
           </div>
+        )}
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="cursor-pointer text-xs text-muted underline hover:text-fg"
-            >
-              {showAdvanced ? "Hide Advanced Options" : "Show Advanced Options (Custom Firebase)"}
-            </button>
-            {showAdvanced && (
-              <div className="mt-3 space-y-3 border-t border-border pt-3">
-                <Field label="Firebase Web API Key" hint="Optional custom Firebase project">
-                  <Input placeholder="e.g. AIzaSy..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-                </Field>
-              </div>
-            )}
-          </div>
+        <div>
+          <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="cursor-pointer text-xs text-muted underline hover:text-fg">
+            {showAdvanced ? "Hide Advanced Options" : "Show Advanced Options (Custom Firebase)"}
+          </button>
+          {showAdvanced && (
+            <div className="mt-3 space-y-3 border-t border-border pt-3">
+              <Field label="Firebase Web API Key" hint="Optional custom Firebase project">
+                <Input placeholder="e.g. AIzaSy..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+              </Field>
+            </div>
+          )}
         </div>
-      </DialogContent>
+      </div>
+    </DialogContent>
+  );
+}
+
+/** Dialog to configure Google, Microsoft, and Firebase OAuth credentials */
+export function GoogleConfigDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChange: (open: boolean) => void; onSaved?: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open && <GoogleConfigContent onOpenChange={onOpenChange} onSaved={onSaved} />}
     </Dialog>
   );
 }
@@ -274,6 +290,8 @@ export function AccountForms({
     try {
       const r = mode === "create" ? await api.account.signUp(email, password, name.trim() || null) : await api.account.signIn(email, password);
       qc.setQueryData(qk.account, r);
+      void qc.invalidateQueries({ queryKey: qk.multihost });
+      void qc.invalidateQueries({ queryKey: qk.settings });
       toast.success(mode === "create" ? "Account created. Verification email sent." : "Signed in");
       onSignedIn?.();
     } catch (e) {
@@ -289,6 +307,7 @@ export function AccountForms({
     try {
       await api.account.google();
       await qc.invalidateQueries({ queryKey: qk.account });
+      void qc.invalidateQueries({ queryKey: qk.multihost });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -302,6 +321,7 @@ export function AccountForms({
     try {
       await api.account.microsoft();
       await qc.invalidateQueries({ queryKey: qk.account });
+      void qc.invalidateQueries({ queryKey: qk.multihost });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -315,6 +335,19 @@ export function AccountForms({
     try {
       const r = await api.account.guestSignIn();
       qc.setQueryData(qk.account, r);
+      qc.setQueryData(qk.multihost, (prev: unknown) =>
+        prev && typeof prev === "object"
+          ? {
+              ...(prev as object),
+              signedIn: false,
+              userEmail: null,
+              hosts: Array.isArray((prev as { hosts?: unknown[] }).hosts)
+                ? (prev as { hosts: Array<{ isLocal?: boolean }> }).hosts.filter((h) => h.isLocal)
+                : [],
+            }
+          : prev,
+      );
+      void qc.invalidateQueries({ queryKey: qk.multihost });
       toast.success("Continuing as Guest");
       onSignedIn?.();
     } catch (e) {
@@ -376,7 +409,7 @@ export function AccountForms({
       )}
 
       {/* Waiting banner for Microsoft redirect */}
-      {waitingMicrosoft && (
+      {ENABLE_MICROSOFT_AUTH && waitingMicrosoft && (
         <div className="flex items-center justify-between gap-2 rounded-md bg-info-soft px-3 py-2.5 text-xs text-fg">
           <span className="flex items-center gap-2">
             <Spinner /> Complete Microsoft sign-in in your browser…
@@ -392,15 +425,17 @@ export function AccountForms({
       )}
 
       {/* OAuth & Guest Options */}
-      {!waitingGoogle && !waitingMicrosoft && (
+      {!waitingGoogle && (!ENABLE_MICROSOFT_AUTH || !waitingMicrosoft) && (
         <div className="grid gap-2">
           <Button variant="outline" className="w-full" onClick={() => void handleGoogleClick()} disabled={busy != null}>
             {busy === "google" ? <Spinner /> : <GoogleMark />} Continue with Google
           </Button>
 
-          <Button variant="outline" className="w-full" onClick={() => void handleMicrosoftClick()} disabled={busy != null}>
-            {busy === "microsoft" ? <Spinner /> : <MicrosoftMark />} Continue with Microsoft
-          </Button>
+          {ENABLE_MICROSOFT_AUTH && (
+            <Button variant="outline" className="w-full" onClick={() => void handleMicrosoftClick()} disabled={busy != null}>
+              {busy === "microsoft" ? <Spinner /> : <MicrosoftMark />} Continue with Microsoft
+            </Button>
+          )}
 
           <Button variant="ghost" className="w-full text-muted hover:text-fg" onClick={() => void guest()} disabled={busy != null}>
             {busy === "guest" ? <Spinner /> : <User className="size-4" />} Continue as Guest (Local Only)
@@ -508,6 +543,19 @@ export function AccountUnavailable({ onConfigure }: { onConfigure?: () => void }
     try {
       const res = await api.account.guestSignIn();
       qc.setQueryData(qk.account, res);
+      qc.setQueryData(qk.multihost, (prev: unknown) =>
+        prev && typeof prev === "object"
+          ? {
+              ...(prev as object),
+              signedIn: false,
+              userEmail: null,
+              hosts: Array.isArray((prev as { hosts?: unknown[] }).hosts)
+                ? (prev as { hosts: Array<{ isLocal?: boolean }> }).hosts.filter((h) => h.isLocal)
+                : [],
+            }
+          : prev,
+      );
+      void qc.invalidateQueries({ queryKey: qk.multihost });
       toast.success("Guest mode enabled");
     } catch (e) {
       toast.error(errorMessage(e));
@@ -547,6 +595,22 @@ export function AccountSummary({ onUpgrade }: { onUpgrade?: () => void }) {
     try {
       const r = await fn();
       if (r && typeof r === "object") qc.setQueryData(qk.account, r);
+      if (kind === "out") {
+        qc.setQueryData(qk.multihost, (prev: unknown) =>
+          prev && typeof prev === "object"
+            ? {
+                ...(prev as object),
+                signedIn: false,
+                userEmail: null,
+                hosts: Array.isArray((prev as { hosts?: unknown[] }).hosts)
+                  ? (prev as { hosts: Array<{ isLocal?: boolean }> }).hosts.filter((h) => h.isLocal)
+                  : [],
+              }
+            : prev,
+        );
+        void qc.invalidateQueries({ queryKey: qk.multihost });
+        void qc.invalidateQueries({ queryKey: qk.settings });
+      }
       if (ok) toast.success(ok);
     } catch (e) {
       toast.error(errorMessage(e));
@@ -589,6 +653,7 @@ export function AccountSummary({ onUpgrade }: { onUpgrade?: () => void }) {
   const p = account.profile;
 
   const providerLabel = p.provider === "google.com" ? "Google" : p.provider === "microsoft.com" ? "Microsoft" : "Email";
+  const isEmailProvider = p.provider === "password";
 
   return (
     <div className="space-y-3">
@@ -598,13 +663,14 @@ export function AccountSummary({ onUpgrade }: { onUpgrade?: () => void }) {
           <p className="truncate text-sm font-medium text-fg">{p.displayName ?? p.email ?? "Your account"}</p>
           <p className="flex items-center gap-1.5 truncate text-xs text-muted">
             {p.email}
-            {p.emailVerified ? (
-              <Badge tone="success">
-                <BadgeCheck className="size-3" /> Verified
-              </Badge>
-            ) : (
-              <Badge tone="warning">Not verified</Badge>
-            )}
+            {isEmailProvider &&
+              (p.emailVerified ? (
+                <Badge tone="success">
+                  <BadgeCheck className="size-3" /> Verified
+                </Badge>
+              ) : (
+                <Badge tone="warning">Not verified</Badge>
+              ))}
             <Badge tone="neutral">{providerLabel}</Badge>
           </p>
         </div>
@@ -619,7 +685,7 @@ export function AccountSummary({ onUpgrade }: { onUpgrade?: () => void }) {
         >
           {busy === "sync" ? <Spinner /> : <Cloud className="size-3.5" />} Sync Settings
         </Button>
-        {!p.emailVerified && (
+        {isEmailProvider && !p.emailVerified && (
           <Button
             size="sm"
             variant="outline"

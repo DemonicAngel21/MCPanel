@@ -122,8 +122,8 @@ export const useAccount = () =>
     queryKey: qk.account,
     queryFn: api.account.status,
     staleTime: 30_000,
-    // Follow a Google sign-in in the browser closely.
-    refetchInterval: (q) => (q.state.data?.googleState === "waiting" ? 1_500 : false),
+    // Follow a Google or Microsoft sign-in in the browser closely.
+    refetchInterval: (q) => (q.state.data?.googleState === "waiting" || q.state.data?.microsoftState === "waiting" ? 1_500 : false),
   });
 
 export const useMultihostStatus = () =>

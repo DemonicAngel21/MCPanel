@@ -56,15 +56,21 @@ export function ServersPage() {
                     return (
                       <tr key={s.id} className="table-row hover:bg-surface-2">
                         <td className="px-4 py-2.5">
-                          <Link
-                            to="/servers/$serverId"
-                            params={{ serverId: s.id }}
-                            className="flex items-center gap-2.5 font-medium text-fg hover:underline"
-                          >
+                          <div className="flex items-center gap-2.5">
                             <SoftwareMark softwareId={s.software.softwareId} name={s.software.softwareName} size="sm" />
-                            <span className="min-w-0 truncate">{s.name}</span>
-                          </Link>
-                          <p className="selectable mt-0.5 truncate pl-4 text-[11px] text-faint">{s.directory}</p>
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                to="/servers/$serverId"
+                                params={{ serverId: s.id }}
+                                className="block truncate font-medium text-fg hover:underline"
+                              >
+                                {s.name}
+                              </Link>
+                              <p className="selectable mt-0.5 truncate text-[11px] text-faint" title={s.directory}>
+                                {s.directory}
+                              </p>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-2.5 text-muted">
                           <span className="inline-flex items-center gap-1.5">

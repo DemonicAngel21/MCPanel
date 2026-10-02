@@ -3,7 +3,7 @@ import { PageBody, PageHeader } from "@/app/app-shell";
 import { ActivityList } from "@/components/activity-list";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Card } from "@/components/ui/primitives";
+import { Card, Spinner } from "@/components/ui/primitives";
 import { useAuditPages, useServers } from "@/lib/queries";
 
 export function ActivityPage() {
@@ -33,7 +33,7 @@ export function ActivityPage() {
           {q.hasNextPage && (
             <div className="border-t border-border p-3 text-center">
               <Button variant="ghost" size="sm" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-                Load older entries
+                {q.isFetchingNextPage && <Spinner />} Load older entries
               </Button>
             </div>
           )}

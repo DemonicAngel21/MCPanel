@@ -50,10 +50,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Microsoft sign-in auto-polling: fixed `refetchInterval` in account status query to poll
+  when `microsoftState === "waiting"`, automatically reflecting sign-in upon browser redirect.
+- Onboarding guest mode handling: fixed `AccountStep` in setup wizard to recognize guest users
+  and render `AccountSummary` instead of repeating sign-in forms.
+- NumberSetting synchronization: fixed numeric input controls in Settings to update their internal
+  text state when canonical values change via cloud sync or background reloads.
+- Verification badges on OAuth accounts: scoped email verification badges and resend actions
+  strictly to email/password accounts, removing misleading "Not verified" tags on Google/Microsoft profiles.
+- OAuth configuration modal isolation: refactored dialog to mount fresh form state on open, preventing
+  credential leakage across dialog sessions.
+- Cloud storage provider name closure: resolved stale closure in polling timer using synchronized ref.
 - Fixed off-centered online status dot on host machine badges by using the standardized
   StatusDot component.
+- Multihost logout state synchronization: bound multihost authenticated view to `account.signedIn`
+  and immediately reset multihost query cache on sign-out, eliminating stale signed-in states
+  without requiring a manual page refresh.
+- Temporarily blocked Microsoft authentication across core and desktop UI until Azure testing
+  credentials are ready, preserving all underlying OAuth/PKCE implementation code intact.
 
 ### Changed
+
+- Enhanced CSP configuration in `tauri.conf.json` to permit Google user avatar CDN domains (`lh3.googleusercontent.com`).
+- Refined Dashboard Players stat card to display active player head stacks and symmetric session status.
+- Refined Servers table row hierarchy with flush software-mark alignment for server paths.
+- Added responsive table scrolling (`table-scroll`) to Java runtimes table for narrow screens.
+- Added visual checkmark and tooltip confirmation on Server Overview connection address copy action.
+- Added pagination spinner feedback to Activity audit log loading button.
+- Added commercial desktop release badge and refined build metadata in Settings About panel.
 
 - Playit agent linking reports the installed daemon version; tunnel requests use the
   current v1 field names and keep local address settings in the agent config.

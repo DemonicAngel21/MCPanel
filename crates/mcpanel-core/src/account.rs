@@ -25,6 +25,9 @@ pub const GUEST_KEY: &str = "account.is_guest";
 const GOOGLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const MICROSOFT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
+/// Temporary block for Microsoft authentication until Azure account is configured by owner.
+pub const MICROSOFT_AUTH_TEMPORARILY_BLOCKED: bool = true;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AccountType {
@@ -493,10 +496,13 @@ impl AccountService {
             None
         };
 
+        let microsoft_available = !MICROSOFT_AUTH_TEMPORARILY_BLOCKED
+            && backend.is_some_and(|b| b.configured() && b.microsoft_available());
+
         Ok(AccountStatus {
             configured: backend.is_some_and(|b| b.configured()),
             google_available: backend.is_some_and(|b| b.configured() && b.google_available()),
-            microsoft_available: backend.is_some_and(|b| b.configured() && b.microsoft_available()),
+            microsoft_available,
             signed_in,
             is_guest,
             profile,
@@ -671,6 +677,12 @@ impl AccountService {
     /// Start "Continue with Microsoft": returns Microsoft's consent page; the result arrives
     /// through the loopback redirect and is reported by [`Self::status`].
     pub async fn begin_microsoft(self: &Arc<Self>) -> CoreResult<String> {
+        if MICROSOFT_AUTH_TEMPORARILY_BLOCKED {
+            return Err(CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Microsoft authentication is temporarily disabled.",
+            ));
+        }
         if let Some(MicrosoftSignIn::Waiting { url }) = self.microsoft_progress() {
             return Ok(url);
         }
