@@ -44,3 +44,9 @@ open *age* format).
 
 Backups include highly sensitive files such as the Floodgate key (so a restore is
 complete) and are marked **Sensitive**. Do not share them.
+
+## Cloud storage
+
+The global **Backups** page and each server's **Backups** tab include **Cloud storage**
+to connect Google Drive or Dropbox accounts. MCPanel authenticates through your browser
+with OAuth PKCE, storing credentials securely in the Windows Credential Manager.

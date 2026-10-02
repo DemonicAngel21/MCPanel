@@ -11,7 +11,7 @@
 
 use crate::cloud::CloudClientIds;
 use crate::http::HttpClient;
-use mcpanel_core::account::{AccountProfile, AuthBackend, AuthSession};
+use mcpanel_core::account::{AccountProfile, AuthBackend, AuthSession, GoogleAuthTokens};
 use mcpanel_core::error::{CoreError, CoreResult, ErrorCode};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{Value, json};
@@ -524,11 +524,15 @@ impl AuthBackend for FirebaseAuth {
                 ("client_id", id),
                 ("redirect_uri", redirect),
                 ("response_type", "code"),
-                ("scope", "openid email profile"),
+                (
+                    "scope",
+                    "openid email profile https://www.googleapis.com/auth/drive.file",
+                ),
+                ("access_type", "offline"),
                 ("code_challenge", challenge),
                 ("code_challenge_method", "S256"),
                 ("state", state),
-                ("prompt", "select_account"),
+                ("prompt", "consent select_account"),
             ])
         ))
     }
@@ -538,7 +542,7 @@ impl AuthBackend for FirebaseAuth {
         code: &str,
         verifier: &str,
         redirect: &str,
-    ) -> CoreResult<SecretString> {
+    ) -> CoreResult<GoogleAuthTokens> {
         let id = {
             let guard = self
                 .google_client_id
@@ -581,14 +585,21 @@ impl AuthBackend for FirebaseAuth {
             .await
             .map_err(unreachable_err)?;
         let v = read(resp).await?;
-        str_of(&v, "id_token")
+        let id_token = str_of(&v, "id_token")
             .map(SecretString::from)
             .ok_or_else(|| {
                 CoreError::new(
                     ErrorCode::ProviderError,
                     "Google did not return an identity token.",
                 )
-            })
+            })?;
+        let refresh_token = str_of(&v, "refresh_token").map(SecretString::from);
+        let access_token = str_of(&v, "access_token").map(SecretString::from);
+        Ok(GoogleAuthTokens {
+            id_token,
+            refresh_token,
+            access_token,
+        })
     }
 
     async fn sign_in_with_microsoft(
@@ -1042,8 +1053,8 @@ mod tests {
             .google_exchange("the-code", "verifier", "http://127.0.0.1:5000/")
             .await
             .unwrap();
-        assert_eq!(gid.expose_secret(), "google-id");
-        let s = f.sign_in_with_google(&gid).await.unwrap();
+        assert_eq!(gid.id_token.expose_secret(), "google-id");
+        let s = f.sign_in_with_google(&gid.id_token).await.unwrap();
         assert_eq!(s.id_token.expose_secret(), "id-3");
         let seen = seen.lock().unwrap().clone();
         assert!(seen[0].1.contains("code_verifier=verifier"));

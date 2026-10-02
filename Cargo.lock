@@ -3064,8 +3064,10 @@ name = "mcpanel-providers"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "futures",
  "hex",
+ "jiff",
  "mcpanel-core",
  "mcpanel-platform",
  "md-5 0.10.6",

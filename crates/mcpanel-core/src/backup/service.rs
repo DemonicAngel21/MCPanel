@@ -723,6 +723,103 @@ impl BackupService {
         Ok(())
     }
 
+    /// Register a backup downloaded from cloud storage (or imported from disk).
+    /// Inspects the archive or decrypts it temporarily if encrypted to read its manifest,
+    /// hashes the file, and persists the record into the database.
+    pub async fn register_downloaded_backup(
+        &self,
+        file_path: &Path,
+        server_id: Option<ServerId>,
+    ) -> CoreResult<BackupRecord> {
+        if !file_path.is_file() {
+            return Err(CoreError::new(
+                ErrorCode::PathNotFound,
+                "The downloaded backup file was not found",
+            ));
+        }
+
+        let is_encrypted = file_path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("age"))
+            || file_path.to_string_lossy().ends_with(".zip.age");
+
+        let path = file_path.to_path_buf();
+        let (size, sha) = tokio::task::spawn_blocking(move || archive::hash_file(&path))
+            .await
+            .map_err(|e| CoreError::internal(e.to_string()))??;
+
+        let manifest = if is_encrypted {
+            let identity = self.encryption.identity()?;
+            let dir = file_path
+                .parent()
+                .ok_or_else(|| CoreError::internal("backup without a folder"))?
+                .to_path_buf();
+            let plain_path = dir.join(format!(
+                "{PLAIN_PREFIX}dl-{}.zip",
+                uuid::Uuid::new_v4().simple()
+            ));
+            let src = file_path.to_path_buf();
+            let dst = plain_path.clone();
+            tokio::task::spawn_blocking(move || {
+                crate::crypto::decrypt_file(&src, &dst, &identity, &|| false)
+            })
+            .await
+            .map_err(|e| CoreError::internal(e.to_string()))??;
+
+            let read_path = plain_path.clone();
+            let read_res = tokio::task::spawn_blocking(move || archive::read_manifest(&read_path))
+                .await
+                .map_err(|e| CoreError::internal(e.to_string()))?;
+            let _ = tokio::fs::remove_file(&plain_path).await;
+            read_res?
+        } else {
+            let path = file_path.to_path_buf();
+            tokio::task::spawn_blocking(move || archive::read_manifest(&path))
+                .await
+                .map_err(|e| CoreError::internal(e.to_string()))??
+        };
+
+        if let Some(existing) = self.repo.get(manifest.backup_id).await? {
+            return Ok(existing);
+        }
+
+        let target_server_id = if let Some(sid) = server_id {
+            Some(sid)
+        } else if self.servers.get(manifest.server.id).await.is_ok() {
+            Some(manifest.server.id)
+        } else {
+            None
+        };
+
+        let record = BackupRecord {
+            id: manifest.backup_id,
+            server_id: target_server_id,
+            server_name: manifest.server.name,
+            kind: manifest.kind,
+            status: BackupStatus::Ready,
+            path: file_path.to_path_buf(),
+            created_at: manifest.created_at,
+            finished_at: Some(manifest.created_at),
+            size_bytes: size,
+            content_bytes: manifest.total_bytes,
+            file_count: manifest.files.len() as u64,
+            sha256: Some(sha),
+            live: manifest.live,
+            contains_sensitive: manifest.contains_sensitive,
+            encrypted: is_encrypted,
+            software_id: manifest.server.software.software_id,
+            game_version: manifest.server.software.game_version,
+            note: None,
+            protected: false,
+            skipped: manifest.skipped,
+            error_message: None,
+        };
+
+        self.repo.insert(&record).await?;
+        self.changed(record.server_id, record.id);
+        Ok(record)
+    }
+
     fn ready(b: &BackupRecord) -> CoreResult<()> {
         if b.status != BackupStatus::Ready {
             return Err(CoreError::invalid("This backup did not complete"));

@@ -1,4 +1,4 @@
-import { AlertTriangle, Archive, ArchiveRestore, FolderSearch, KeyRound, Lock, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CloudUpload, FolderSearch, KeyRound, Lock, MoreHorizontal, ShieldCheck, Trash2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { Badge, EmptyState, Skeleton, Spinner, Tooltip } from "@/components/ui/p
 import { api } from "@/lib/api";
 import { formatBytes, formatDateTime, formatRelative } from "@/lib/format";
 import { waitForJob } from "@/lib/jobs";
+import { qk, useCloud } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
 
 const KIND_LABEL: Record<string, string> = {
@@ -153,6 +154,9 @@ export function BackupList({
   showServer?: boolean;
 }) {
   const qc = useQueryClient();
+  const { data: cloudProviders } = useCloud();
+  const connectedCloudProviders = (cloudProviders ?? []).filter((p) => p.connected);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [restore, setRestore] = useState<BackupDto | null>(null);
   const [remove, setRemove] = useState<BackupDto | null>(null);
   const [reveal, setReveal] = useState<BackupDto | null>(null);
@@ -161,6 +165,20 @@ export function BackupList({
   if (backups.length === 0) return <EmptyState icon={<Archive />} title="No backups yet" description="Backups you create or schedule appear here." />;
 
   const doReveal = (b: BackupDto) => api.backups.reveal(b.id).catch((e) => toast.error(errorMessage(e)));
+
+  const uploadToCloud = async (b: BackupDto, providerId: string, providerName: string) => {
+    setUploadingId(b.id);
+    const toastId = toast.loading(`Starting upload of "${b.fileName}" to ${providerName}…`);
+    try {
+      await api.cloud.upload(b.id, providerId);
+      toast.success(`Upload started for "${b.fileName}" to ${providerName}`, { id: toastId });
+      void qc.invalidateQueries({ queryKey: qk.cloudOperations });
+    } catch (e) {
+      toast.error(errorMessage(e), { id: toastId });
+    } finally {
+      setUploadingId(null);
+    }
+  };
 
   return (
     <>
@@ -245,6 +263,15 @@ export function BackupList({
                         <DropdownMenuItem disabled={!usable} onSelect={() => (b.containsSensitive ? setReveal(b) : void doReveal(b))}>
                           <FolderSearch /> Show in Explorer
                         </DropdownMenuItem>
+                        {connectedCloudProviders.map((cp) => (
+                          <DropdownMenuItem
+                            key={cp.id}
+                            disabled={!usable || uploadingId === b.id}
+                            onSelect={() => void uploadToCloud(b, cp.id, cp.displayName)}
+                          >
+                            <CloudUpload /> Upload to {cp.displayName}
+                          </DropdownMenuItem>
+                        ))}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem destructive onSelect={() => setRemove(b)}>
                           <Trash2 /> Delete…

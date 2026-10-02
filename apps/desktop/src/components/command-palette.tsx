@@ -175,7 +175,7 @@ export function CommandPalette() {
                 <Item value="servers list" icon={<Server />} onSelect={() => run(() => navigate({ to: "/servers" }))}>
                   Servers
                 </Item>
-                <Item value="backups" icon={<Archive />} onSelect={() => run(() => navigate({ to: "/backups" }))}>
+                <Item value="backups cloud storage" icon={<Archive />} onSelect={() => run(() => navigate({ to: "/backups" }))}>
                   Backups
                 </Item>
                 <Item value="templates" icon={<LayoutTemplate />} onSelect={() => run(() => navigate({ to: "/templates" }))}>

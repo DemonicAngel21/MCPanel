@@ -6,7 +6,10 @@
 //! to the secret store, the account name to settings. Access tokens stay in memory.
 
 use super::loopback::{Callback, Loopback};
-use super::{CloudAccount, CloudStorageProvider, RedirectSpec, RevokeOutcome, pkce};
+use super::{
+    CloudAccount, CloudOperationSnapshot, CloudOperationState, CloudOperationType,
+    CloudStorageProvider, CloudTransferOptions, RedirectSpec, RevokeOutcome, pkce,
+};
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::events::{DomainEvent, EventBus};
 use crate::ports::{SecretStore, SettingsRepository};
@@ -23,12 +26,18 @@ pub const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 /// Refresh access tokens this long before they expire.
 const EXPIRY_MARGIN_MS: i64 = 60_000;
 
-fn secret_name(id: &str) -> String {
-    format!("cloud-{id}-refresh-token")
+fn secret_name(uid: Option<&str>, id: &str) -> String {
+    match uid {
+        Some(u) => format!("cloud-{u}-{id}-refresh-token"),
+        None => format!("cloud-{id}-refresh-token"),
+    }
 }
 
-fn meta_key(id: &str) -> String {
-    format!("cloud.{id}")
+fn meta_key(uid: Option<&str>, id: &str) -> String {
+    match uid {
+        Some(u) => format!("cloud.{u}.{id}"),
+        None => format!("cloud.{id}"),
+    }
 }
 
 /// Non-secret connection facts (stored in settings).
@@ -56,6 +65,10 @@ pub struct CloudStatus {
     /// Redirect URI(s) MCPanel uses, as registered with the provider.
     pub redirect_uris: Vec<String>,
     pub manage_access_url: String,
+    #[serde(default)]
+    pub is_guest: bool,
+    #[serde(default)]
+    pub auto_linked: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +92,11 @@ struct Flow {
     cancel: CancellationToken,
 }
 
+struct ActiveCloudOp {
+    snapshot: CloudOperationSnapshot,
+    cancel: CancellationToken,
+}
+
 pub struct CloudService {
     providers: Vec<Arc<dyn CloudStorageProvider>>,
     secrets: Arc<dyn SecretStore>,
@@ -86,6 +104,8 @@ pub struct CloudService {
     events: EventBus,
     flows: Mutex<HashMap<String, Flow>>,
     access: Mutex<HashMap<String, (SecretString, Option<Timestamp>)>>,
+    operations: Mutex<HashMap<String, ActiveCloudOp>>,
+    account_service: std::sync::OnceLock<Arc<crate::account::AccountService>>,
 }
 
 /// The redirect URIs to register for a provider (documentation and UI).
@@ -110,7 +130,54 @@ impl CloudService {
             events,
             flows: Mutex::new(HashMap::new()),
             access: Mutex::new(HashMap::new()),
+            operations: Mutex::new(HashMap::new()),
+            account_service: std::sync::OnceLock::new(),
         })
+    }
+
+    pub fn set_account_service(&self, account: Arc<crate::account::AccountService>) {
+        let _ = self.account_service.set(account);
+    }
+
+    /// (uid, is_guest, is_google)
+    async fn current_account(&self) -> (Option<String>, bool, bool) {
+        if let Some(acc) = self.account_service.get() {
+            if let Ok(st) = acc.status().await {
+                if st.signed_in {
+                    let uid = st.profile.as_ref().map(|p| p.uid.clone());
+                    let is_google = st.profile.as_ref().is_some_and(|p| {
+                        p.provider == "google.com"
+                            || p.account_type == crate::account::AccountType::Google
+                    });
+                    return (uid, false, is_google);
+                } else if st.is_guest {
+                    return (None, true, false);
+                }
+            }
+            return (None, false, false);
+        }
+        (None, false, false)
+    }
+
+    async fn ensure_migrated(&self, uid: &str, provider: &str) -> CoreResult<()> {
+        let scoped_sec = secret_name(Some(uid), provider);
+        if self.secrets.get(&scoped_sec)?.is_none() {
+            let legacy_sec = secret_name(None, provider);
+            if let Some(token) = self.secrets.get(&legacy_sec)? {
+                self.secrets.set(&scoped_sec, &token)?;
+                let _ = self.secrets.delete(&legacy_sec);
+                let legacy_meta = meta_key(None, provider);
+                if let Some(val) = self.settings.get(&legacy_meta).await? {
+                    let scoped_meta = meta_key(Some(uid), provider);
+                    self.settings.set(&scoped_meta, &val).await?;
+                    let _ = self
+                        .settings
+                        .set(&legacy_meta, &serde_json::Value::Null)
+                        .await;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn provider(&self, id: &str) -> CoreResult<Arc<dyn CloudStorageProvider>> {
@@ -132,18 +199,33 @@ impl CloudService {
         });
     }
 
-    async fn meta(&self, id: &str) -> CoreResult<Option<ConnectionMeta>> {
+    async fn meta(&self, uid: Option<&str>, id: &str) -> CoreResult<Option<ConnectionMeta>> {
         Ok(self
             .settings
-            .get(&meta_key(id))
+            .get(&meta_key(uid, id))
             .await?
             .and_then(|v| serde_json::from_value(v).ok()))
     }
 
     async fn status_of(&self, p: &Arc<dyn CloudStorageProvider>) -> CoreResult<CloudStatus> {
         let info = p.info();
-        let meta = self.meta(info.id).await?;
-        let has_token = self.secrets.get(&secret_name(info.id))?.is_some();
+        let (uid_opt, is_guest, is_google) = self.current_account().await;
+        let (has_token, meta) = if let Some(ref uid) = uid_opt {
+            let _ = self.ensure_migrated(uid, info.id).await;
+            let has = self
+                .secrets
+                .get(&secret_name(Some(uid), info.id))?
+                .is_some();
+            let m = self.meta(Some(uid), info.id).await?;
+            (has, m)
+        } else if self.account_service.get().is_none() {
+            let has = self.secrets.get(&secret_name(None, info.id))?.is_some();
+            let m = self.meta(None, info.id).await?;
+            (has, m)
+        } else {
+            (false, None)
+        };
+        let auto_linked = is_google && info.id == "google_drive" && has_token;
         Ok(CloudStatus {
             id: info.id.into(),
             display_name: info.display_name.into(),
@@ -156,6 +238,8 @@ impl CloudService {
             scopes: info.scopes.iter().map(|s| s.to_string()).collect(),
             redirect_uris: registered_redirect_uris(&info.redirect),
             manage_access_url: info.manage_access_url.into(),
+            is_guest,
+            auto_linked,
         })
     }
 
@@ -184,6 +268,14 @@ impl CloudService {
 
     /// Start a browser sign-in. The caller opens `authorize_url`.
     pub async fn begin_connect(self: &Arc<Self>, id: &str) -> CoreResult<ConnectStart> {
+        let (uid_opt, is_guest, _) = self.current_account().await;
+        if is_guest || (self.account_service.get().is_some() && uid_opt.is_none()) {
+            return Err(CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Sign in or create an account to use cloud storage.",
+            ));
+        }
+        let uid = uid_opt;
         let p = self.provider(id)?;
         let info = p.info().clone();
         let client_id = info
@@ -267,7 +359,7 @@ impl CloudService {
         tokio::spawn(async move {
             let result = tokio::select! {
                 _ = cancel.cancelled() => Err(CoreError::cancelled()),
-                r = this.finish_connect(&p, listener, &state, &verifier, &redirect_uri) => r,
+                r = this.finish_connect(&p, listener, &state, &verifier, &redirect_uri, uid.as_deref()) => r,
             };
             let state = match result {
                 Ok(()) => FlowState::Connected,
@@ -297,6 +389,7 @@ impl CloudService {
         state: &str,
         verifier: &str,
         redirect_uri: &str,
+        uid: Option<&str>,
     ) -> CoreResult<()> {
         let name = p.info().display_name;
         let code = match listener.wait(SIGN_IN_TIMEOUT).await? {
@@ -337,18 +430,21 @@ impl CloudService {
         })?;
         let account = p.account(&tokens.access_token).await?;
         let id = p.info().id;
-        self.secrets.set(&secret_name(id), &refresh)?;
+        self.secrets.set(&secret_name(uid, id), &refresh)?;
         let meta = ConnectionMeta {
             account,
             connected_at: Timestamp::now(),
             scopes: p.info().scopes.iter().map(|s| s.to_string()).collect(),
         };
         let v = serde_json::to_value(&meta).map_err(|e| CoreError::internal(e.to_string()))?;
-        self.settings.set(&meta_key(id), &v).await?;
+        self.settings.set(&meta_key(uid, id), &v).await?;
         self.access
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(id.to_string(), (tokens.access_token, tokens.expires_at));
+            .insert(
+                format!("{}:{id}", uid.unwrap_or("default")),
+                (tokens.access_token, tokens.expires_at),
+            );
         Ok(())
     }
 
@@ -374,38 +470,41 @@ impl CloudService {
 
     /// A valid access token (refreshing it when needed).
     pub async fn access_token(&self, id: &str) -> CoreResult<SecretString> {
+        let (uid_opt, is_guest, _) = self.current_account().await;
+        if is_guest || (self.account_service.get().is_some() && uid_opt.is_none()) {
+            return Err(CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Sign in to an MCPanel account to use cloud storage.",
+            ));
+        }
+        let uid = uid_opt.as_deref();
         let p = self.provider(id)?;
+        let cache_key = format!("{}:{id}", uid.unwrap_or("default"));
         if let Some((t, exp)) = self
             .access
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .get(id)
+            .get(&cache_key)
             && exp.is_none_or(|e| e.millis() - EXPIRY_MARGIN_MS > Timestamp::now().millis())
         {
             return Ok(t.clone());
         }
-        let refresh = self.secrets.get(&secret_name(id))?.ok_or_else(|| {
+        let refresh = self.secrets.get(&secret_name(uid, id))?.ok_or_else(|| {
             CoreError::new(
                 ErrorCode::NotFound,
-                format!(
-                    "{} is not connected on this computer",
-                    p.info().display_name
-                ),
+                format!("{} is not connected to this account", p.info().display_name),
             )
         })?;
         let tokens = p.refresh(&refresh).await?;
         if let Some(new) = &tokens.refresh_token
             && new.expose_secret() != refresh.expose_secret()
         {
-            self.secrets.set(&secret_name(id), new)?;
+            self.secrets.set(&secret_name(uid, id), new)?;
         }
         self.access
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(
-                id.to_string(),
-                (tokens.access_token.clone(), tokens.expires_at),
-            );
+            .insert(cache_key, (tokens.access_token.clone(), tokens.expires_at));
         Ok(tokens.access_token)
     }
 
@@ -414,10 +513,13 @@ impl CloudService {
         let p = self.provider(id)?;
         let token = self.access_token(id).await?;
         let account = p.account(&token).await?;
-        if let Some(mut meta) = self.meta(id).await? {
+        let (uid_opt, _, _) = self.current_account().await;
+        if let Some(mut meta) = self.meta(uid_opt.as_deref(), id).await? {
             meta.account = account;
             let v = serde_json::to_value(&meta).map_err(|e| CoreError::internal(e.to_string()))?;
-            self.settings.set(&meta_key(id), &v).await?;
+            self.settings
+                .set(&meta_key(uid_opt.as_deref(), id), &v)
+                .await?;
         }
         self.changed(id);
         self.status_of(&p).await
@@ -427,7 +529,16 @@ impl CloudService {
     /// stored token and account facts.
     pub async fn disconnect(&self, id: &str) -> CoreResult<RevokeOutcome> {
         let p = self.provider(id)?;
-        let outcome = match self.secrets.get(&secret_name(id))? {
+        let (uid_opt, is_guest, _) = self.current_account().await;
+        if is_guest || (self.account_service.get().is_some() && uid_opt.is_none()) {
+            return Err(CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Sign in to manage cloud storage.",
+            ));
+        }
+        let uid = uid_opt.as_deref();
+        let sec_key = secret_name(uid, id);
+        let outcome = match self.secrets.get(&sec_key)? {
             Some(refresh) => match p.revoke(&refresh).await {
                 Ok(o) => o,
                 Err(e) => {
@@ -437,16 +548,334 @@ impl CloudService {
             },
             None => RevokeOutcome::NotSupported,
         };
-        self.secrets.delete(&secret_name(id))?;
+        self.secrets.delete(&sec_key)?;
         self.settings
-            .set(&meta_key(id), &serde_json::Value::Null)
+            .set(&meta_key(uid, id), &serde_json::Value::Null)
             .await?;
         self.access
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .remove(id);
+            .remove(&format!("{}:{id}", uid.unwrap_or("default")));
         self.changed(id);
         Ok(outcome)
+    }
+
+    /// Called when an account signs out: clears memory token caches and flows.
+    pub fn on_account_logout(&self) {
+        self.access
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        let mut flows = self.flows.lock().unwrap_or_else(|e| e.into_inner());
+        for flow in flows.values_mut() {
+            flow.cancel.cancel();
+        }
+        flows.clear();
+        let mut ops = self.operations.lock().unwrap_or_else(|e| e.into_inner());
+        for op in ops.values_mut() {
+            op.cancel.cancel();
+            op.snapshot.state = CloudOperationState::Cancelled;
+        }
+        ops.clear();
+        self.events.publish(DomainEvent::CloudChanged {
+            provider: "all".to_string(),
+        });
+    }
+
+    /// Automatically link Google Drive for a user who signed in with Google.
+    pub async fn link_google_drive(
+        &self,
+        uid: &str,
+        refresh_token: &SecretString,
+        access_token: Option<&SecretString>,
+    ) -> CoreResult<()> {
+        let p = match self.provider("google_drive") {
+            Ok(p) => p,
+            Err(_) => return Ok(()),
+        };
+        let sec_key = secret_name(Some(uid), "google_drive");
+        self.secrets.set(&sec_key, refresh_token)?;
+
+        let account = if let Some(at) = access_token {
+            p.account(at).await.ok()
+        } else {
+            match p.refresh(refresh_token).await {
+                Ok(tokens) => {
+                    self.access
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(
+                            format!("{uid}:google_drive"),
+                            (tokens.access_token.clone(), tokens.expires_at),
+                        );
+                    p.account(&tokens.access_token).await.ok()
+                }
+                Err(_) => None,
+            }
+        };
+
+        let meta = ConnectionMeta {
+            account: account.unwrap_or_default(),
+            connected_at: Timestamp::now(),
+            scopes: p.info().scopes.iter().map(|s| s.to_string()).collect(),
+        };
+        let v = serde_json::to_value(&meta).map_err(|e| CoreError::internal(e.to_string()))?;
+        self.settings
+            .set(&meta_key(Some(uid), "google_drive"), &v)
+            .await?;
+        self.changed("google_drive");
+        Ok(())
+    }
+
+    pub fn start_operation(
+        &self,
+        id: String,
+        provider: String,
+        backup_id: Option<String>,
+        backup_name: String,
+        operation_type: CloudOperationType,
+        total_bytes: Option<u64>,
+    ) -> (CloudOperationSnapshot, CancellationToken) {
+        let cancel = CancellationToken::new();
+        let initial_state = CloudOperationState::Starting;
+        let snap = CloudOperationSnapshot {
+            id: id.clone(),
+            provider,
+            backup_id,
+            backup_name,
+            operation_type,
+            state: initial_state,
+            bytes_completed: 0,
+            total_bytes,
+            progress_percentage: if total_bytes == Some(0) {
+                Some(100.0)
+            } else {
+                Some(0.0)
+            },
+            start_time: Timestamp::now(),
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
+            error_message: None,
+        };
+        self.operations
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                id,
+                ActiveCloudOp {
+                    snapshot: snap.clone(),
+                    cancel: cancel.clone(),
+                },
+            );
+        self.events.publish(DomainEvent::CloudOperationUpdated {
+            operation: snap.clone(),
+        });
+        (snap, cancel)
+    }
+
+    pub fn update_operation_progress(
+        &self,
+        id: &str,
+        bytes_completed: u64,
+        total_bytes: Option<u64>,
+    ) {
+        let mut ops = self.operations.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(op) = ops.get_mut(id) {
+            op.snapshot.bytes_completed = bytes_completed;
+            if total_bytes.is_some() {
+                op.snapshot.total_bytes = total_bytes;
+            }
+            let total = op.snapshot.total_bytes;
+            let elapsed = (Timestamp::now()
+                .millis()
+                .saturating_sub(op.snapshot.start_time.millis())) as f64
+                / 1000.0;
+            let speed = if elapsed > 0.5 && bytes_completed > 0 {
+                Some((bytes_completed as f64 / elapsed) as u64)
+            } else {
+                None
+            };
+            op.snapshot.speed_bytes_per_sec = speed;
+            op.snapshot.eta_seconds = match (total, speed) {
+                (Some(tot), Some(spd)) if spd > 0 && tot > bytes_completed => {
+                    Some((tot - bytes_completed) / spd)
+                }
+                _ => None,
+            };
+            op.snapshot.progress_percentage = total.map(|tot| {
+                if tot == 0 {
+                    100.0
+                } else {
+                    ((bytes_completed as f64 / tot as f64) * 100.0).clamp(0.0, 100.0) as f32
+                }
+            });
+            let snap = op.snapshot.clone();
+            drop(ops);
+            self.events
+                .publish(DomainEvent::CloudOperationUpdated { operation: snap });
+        }
+    }
+
+    pub fn set_operation_state(
+        &self,
+        id: &str,
+        state: CloudOperationState,
+        error_message: Option<String>,
+    ) {
+        let mut ops = self.operations.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(op) = ops.get_mut(id) {
+            op.snapshot.state = state;
+            if state == CloudOperationState::Completed {
+                if let Some(total) = op.snapshot.total_bytes {
+                    op.snapshot.bytes_completed = total;
+                }
+                op.snapshot.progress_percentage = Some(100.0);
+                op.snapshot.eta_seconds = Some(0);
+            }
+            if error_message.is_some() {
+                op.snapshot.error_message = error_message;
+            }
+            let snap = op.snapshot.clone();
+            drop(ops);
+            self.events
+                .publish(DomainEvent::CloudOperationUpdated { operation: snap });
+        }
+    }
+
+    pub fn cancel_operation(&self, id: &str) -> bool {
+        let mut ops = self.operations.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(op) = ops.get_mut(id)
+            && !op.snapshot.state.is_terminal()
+        {
+            op.snapshot.state = CloudOperationState::Cancelling;
+            op.cancel.cancel();
+            let snap = op.snapshot.clone();
+            drop(ops);
+            self.events
+                .publish(DomainEvent::CloudOperationUpdated { operation: snap });
+            return true;
+        }
+        false
+    }
+
+    pub fn get_operation(&self, id: &str) -> Option<CloudOperationSnapshot> {
+        self.operations
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(id)
+            .map(|op| op.snapshot.clone())
+    }
+
+    pub fn list_operations(&self) -> Vec<CloudOperationSnapshot> {
+        let ops = self.operations.lock().unwrap_or_else(|e| e.into_inner());
+        let mut list: Vec<_> = ops.values().map(|v| v.snapshot.clone()).collect();
+        list.sort_by_key(|a| std::cmp::Reverse(a.start_time));
+        list
+    }
+
+    /// Upload a file to a connected cloud provider.
+    pub async fn upload_file(
+        &self,
+        provider_id: &str,
+        filename: &str,
+        path: &std::path::Path,
+        options: Option<CloudTransferOptions>,
+    ) -> CoreResult<super::CloudFileMetadata> {
+        let p = self.provider(provider_id)?;
+        let mut token = self.access_token(provider_id).await?;
+        let res = p.upload_file(&token, filename, path, options.clone()).await;
+        match res {
+            Err(ref e)
+                if e.message.contains("HTTP 401")
+                    || e.message.contains("invalid_access_token")
+                    || e.message.contains("expired_access_token") =>
+            {
+                // Invalidate cached in-memory token and refresh from credential store
+                let (uid_opt, _, _) = self.current_account().await;
+                let cache_key =
+                    format!("{}:{provider_id}", uid_opt.as_deref().unwrap_or("default"));
+                self.access
+                    .lock()
+                    .unwrap_or_else(|lock| lock.into_inner())
+                    .remove(&cache_key);
+                if let Ok(new_token) = self.access_token(provider_id).await {
+                    token = new_token;
+                    return p.upload_file(&token, filename, path, options).await;
+                }
+                res
+            }
+            other => other,
+        }
+    }
+
+    /// List MCPanel backup files across one or all connected cloud providers.
+    pub async fn list_files(
+        &self,
+        provider_id: Option<&str>,
+    ) -> CoreResult<Vec<super::CloudFileMetadata>> {
+        let mut results = Vec::new();
+        match provider_id {
+            Some(pid) => {
+                let p = self.provider(pid)?;
+                let token = self.access_token(pid).await?;
+                results.extend(p.list_files(&token).await?);
+            }
+            None => {
+                for p in &self.providers {
+                    let id = p.info().id;
+                    if let Ok(token) = self.access_token(id).await
+                        && let Ok(files) = p.list_files(&token).await
+                    {
+                        results.extend(files);
+                    }
+                }
+            }
+        }
+        results.sort_by_key(|a| std::cmp::Reverse(a.created_at));
+        Ok(results)
+    }
+
+    /// Download a file from cloud storage to a local destination.
+    pub async fn download_file(
+        &self,
+        provider_id: &str,
+        file_id: &str,
+        destination: &std::path::Path,
+        options: Option<CloudTransferOptions>,
+    ) -> CoreResult<u64> {
+        let p = self.provider(provider_id)?;
+        let mut token = self.access_token(provider_id).await?;
+        let res = p
+            .download_file(&token, file_id, destination, options.clone())
+            .await;
+        match res {
+            Err(ref e)
+                if e.message.contains("HTTP 401")
+                    || e.message.contains("invalid_access_token")
+                    || e.message.contains("expired_access_token") =>
+            {
+                let (uid_opt, _, _) = self.current_account().await;
+                let cache_key =
+                    format!("{}:{provider_id}", uid_opt.as_deref().unwrap_or("default"));
+                self.access
+                    .lock()
+                    .unwrap_or_else(|lock| lock.into_inner())
+                    .remove(&cache_key);
+                if let Ok(new_token) = self.access_token(provider_id).await {
+                    token = new_token;
+                    return p.download_file(&token, file_id, destination, options).await;
+                }
+                res
+            }
+            other => other,
+        }
+    }
+
+    /// Delete a file from cloud storage.
+    pub async fn delete_file(&self, provider_id: &str, file_id: &str) -> CoreResult<()> {
+        let p = self.provider(provider_id)?;
+        let token = self.access_token(provider_id).await?;
+        p.delete_file(&token, file_id).await
     }
 }
 

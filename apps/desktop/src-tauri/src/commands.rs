@@ -457,6 +457,55 @@ pub async fn cloud_disconnect(s: State<'_, AppState>, provider: String) -> R<Str
     s.api.cloud_disconnect(&s.principal(), &provider).await
 }
 
+#[tauri::command]
+pub async fn cloud_files_list(
+    s: State<'_, AppState>,
+    provider: Option<String>,
+) -> R<Vec<CloudFileDto>> {
+    s.api.cloud_files_list(&s.principal(), provider).await
+}
+
+#[tauri::command]
+pub async fn cloud_backup_upload(
+    s: State<'_, AppState>,
+    backup_id: String,
+    provider: String,
+) -> R<CloudOperationDto> {
+    s.api
+        .cloud_backup_upload(&s.principal(), &backup_id, &provider)
+        .await
+}
+
+#[tauri::command]
+pub async fn cloud_backup_download(
+    s: State<'_, AppState>,
+    file_id: String,
+    provider: String,
+    file_name: String,
+    server_id: Option<String>,
+) -> R<CloudOperationDto> {
+    s.api
+        .cloud_backup_download(&s.principal(), &file_id, &provider, &file_name, server_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn cloud_operations_list(s: State<'_, AppState>) -> R<Vec<CloudOperationDto>> {
+    s.api.cloud_operations_list(&s.principal())
+}
+
+#[tauri::command]
+pub async fn cloud_operation_cancel(s: State<'_, AppState>, op_id: String) -> R<()> {
+    s.api.cloud_operation_cancel(&s.principal(), &op_id)
+}
+
+#[tauri::command]
+pub async fn cloud_file_delete(s: State<'_, AppState>, file_id: String, provider: String) -> R<()> {
+    s.api
+        .cloud_file_delete(&s.principal(), &file_id, &provider)
+        .await
+}
+
 // ───────────────────────────── encryption ─────────────────────────
 
 #[tauri::command]

@@ -30,6 +30,8 @@ export const qk = {
   playitTunnels: ["playit", "tunnels"] as const,
   encryption: ["encryption"] as const,
   cloud: ["cloud"] as const,
+  cloudOperations: ["cloud", "operations"] as const,
+  cloudFiles: (provider?: string) => ["cloud", "files", provider ?? "all"] as const,
   diskUsage: (serverId: string) => ["servers", serverId, "disk"] as const,
   notifications: ["notifications"] as const,
   unreadNotifications: ["notifications", "unread"] as const,
@@ -88,6 +90,13 @@ export const useNotificationPrefs = () => useQuery({ queryKey: qk.notificationPr
 export const useDiskUsage = (serverId: string) =>
   useQuery({ queryKey: qk.diskUsage(serverId), queryFn: () => api.disk.usage(serverId), staleTime: 60_000 });
 export const useCloud = () => useQuery({ queryKey: qk.cloud, queryFn: api.cloud.list });
+export const useCloudFiles = (provider?: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.cloudFiles(provider),
+    queryFn: () => api.cloud.listFiles(provider),
+    enabled,
+    staleTime: 10_000,
+  });
 export const useEncryption = () => useQuery({ queryKey: qk.encryption, queryFn: api.encryption.status });
 export const useTunnel = () =>
   useQuery({
@@ -135,4 +144,22 @@ export const useMultihostStatus = () =>
     queryFn: api.multihost.status,
     staleTime: 5_000,
     refetchInterval: 10_000,
+  });
+
+export const useCloudOperations = () =>
+  useQuery({
+    queryKey: qk.cloudOperations,
+    queryFn: api.cloud.operations,
+    refetchInterval: (q) => {
+      const ops = q.state.data ?? [];
+      const hasActive = ops.some(
+        (o) =>
+          o.state === "starting" ||
+          o.state === "uploading" ||
+          o.state === "downloading" ||
+          o.state === "processing" ||
+          o.state === "cancelling"
+      );
+      return hasActive ? 1_000 : 5_000;
+    },
   });

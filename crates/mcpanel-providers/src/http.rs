@@ -80,6 +80,29 @@ impl HttpClient {
         })
     }
 
+    /// Test instance without https_only to allow local HTTP mock servers.
+    #[cfg(test)]
+    pub fn for_test() -> CoreResult<Self> {
+        let client = reqwest::Client::builder()
+            .user_agent(user_agent())
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .map_err(|e| CoreError::internal(format!("Cannot create HTTP client: {e}")))?;
+        let no_redirect = reqwest::Client::builder()
+            .user_agent(user_agent())
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| CoreError::internal(format!("Cannot create HTTP client: {e}")))?;
+        Ok(Self {
+            client,
+            no_redirect,
+        })
+    }
+
     /// Where `url` redirects to (`None` if it answers without a redirect). The response
     /// body is not read.
     pub async fn redirect_target(&self, url: &str) -> CoreResult<Option<String>> {

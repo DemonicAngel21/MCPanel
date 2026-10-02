@@ -105,6 +105,10 @@ pub enum DomainEvent {
     CloudChanged {
         provider: String,
     },
+    /// A cloud operation (upload, download, restore) progress or state updated.
+    CloudOperationUpdated {
+        operation: crate::cloud::CloudOperationSnapshot,
+    },
     /// Multihost nodes were added, updated or removed.
     HostsChanged,
 }

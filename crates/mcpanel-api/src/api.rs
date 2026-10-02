@@ -1251,6 +1251,298 @@ impl Api {
         })
     }
 
+    pub async fn cloud_files_list(
+        &self,
+        p: &Principal,
+        provider: Option<String>,
+    ) -> ApiResult<Vec<CloudFileDto>> {
+        p.authorize(Permission::BackupsRead)?;
+        let files = self.core.cloud.list_files(provider.as_deref()).await?;
+        Ok(files.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn cloud_backup_upload(
+        &self,
+        p: &Principal,
+        backup_id_str: &str,
+        provider: &str,
+    ) -> ApiResult<CloudOperationDto> {
+        p.authorize(Permission::BackupsManage)?;
+        let bid = backup_id(backup_id_str)?;
+        let backup = self.core.backups.get(bid).await?;
+        let file_name = backup
+            .path
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("backup.zip")
+            .to_string();
+        let file_meta = tokio::fs::metadata(&backup.path).await.map_err(|e| {
+            mcpanel_core::error::CoreError::io("Cannot access backup file to upload", &e)
+        })?;
+        let file_size = file_meta.len();
+
+        let op_id = uuid::Uuid::new_v4().to_string();
+        let (snapshot, cancel_token) = self.core.cloud.start_operation(
+            op_id.clone(),
+            provider.to_string(),
+            Some(backup.id.to_string()),
+            file_name.clone(),
+            mcpanel_core::cloud::CloudOperationType::Upload,
+            Some(file_size),
+        );
+
+        let cloud_clone = self.core.cloud.clone();
+        let op_id_prog = op_id.clone();
+        let on_progress: mcpanel_core::cloud::CloudProgressFn =
+            std::sync::Arc::new(move |completed, total| {
+                cloud_clone.update_operation_progress(&op_id_prog, completed, total);
+            });
+        let transfer_opts = mcpanel_core::cloud::CloudTransferOptions {
+            on_progress: Some(on_progress),
+            cancel: cancel_token,
+        };
+
+        let core = self.core.clone();
+        let provider_str = provider.to_string();
+        let actor = p.actor().to_string();
+        let backup_path = backup.path.clone();
+        let server_id = backup.server_id;
+        let op_id_clone = op_id.clone();
+
+        tokio::spawn(async move {
+            core.cloud.set_operation_state(
+                &op_id_clone,
+                mcpanel_core::cloud::CloudOperationState::Uploading,
+                None,
+            );
+
+            match core
+                .cloud
+                .upload_file(&provider_str, &file_name, &backup_path, Some(transfer_opts))
+                .await
+            {
+                Ok(meta) => {
+                    core.cloud.set_operation_state(
+                        &op_id_clone,
+                        mcpanel_core::cloud::CloudOperationState::Completed,
+                        None,
+                    );
+                    core.audit
+                        .record(
+                            &actor,
+                            "cloud.backup_upload",
+                            server_id,
+                            Some(bid.to_string()),
+                            mcpanel_core::model::AuditResult::Success,
+                            serde_json::json!({ "provider": provider_str, "fileId": meta.id }),
+                        )
+                        .await;
+                }
+                Err(e) => {
+                    if e.code == mcpanel_core::error::ErrorCode::Cancelled {
+                        core.cloud.set_operation_state(
+                            &op_id_clone,
+                            mcpanel_core::cloud::CloudOperationState::Cancelled,
+                            None,
+                        );
+                    } else {
+                        let msg = e.to_string();
+                        core.cloud.set_operation_state(
+                            &op_id_clone,
+                            mcpanel_core::cloud::CloudOperationState::Failed,
+                            Some(msg.clone()),
+                        );
+                        core.audit
+                            .record(
+                                &actor,
+                                "cloud.backup_upload",
+                                server_id,
+                                Some(bid.to_string()),
+                                mcpanel_core::model::AuditResult::Failure,
+                                serde_json::json!({ "provider": provider_str, "error": msg }),
+                            )
+                            .await;
+                    }
+                }
+            }
+        });
+
+        Ok(CloudOperationDto::from(&snapshot))
+    }
+
+    pub async fn cloud_backup_download(
+        &self,
+        p: &Principal,
+        file_id: &str,
+        provider: &str,
+        file_name: &str,
+        server: Option<String>,
+    ) -> ApiResult<CloudOperationDto> {
+        p.authorize(Permission::BackupsManage)?;
+        let backups_dir = self.core.backups.backups_dir().await?;
+        let sid = server.as_deref().map(server_id).transpose()?;
+        let safe_name = std::path::Path::new(file_name)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("downloaded-backup.zip")
+            .to_string();
+        let dest_path = backups_dir.join(&safe_name);
+
+        if dest_path.exists() {
+            return Err(ApiError::new(
+                "CONFLICT",
+                format!("Backup file '{safe_name}' already exists locally"),
+            ));
+        }
+
+        let op_id = uuid::Uuid::new_v4().to_string();
+        let (snapshot, cancel_token) = self.core.cloud.start_operation(
+            op_id.clone(),
+            provider.to_string(),
+            Some(file_id.to_string()),
+            safe_name.clone(),
+            mcpanel_core::cloud::CloudOperationType::Download,
+            None,
+        );
+
+        let cloud_clone = self.core.cloud.clone();
+        let op_id_prog = op_id.clone();
+        let on_progress: mcpanel_core::cloud::CloudProgressFn =
+            std::sync::Arc::new(move |completed, total| {
+                cloud_clone.update_operation_progress(&op_id_prog, completed, total);
+            });
+        let transfer_opts = mcpanel_core::cloud::CloudTransferOptions {
+            on_progress: Some(on_progress),
+            cancel: cancel_token,
+        };
+
+        let core = self.core.clone();
+        let provider_str = provider.to_string();
+        let file_id_str = file_id.to_string();
+        let actor = p.actor().to_string();
+        let op_id_clone = op_id.clone();
+
+        tokio::spawn(async move {
+            core.cloud.set_operation_state(
+                &op_id_clone,
+                mcpanel_core::cloud::CloudOperationState::Downloading,
+                None,
+            );
+
+            match core
+                .cloud
+                .download_file(&provider_str, &file_id_str, &dest_path, Some(transfer_opts))
+                .await
+            {
+                Ok(_) => {
+                    match core
+                        .backups
+                        .register_downloaded_backup(&dest_path, sid)
+                        .await
+                    {
+                        Ok(record) => {
+                            core.cloud.set_operation_state(
+                                &op_id_clone,
+                                mcpanel_core::cloud::CloudOperationState::Completed,
+                                None,
+                            );
+                            core.audit
+                                .record(
+                                    &actor,
+                                    "cloud.backup_download",
+                                    record.server_id,
+                                    Some(record.id.to_string()),
+                                    mcpanel_core::model::AuditResult::Success,
+                                    serde_json::json!({ "provider": provider_str, "fileId": file_id_str }),
+                                )
+                                .await;
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to register downloaded backup: {e}");
+                            core.cloud.set_operation_state(
+                                &op_id_clone,
+                                mcpanel_core::cloud::CloudOperationState::Failed,
+                                Some(msg),
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    if e.code == mcpanel_core::error::ErrorCode::Cancelled {
+                        core.cloud.set_operation_state(
+                            &op_id_clone,
+                            mcpanel_core::cloud::CloudOperationState::Cancelled,
+                            None,
+                        );
+                    } else {
+                        let msg = e.to_string();
+                        core.cloud.set_operation_state(
+                            &op_id_clone,
+                            mcpanel_core::cloud::CloudOperationState::Failed,
+                            Some(msg.clone()),
+                        );
+                        core.audit
+                            .record(
+                                &actor,
+                                "cloud.backup_download",
+                                sid,
+                                None,
+                                mcpanel_core::model::AuditResult::Failure,
+                                serde_json::json!({ "provider": provider_str, "error": msg }),
+                            )
+                            .await;
+                    }
+                }
+            }
+        });
+
+        Ok(CloudOperationDto::from(&snapshot))
+    }
+
+    pub fn cloud_operations_list(&self, p: &Principal) -> ApiResult<Vec<CloudOperationDto>> {
+        p.authorize(Permission::BackupsRead)?;
+        let ops = self.core.cloud.list_operations();
+        Ok(ops.iter().map(CloudOperationDto::from).collect())
+    }
+
+    pub fn cloud_operation_get(&self, p: &Principal, op_id: &str) -> ApiResult<CloudOperationDto> {
+        p.authorize(Permission::BackupsRead)?;
+        let op = self
+            .core
+            .cloud
+            .get_operation(op_id)
+            .ok_or_else(|| ApiError::new("NOT_FOUND", "Cloud operation not found"))?;
+        Ok(CloudOperationDto::from(&op))
+    }
+
+    pub fn cloud_operation_cancel(&self, p: &Principal, op_id: &str) -> ApiResult<()> {
+        p.authorize(Permission::BackupsManage)?;
+        self.core.cloud.cancel_operation(op_id);
+        Ok(())
+    }
+
+    pub async fn cloud_file_delete(
+        &self,
+        p: &Principal,
+        file_id: &str,
+        provider: &str,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::BackupsManage)?;
+        self.core.cloud.delete_file(provider, file_id).await?;
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                "cloud.file_delete",
+                None,
+                Some(file_id.to_string()),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({ "provider": provider }),
+            )
+            .await;
+        Ok(())
+    }
+
     // ───────────────────────────── encryption ─────────────────────────────
 
     pub async fn encryption_status(&self, p: &Principal) -> ApiResult<EncryptionStatusDto> {

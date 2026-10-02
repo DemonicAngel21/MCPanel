@@ -987,6 +987,9 @@ pub enum EventDto {
         backup_id: String,
     },
     HostsChanged,
+    CloudOperationUpdated {
+        operation: CloudOperationDto,
+    },
 }
 
 impl From<&EventEnvelope> for EventDto {
@@ -1110,6 +1113,9 @@ impl From<&EventEnvelope> for EventDto {
                 backup_id: backup_id.to_string(),
             },
             D::HostsChanged => Self::HostsChanged,
+            D::CloudOperationUpdated { operation } => Self::CloudOperationUpdated {
+                operation: CloudOperationDto::from(operation),
+            },
         }
     }
 }
@@ -1931,6 +1937,8 @@ pub struct CloudStatusDto {
     pub scopes: Vec<String>,
     pub redirect_uris: Vec<String>,
     pub manage_access_url: String,
+    pub is_guest: bool,
+    pub auto_linked: bool,
 }
 
 impl From<mcpanel_core::cloud::CloudStatus> for CloudStatusDto {
@@ -1948,6 +1956,35 @@ impl From<mcpanel_core::cloud::CloudStatus> for CloudStatusDto {
             scopes: s.scopes,
             redirect_uris: s.redirect_uris,
             manage_access_url: s.manage_access_url,
+            is_guest: s.is_guest,
+            auto_linked: s.auto_linked,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CloudFileDto {
+    pub id: String,
+    pub provider: String,
+    pub name: String,
+    pub size_bytes: u64,
+    #[ts(type = "number | null")]
+    pub created_at: Option<i64>,
+    #[ts(type = "number | null")]
+    pub modified_at: Option<i64>,
+}
+
+impl From<mcpanel_core::cloud::CloudFileMetadata> for CloudFileDto {
+    fn from(f: mcpanel_core::cloud::CloudFileMetadata) -> Self {
+        Self {
+            id: f.id,
+            provider: f.provider,
+            name: f.name,
+            size_bytes: f.size_bytes,
+            created_at: f.created_at.map(|t| t.millis()),
+            modified_at: f.modified_at.map(|t| t.millis()),
         }
     }
 }
@@ -1981,6 +2018,61 @@ impl From<mcpanel_core::cloud::FlowState> for CloudFlowDto {
                 state: "cancelled".into(),
                 message: None,
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CloudOperationDto {
+    pub id: String,
+    pub provider: String,
+    pub backup_id: Option<String>,
+    pub backup_name: String,
+    /// "upload" | "download" | "restore"
+    pub op_type: String,
+    /// "idle" | "starting" | "uploading" | "downloading" | "processing" | "cancelling" | "cancelled" | "completed" | "failed"
+    pub state: String,
+    pub bytes_completed: u64,
+    pub total_bytes: Option<u64>,
+    pub percentage: Option<f32>,
+    pub started_at_ms: i64,
+    pub bytes_per_sec: Option<u64>,
+    pub eta_seconds: Option<u64>,
+    pub error_message: Option<String>,
+}
+
+impl From<&mcpanel_core::cloud::CloudOperationSnapshot> for CloudOperationDto {
+    fn from(op: &mcpanel_core::cloud::CloudOperationSnapshot) -> Self {
+        Self {
+            id: op.id.clone(),
+            provider: op.provider.clone(),
+            backup_id: op.backup_id.clone(),
+            backup_name: op.backup_name.clone(),
+            op_type: match op.operation_type {
+                mcpanel_core::cloud::CloudOperationType::Upload => "upload".into(),
+                mcpanel_core::cloud::CloudOperationType::Download => "download".into(),
+                mcpanel_core::cloud::CloudOperationType::Restore => "restore".into(),
+            },
+            state: match op.state {
+                mcpanel_core::cloud::CloudOperationState::Idle => "idle".into(),
+                mcpanel_core::cloud::CloudOperationState::Starting => "starting".into(),
+                mcpanel_core::cloud::CloudOperationState::Uploading => "uploading".into(),
+                mcpanel_core::cloud::CloudOperationState::Downloading => "downloading".into(),
+                mcpanel_core::cloud::CloudOperationState::Processing => "processing".into(),
+                mcpanel_core::cloud::CloudOperationState::Cancelling => "cancelling".into(),
+                mcpanel_core::cloud::CloudOperationState::Cancelled => "cancelled".into(),
+                mcpanel_core::cloud::CloudOperationState::Completed => "completed".into(),
+                mcpanel_core::cloud::CloudOperationState::Failed => "failed".into(),
+            },
+            bytes_completed: op.bytes_completed,
+            total_bytes: op.total_bytes,
+            percentage: op.progress_percentage,
+            started_at_ms: op.start_time.millis(),
+            bytes_per_sec: op.speed_bytes_per_sec,
+            eta_seconds: op.eta_seconds,
+            error_message: op.error_message.clone(),
         }
     }
 }

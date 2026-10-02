@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { BackupList } from "@/components/backup-list";
+import { CloudCard } from "@/components/cloud-card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
 import { Banner, Card, CardHeader } from "@/components/ui/primitives";
@@ -98,6 +99,7 @@ export function BackupsPage() {
           <CardHeader title={formatCount(backups?.length ?? 0, "backup")} description={formatBytes(total)} />
           <BackupList backups={backups} showServer isRunning={(id) => !!id && running.has(id)} />
         </Card>
+        <CloudCard />
       </PageBody>
     </>
   );

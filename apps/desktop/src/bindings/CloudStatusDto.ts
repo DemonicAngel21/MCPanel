@@ -4,4 +4,4 @@ export type CloudStatusDto = {
 /**
  * "google_drive" | "dropbox"
  */
-id: string, displayName: string, configured: boolean, clientIdVariable: string, connected: boolean, needsReconnect: boolean, accountName: string | null, accountEmail: string | null, connectedAt: number | null, scopes: Array<string>, redirectUris: Array<string>, manageAccessUrl: string, };
+id: string, displayName: string, configured: boolean, clientIdVariable: string, connected: boolean, needsReconnect: boolean, accountName: string | null, accountEmail: string | null, connectedAt: number | null, scopes: Array<string>, redirectUris: Array<string>, manageAccessUrl: string, isGuest: boolean, autoLinked: boolean, };

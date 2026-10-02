@@ -96,6 +96,118 @@ pub enum RevokeOutcome {
     NotSupported,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudOperationType {
+    Upload,
+    Download,
+    Restore,
+}
+
+impl CloudOperationType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Upload => "upload",
+            Self::Download => "download",
+            Self::Restore => "restore",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudOperationState {
+    Idle,
+    Starting,
+    Uploading,
+    Downloading,
+    Processing,
+    Cancelling,
+    Cancelled,
+    Completed,
+    Failed,
+}
+
+impl CloudOperationState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Starting => "starting",
+            Self::Uploading => "uploading",
+            Self::Downloading => "downloading",
+            Self::Processing => "processing",
+            Self::Cancelling => "cancelling",
+            Self::Cancelled => "cancelled",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Cancelled | Self::Completed | Self::Failed)
+    }
+}
+
+pub type CloudProgressFn = std::sync::Arc<dyn Fn(u64, Option<u64>) + Send + Sync>;
+
+#[derive(Clone, Default)]
+pub struct CloudTransferOptions {
+    pub on_progress: Option<CloudProgressFn>,
+    pub cancel: tokio_util::sync::CancellationToken,
+}
+
+impl CloudTransferOptions {
+    pub fn new(
+        on_progress: Option<CloudProgressFn>,
+        cancel: tokio_util::sync::CancellationToken,
+    ) -> Self {
+        Self {
+            on_progress,
+            cancel,
+        }
+    }
+
+    pub fn with_cancel(cancel: tokio_util::sync::CancellationToken) -> Self {
+        Self {
+            on_progress: None,
+            cancel,
+        }
+    }
+
+    pub fn report(&self, completed: u64, total: u64) {
+        if let Some(cb) = &self.on_progress {
+            cb(completed, Some(total));
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloudOperationSnapshot {
+    pub id: String,
+    pub provider: String,
+    pub backup_id: Option<String>,
+    pub backup_name: String,
+    pub operation_type: CloudOperationType,
+    pub state: CloudOperationState,
+    pub bytes_completed: u64,
+    pub total_bytes: Option<u64>,
+    pub progress_percentage: Option<f32>,
+    pub start_time: Timestamp,
+    pub speed_bytes_per_sec: Option<u64>,
+    pub eta_seconds: Option<u64>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudFileMetadata {
+    pub id: String,
+    pub name: String,
+    pub size_bytes: u64,
+    pub created_at: Option<Timestamp>,
+    pub modified_at: Option<Timestamp>,
+    pub provider: String,
+}
+
 /// A cloud storage service. Implementations only talk to documented endpoints.
 #[async_trait]
 pub trait CloudStorageProvider: Send + Sync {
@@ -117,4 +229,48 @@ pub trait CloudStorageProvider: Send + Sync {
 
     /// Revoke MCPanel's grant, where the provider supports it.
     async fn revoke(&self, refresh_token: &SecretString) -> CoreResult<RevokeOutcome>;
+
+    /// Upload a file to cloud storage.
+    async fn upload_file(
+        &self,
+        _access_token: &SecretString,
+        _filename: &str,
+        _path: &std::path::Path,
+        _options: Option<CloudTransferOptions>,
+    ) -> CoreResult<CloudFileMetadata> {
+        Err(crate::error::CoreError::new(
+            crate::error::ErrorCode::Unsupported,
+            "Upload not supported by this provider",
+        ))
+    }
+
+    /// List MCPanel backup files in cloud storage.
+    async fn list_files(&self, _access_token: &SecretString) -> CoreResult<Vec<CloudFileMetadata>> {
+        Err(crate::error::CoreError::new(
+            crate::error::ErrorCode::Unsupported,
+            "Listing files not supported by this provider",
+        ))
+    }
+
+    /// Download a file from cloud storage to destination path.
+    async fn download_file(
+        &self,
+        _access_token: &SecretString,
+        _file_id: &str,
+        _destination: &std::path::Path,
+        _options: Option<CloudTransferOptions>,
+    ) -> CoreResult<u64> {
+        Err(crate::error::CoreError::new(
+            crate::error::ErrorCode::Unsupported,
+            "Download not supported by this provider",
+        ))
+    }
+
+    /// Delete a file from cloud storage.
+    async fn delete_file(&self, _access_token: &SecretString, _file_id: &str) -> CoreResult<()> {
+        Err(crate::error::CoreError::new(
+            crate::error::ErrorCode::Unsupported,
+            "Delete not supported by this provider",
+        ))
+    }
 }

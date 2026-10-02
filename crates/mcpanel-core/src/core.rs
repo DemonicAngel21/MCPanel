@@ -214,6 +214,8 @@ impl Core {
             Arc::clone(&deps.secrets),
             Arc::clone(&deps.repos.settings),
         ));
+        account.set_cloud(Arc::clone(&cloud));
+        cloud.set_account_service(Arc::clone(&account));
         let playit = Arc::new(crate::playit_agent::PlayitAgent::new(
             Arc::clone(&deps.platform),
             Arc::clone(&deps.secrets),

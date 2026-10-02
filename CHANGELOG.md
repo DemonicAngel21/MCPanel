@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Commercial, production-ready Cloud Storage architecture (Google Drive & Dropbox):
+  - **Zero-config user experience**: Users never enter Client IDs, secrets, or API keys; MCPanel uses preconfigured application registrations with PKCE and loopback redirection.
+  - **Google Account automatic linking**: Users signed in with Google Authentication have Google Drive automatically connected and linked with their active session, with automatic disconnection on logout.
+  - **Account-scoped isolation & security**: Cloud provider connections and refresh tokens are strictly scoped to the authenticated MCPanel account ID (`cloud.{uid}.{provider}` settings and `cloud-{uid}-{provider}-refresh-token` Windows Credential Store entries). Guest users are denied cloud access until signed in. Logging out invalidates active cloud sessions and frontend caches so previous credentials are never leaked across accounts.
+  - **Cloud backup operations**: Upload local backup archives (plaintext or age-encrypted) to Google Drive and Dropbox, list remote MCPanel backups with metadata, delete remote backups, and download/register cloud backups directly into the local backup repository and verification pipeline.
+  - **Real-time Transfer Progress & Status Bar**: Compact UI for Google Drive and Dropbox transfers showing provider, backup name, percentage progress bar, completed / total bytes, current transfer speed (MB/s), and estimated completion time (ETA).
+  - **Cooperative Cancellation**: Instant "Cancel" action backed by Tokio cancellation tokens; cancelling stops network transfers immediately without retrying, aborts remote upload sessions cleanly, cleans up temporary download files (`.partial`), and guarantees local backup archives are never deleted, truncated, or corrupted.
+  - **Hardened Dropbox Pipeline**: 4 MB chunk streaming (8 MB threshold), Unicode-escaped ASCII-compliant `Dropbox-API-Arg` headers, 60-second chunk timeouts, bounded exponential backoff retries for transient errors (429, 5xx), and transparent 401 token refreshes.
+  - **Build-time Secret Support**: Support for `MCPANEL_GOOGLE_CLIENT_SECRET` via GitHub Actions/build environment secrets while keeping credentials completely out of Git, the UI, logs, and diagnostics.
+- Relocated Cloud Storage management: Moved the Cloud Storage integration (Google Drive and Dropbox) from Settings into the Backups area, making it available on both the sidebar global Backups page and inside individual server Backups tabs.
 - Quality of Life enhancements across the server workspace:
   - **File Editor**: Global autosave synchronization and Word Wrap toggle persisted across all files and folders.
   - **Server Console**: Quick command action bar (`tps`, `mspt`, `list`, `save-all`, `day`, `clear weather`, `reload`) for instant one-click execution, live line count feedback, and quick clear search action.

@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import { AccentPicker } from "@/components/accent-picker";
 import { AccountPanel } from "@/components/account-panel";
-import { CloudCard } from "@/components/cloud-card";
 import { EncryptionCard } from "@/components/encryption-card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
@@ -187,8 +186,6 @@ export function SettingsPage() {
         </Card>
 
         <EncryptionCard />
-
-        <CloudCard />
 
         <NotificationRules />
 

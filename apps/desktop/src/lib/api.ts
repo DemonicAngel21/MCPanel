@@ -19,7 +19,9 @@ import type { BedrockEnableDto } from "@/bindings/BedrockEnableDto";
 import type { BedrockPongDto } from "@/bindings/BedrockPongDto";
 import type { BedrockSettingsDto } from "@/bindings/BedrockSettingsDto";
 import type { BedrockStatusDto } from "@/bindings/BedrockStatusDto";
+import type { CloudFileDto } from "@/bindings/CloudFileDto";
 import type { CloudFlowDto } from "@/bindings/CloudFlowDto";
+import type { CloudOperationDto } from "@/bindings/CloudOperationDto";
 import type { CloudStatusDto } from "@/bindings/CloudStatusDto";
 import type { CrashEventDto } from "@/bindings/CrashEventDto";
 import type { DiskUsageDto } from "@/bindings/DiskUsageDto";
@@ -222,6 +224,13 @@ export const api = {
     check: (provider: string) => call<CloudStatusDto>("cloud_check", { provider }),
     /** "revoked" | "not_supported" */
     disconnect: (provider: string) => call<string>("cloud_disconnect", { provider }),
+    listFiles: (provider?: string) => call<CloudFileDto[]>("cloud_files_list", { provider }),
+    upload: (backupId: string, provider: string) => call<CloudOperationDto>("cloud_backup_upload", { backupId, provider }),
+    download: (fileId: string, provider: string, fileName: string, serverId?: string) =>
+      call<CloudOperationDto>("cloud_backup_download", { fileId, provider, fileName, serverId }),
+    operations: () => call<CloudOperationDto[]>("cloud_operations_list"),
+    cancelOperation: (opId: string) => call<void>("cloud_operation_cancel", { opId }),
+    deleteFile: (fileId: string, provider: string) => call<void>("cloud_file_delete", { fileId, provider }),
   },
   encryption: {
     status: () => call<EncryptionStatusDto>("encryption_status"),

@@ -167,11 +167,15 @@ impl AuthBackend for FakeFirebase {
         code: &str,
         verifier: &str,
         redirect: &str,
-    ) -> CoreResult<SecretString> {
+    ) -> CoreResult<mcpanel_core::account::GoogleAuthTokens> {
         assert_eq!(code, "google-code");
         assert!(verifier.len() >= 43);
         assert!(redirect.starts_with("http://127.0.0.1:"));
-        Ok(SecretString::from("google-id-token".to_string()))
+        Ok(mcpanel_core::account::GoogleAuthTokens {
+            id_token: SecretString::from("google-id-token".to_string()),
+            refresh_token: Some(SecretString::from("google-refresh-token".to_string())),
+            access_token: Some(SecretString::from("google-access-token".to_string())),
+        })
     }
 }
 

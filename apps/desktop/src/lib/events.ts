@@ -55,6 +55,15 @@ function handle(qc: QueryClient, e: EventDto) {
       break;
     case "cloudChanged":
       void qc.invalidateQueries({ queryKey: qk.cloud });
+      void qc.invalidateQueries({ queryKey: qk.cloudOperations });
+      break;
+    case "cloudOperationUpdated":
+      void qc.invalidateQueries({ queryKey: qk.cloudOperations });
+      if (e.operation.state === "completed" || e.operation.state === "failed") {
+        void qc.invalidateQueries({ queryKey: qk.cloud });
+        void qc.invalidateQueries({ queryKey: qk.cloudFiles() });
+        void qc.invalidateQueries({ queryKey: ["backups"] });
+      }
       break;
     case "bedrockChanged":
       void qc.invalidateQueries({ queryKey: qk.bedrock(e.serverId) });

@@ -109,6 +109,13 @@ pub struct AuthSession {
     pub refresh_token: SecretString,
 }
 
+#[derive(Debug, Clone)]
+pub struct GoogleAuthTokens {
+    pub id_token: SecretString,
+    pub refresh_token: Option<SecretString>,
+    pub access_token: Option<SecretString>,
+}
+
 #[async_trait::async_trait]
 pub trait AuthBackend: Send + Sync {
     /// A Firebase project is configured for this build.
@@ -146,13 +153,13 @@ pub trait AuthBackend: Send + Sync {
         challenge: &str,
         state: &str,
     ) -> CoreResult<String>;
-    /// Exchange Google's code for its ID token.
+    /// Exchange Google's code for its tokens.
     async fn google_exchange(
         &self,
         code: &str,
         verifier: &str,
         redirect: &str,
-    ) -> CoreResult<SecretString>;
+    ) -> CoreResult<GoogleAuthTokens>;
     /// Microsoft's consent page for `redirect` with a PKCE `challenge`.
     fn microsoft_authorize_url(
         &self,
@@ -235,6 +242,7 @@ pub struct AccountService {
     microsoft: Mutex<Option<MicrosoftFlow>>,
     sync_service: crate::sync::SettingsSyncService,
     credentials_loaded: AtomicBool,
+    cloud: OnceLock<Arc<crate::cloud::CloudService>>,
 }
 
 /// A plausible email address (Firebase does the real check).
@@ -273,11 +281,16 @@ impl AccountService {
             google: Mutex::new(None),
             microsoft: Mutex::new(None),
             credentials_loaded: AtomicBool::new(false),
+            cloud: OnceLock::new(),
         }
     }
 
     pub fn set_backend(&self, backend: Arc<dyn AuthBackend>) {
         let _ = self.backend.set(backend);
+    }
+
+    pub fn set_cloud(&self, cloud: Arc<crate::cloud::CloudService>) {
+        let _ = self.cloud.set(cloud);
     }
 
     fn backend(&self) -> CoreResult<Arc<dyn AuthBackend>> {
@@ -647,9 +660,17 @@ impl AccountService {
                         ));
                     }
                 };
-                let google_id = backend.google_exchange(&code, &verifier, &redirect).await?;
-                let s = backend.sign_in_with_google(&google_id).await?;
-                this.establish(&*backend, s).await.map(drop)
+                let tokens = backend.google_exchange(&code, &verifier, &redirect).await?;
+                let s = backend.sign_in_with_google(&tokens.id_token).await?;
+                let profile = this.establish(&*backend, s).await?;
+                if let Some(ref rt) = tokens.refresh_token
+                    && let Some(cloud) = this.cloud.get()
+                {
+                    let _ = cloud
+                        .link_google_drive(&profile.uid, rt, tokens.access_token.as_ref())
+                        .await;
+                }
+                Ok(())
             }
             .await;
             *prog.lock().unwrap_or_else(|e| e.into_inner()) = match result {
@@ -789,7 +810,11 @@ impl AccountService {
         self.settings
             .set(GUEST_KEY, &serde_json::Value::Bool(false))
             .await?;
-        self.save_profile(None).await
+        self.save_profile(None).await?;
+        if let Some(cloud) = self.cloud.get() {
+            cloud.on_account_logout();
+        }
+        Ok(())
     }
 
     /// Re-read the profile (e.g. after the user verified their email).

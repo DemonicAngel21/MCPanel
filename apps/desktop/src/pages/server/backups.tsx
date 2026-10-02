@@ -7,6 +7,7 @@ import type { BackupPolicyDto } from "@/bindings/BackupPolicyDto";
 import type { ServerDto } from "@/bindings/ServerDto";
 import { PageBody } from "@/app/app-shell";
 import { BackupList } from "@/components/backup-list";
+import { CloudCard } from "@/components/cloud-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, Select } from "@/components/ui/overlays";
 import { Card, CardHeader, Checkbox, Field, Input, Spinner, Switch } from "@/components/ui/primitives";
@@ -271,6 +272,7 @@ export function ServerBackups() {
         <BackupList backups={backups} isRunning={() => hasProcess(server.state)} />
       </Card>
       {policy && <ScheduleForm key={JSON.stringify(policy)} policy={policy} />}
+      <CloudCard />
       <DiskUsageCard serverId={id} />
       <BackupNowDialog server={server} open={open} onOpenChange={setOpen} />
     </PageBody>

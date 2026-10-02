@@ -65,6 +65,13 @@ fn pick(runtime: Option<String>, build: Option<&'static str>) -> Option<String> 
         })
 }
 
+fn pick_secret(runtime: Option<String>, build: Option<&'static str>) -> Option<String> {
+    runtime
+        .or_else(|| build.map(str::to_string))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty() && s.len() <= 500 && !s.chars().any(char::is_control))
+}
+
 impl CloudClientIds {
     /// Runtime environment first, then the value compiled into this build.
     pub fn from_env() -> Self {
@@ -73,7 +80,7 @@ impl CloudClientIds {
                 std::env::var(GOOGLE_CLIENT_ID_VAR).ok(),
                 option_env!("MCPANEL_GOOGLE_CLIENT_ID"),
             ),
-            google_secret: pick(
+            google_secret: pick_secret(
                 std::env::var(GOOGLE_CLIENT_SECRET_VAR).ok(),
                 option_env!("MCPANEL_GOOGLE_CLIENT_SECRET"),
             )
@@ -86,7 +93,7 @@ impl CloudClientIds {
                 std::env::var(MICROSOFT_CLIENT_ID_VAR).ok(),
                 option_env!("MCPANEL_MICROSOFT_CLIENT_ID"),
             ),
-            microsoft_secret: pick(
+            microsoft_secret: pick_secret(
                 std::env::var(MICROSOFT_CLIENT_SECRET_VAR).ok(),
                 option_env!("MCPANEL_MICROSOFT_CLIENT_SECRET"),
             )
@@ -136,7 +143,7 @@ fn token_error(
         description.is_some_and(|d| d.to_ascii_lowercase().contains("client_secret"));
     let msg = match code {
         Some("invalid_request") if secret_demanded => format!(
-            "{provider}'s token server rejected {step} because it expects a client secret for this OAuth client. MCPanel is a public client and sends none by design (PKCE instead).{raw}"
+            "{provider}'s token server rejected {step} because it expects a client secret for this OAuth client. MCPanel is a public client and sends no client secret using PKCE. Ensure the configured OAuth client ID is a Google Cloud 'Desktop app' client, not a Web application client.{raw}"
         ),
         Some("invalid_grant") if stage == Stage::Exchange => format!(
             "{provider}'s token server did not accept the sign-in code (it may have expired). Try connecting again.{raw}"

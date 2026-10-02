@@ -382,7 +382,7 @@ async fn modrinth_search_versions_and_identify() {
     let hash = file.hash.as_ref().unwrap();
     assert_eq!(hash.algorithm, HashAlgorithm::Sha512);
     assert_eq!(m.version(&lp.id, &v.id).await.unwrap().id, v.id);
-    let found = m.identify(&[hash.hex.clone()]).await.unwrap();
+    let found = m.identify(std::slice::from_ref(&hash.hex)).await.unwrap();
     assert_eq!(found[&hash.hex].project_id, lp.id);
     assert_eq!(m.project("luckperms").await.unwrap().name, "LuckPerms");
     assert_eq!(

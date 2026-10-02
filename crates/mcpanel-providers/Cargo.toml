@@ -25,6 +25,8 @@ md-5.workspace = true
 uuid.workspace = true
 hex.workspace = true
 zip.workspace = true
+jiff.workspace = true
+bytes.workspace = true
 
 [dev-dependencies]
 mcpanel-platform.workspace = true

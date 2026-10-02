@@ -25,6 +25,12 @@ impl Timestamp {
     pub fn millis(self) -> i64 {
         self.0
     }
+
+    pub fn parse_rfc3339(s: &str) -> Option<Self> {
+        s.parse::<jiff::Timestamp>()
+            .ok()
+            .map(|t| Self(t.as_millisecond()))
+    }
 }
 
 /// Injectable clock so time-dependent policies are testable.
