@@ -63,6 +63,8 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
   const [conflict, setConflict] = useState(false);
   const autosave = useUi((s) => s.editorAutosave);
   const setAutosave = useUi((s) => s.setEditorAutosave);
+  const wordWrap = useUi((s) => s.editorWordWrap);
+  const setWordWrap = useUi((s) => s.setEditorWordWrap);
   const [problems, setProblems] = useState<string | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const timer = useRef<number | null>(null);
@@ -179,6 +181,9 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
         </p>
         {problems && <span className="text-xs text-danger">{problems}</span>}
         <label className="flex items-center gap-2 text-xs text-muted">
+          <Switch checked={wordWrap} onCheckedChange={setWordWrap} /> Word wrap
+        </label>
+        <label className="flex items-center gap-2 text-xs text-muted">
           <Switch checked={autosave} onCheckedChange={setAutosave} disabled={readOnly} /> Autosave
         </label>
         <Button variant="primary" size="sm" disabled={!dirty || saving || readOnly} onClick={() => save()}>
@@ -240,7 +245,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
                 renderWhitespace: "selection",
                 automaticLayout: true,
                 tabSize: 2,
-                wordWrap: "off",
+                wordWrap: wordWrap ? "on" : "off",
               }}
             />
           ) : (

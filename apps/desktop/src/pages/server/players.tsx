@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Ban, Crown, DoorOpen, MoreHorizontal, ShieldCheck, ShieldOff, UserPlus, Users } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, Ban, Crown, DoorOpen, MoreHorizontal, Search, ShieldCheck, ShieldOff, UserPlus, Users, X } from "lucide-react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { KnownPlayerDto } from "@/bindings/KnownPlayerDto";
 import type { PlayerActionDto } from "@/bindings/PlayerActionDto";
@@ -264,7 +264,39 @@ export function ServerPlayers() {
   const { data, isLoading, error } = usePlayers(id);
   const { run, busy } = useAction(id);
   const [tab, setTab] = useState<Tab>("players");
+  const [filter, setFilter] = useState("");
   const [dialog, setDialog] = useState<{ kind: "kick" | "ban"; name: string } | { kind: "ban_ip" } | { kind: "ban_name" } | null>(null);
+
+  const query = filter.trim().toLowerCase();
+  const filteredKnown = useMemo(
+    () =>
+      query && data ? data.known.filter((p) => p.name.toLowerCase().includes(query) || p.uuid?.toLowerCase().includes(query)) : (data?.known ?? []),
+    [data, query],
+  );
+  const filteredWhitelist = useMemo(
+    () =>
+      query && data
+        ? data.whitelist.filter((w) => w.name.toLowerCase().includes(query) || w.uuid?.toLowerCase().includes(query))
+        : (data?.whitelist ?? []),
+    [data, query],
+  );
+  const filteredOperators = useMemo(
+    () =>
+      query && data
+        ? data.operators.filter((o) => o.name.toLowerCase().includes(query) || o.uuid?.toLowerCase().includes(query))
+        : (data?.operators ?? []),
+    [data, query],
+  );
+  const allBans = useMemo(() => (data ? [...data.bans, ...data.ipBans] : []), [data]);
+  const filteredBans = useMemo(
+    () =>
+      query
+        ? allBans.filter(
+            (b) => b.target.toLowerCase().includes(query) || b.reason?.toLowerCase().includes(query) || b.uuid?.toLowerCase().includes(query),
+          )
+        : allBans,
+    [allBans, query],
+  );
 
   if (isLoading)
     return (
@@ -280,10 +312,10 @@ export function ServerPlayers() {
     );
   const ro = !!data.readOnlyReason;
   const tabs: [Tab, string, number][] = [
-    ["players", "Players", data.known.length],
-    ["whitelist", "Whitelist", data.whitelist.length],
-    ["operators", "Operators", data.operators.length],
-    ["bans", "Bans", data.bans.length + data.ipBans.length],
+    ["players", "Players", filteredKnown.length],
+    ["whitelist", "Whitelist", filteredWhitelist.length],
+    ["operators", "Operators", filteredOperators.length],
+    ["bans", "Bans", filteredBans.length],
   ];
 
   return (
@@ -342,28 +374,54 @@ export function ServerPlayers() {
       )}
 
       <Card>
-        <div role="tablist" aria-label="Player categories" className="flex gap-1 border-b border-border px-3 pt-2">
-          {tabs.map(([t, label, n]) => (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors duration-150 focus:outline-none focus-visible:rounded-t-sm focus-visible:ring-1 focus-visible:ring-accent",
-                tab === t ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:border-border-strong hover:text-fg",
-              )}
-            >
-              {label} <span className="text-faint">{n}</span>
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3">
+          <div role="tablist" aria-label="Player categories" className="flex gap-1 pt-2">
+            {tabs.map(([t, label, n]) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors duration-150 focus:outline-none focus-visible:rounded-t-sm focus-visible:ring-1 focus-visible:ring-accent",
+                  tab === t ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:border-border-strong hover:text-fg",
+                )}
+              >
+                {label} <span className="text-faint">{n}</span>
+              </button>
+            ))}
+          </div>
+          <div className="relative my-1.5 w-48">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-faint" />
+            <Input
+              className="h-8 pr-7 pl-8 text-xs"
+              placeholder={`Filter ${tab}…`}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setFilter("");
+              }}
+            />
+            {filter && (
+              <button
+                type="button"
+                onClick={() => setFilter("")}
+                className="absolute top-1/2 right-2 -translate-y-1/2 text-muted hover:text-fg"
+                aria-label="Clear player filter"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div key={tab} className="animate-fade-in">
           {tab === "players" &&
             (data.known.length === 0 ? (
               <EmptyState icon={<Users />} title="No players yet" description="Players who join, and players on the server's lists, appear here." />
+            ) : filteredKnown.length === 0 ? (
+              <EmptyState icon={<Users />} title="No matching players" description="Try a different search query." />
             ) : (
               <div className="table-scroll">
                 <table className="w-full text-[13px]">
@@ -379,7 +437,7 @@ export function ServerPlayers() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.known.map((p) => (
+                    {filteredKnown.map((p) => (
                       <PlayerRow
                         key={p.name}
                         p={p}
@@ -414,8 +472,8 @@ export function ServerPlayers() {
               </div>
               <NameForm label="Add" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "whitelist_add", name })} />
               <SimpleList
-                rows={data.whitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid, uuid: w.uuid }))}
-                empty="Nobody is on the whitelist."
+                rows={filteredWhitelist.map((w) => ({ key: w.name, main: w.name, sub: w.uuid, uuid: w.uuid }))}
+                empty={query ? "No players match your search." : "Nobody is on the whitelist."}
                 removeLabel="Remove"
                 disabled={ro || busy}
                 onRemove={(name) => void run({ action: "whitelist_remove", name })}
@@ -427,13 +485,13 @@ export function ServerPlayers() {
             <>
               <NameForm label="Make operator" placeholder="Player name" disabled={ro || busy} onSubmit={(name) => run({ action: "op", name })} />
               <SimpleList
-                rows={data.operators.map((o) => ({
+                rows={filteredOperators.map((o) => ({
                   key: o.name,
                   main: o.name,
                   sub: `Level ${o.level}${o.bypassesPlayerLimit ? " · bypasses player limit" : ""}`,
                   uuid: o.uuid,
                 }))}
-                empty="There are no operators."
+                empty={query ? "No operators match your search." : "There are no operators."}
                 removeLabel="Remove"
                 disabled={ro || busy}
                 onRemove={(name) => void run({ action: "deop", name })}
@@ -452,13 +510,13 @@ export function ServerPlayers() {
                 </Button>
               </div>
               <SimpleList
-                rows={[...data.bans, ...data.ipBans].map((b) => ({
+                rows={filteredBans.map((b) => ({
                   key: b.target,
                   main: b.target,
                   sub: [b.reason, b.source && `by ${b.source}`, b.expires ? `until ${b.expires}` : "permanent"].filter(Boolean).join(" · "),
                   uuid: b.uuid,
                 }))}
-                empty="Nobody is banned."
+                empty={query ? "No bans match your search." : "Nobody is banned."}
                 removeLabel="Unban"
                 disabled={ro || busy}
                 onRemove={(target) => {

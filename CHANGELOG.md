@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Quality of Life enhancements across the server workspace:
+  - **File Editor**: Global autosave synchronization and Word Wrap toggle persisted across all files and folders.
+  - **Server Console**: Quick command action bar (`tps`, `mspt`, `list`, `save-all`, `day`, `clear weather`, `reload`) for instant one-click execution, live line count feedback, and quick clear search action.
+  - **File Manager**: Category filter pills (`All`, `Configs`, `Logs`, `Jars & Zips`, `Folders`) with item counts, quick search reset button, and one-click breadcrumb folder path copying.
+  - **Player Manager**: Instant player search filter across all player categories (Known Players, Whitelist, Operators, and Bans) with filtered counts.
+  - **Server Overview**: One-click server directory folder path copying.
 - Cracked / Offline-mode server setting: dedicated `OnlineModeCard` in Server Settings with toggle switch for `online-mode=false` and advisory warning banners explaining that unauthenticated/cracked clients are allowed. Also integrated cracked-mode awareness into server creation and properties synchronization without disrupting Geyser/Floodgate or other configurations.
 - Recommended plugins system: extensible, contextual recommendation engine in the core layer that surfaces plugins based on server software (Paper, Purpur, Spigot, Fabric, etc.), Minecraft version, offline-mode security (AuthMe, FastLogin, SkinsRestorer), and Bedrock crossplay (Geyser, Floodgate) across 10 categories, complete with category filtering and dependency-verified direct installation.
 - Automatic imported plugin detection: heuristic detection engine that inspects descriptor metadata (`plugin.yml`, `fabric.mod.json`, `quilt.mod.json`, `mods.toml`), main classes, and filename patterns to automatically identify imported jars with confidence levels (`Exact`, `High`, `Medium`, `Low`, `Unknown`). Includes an "Identify / Link" dialog allowing users to connect or correct plugin providers and cache results.

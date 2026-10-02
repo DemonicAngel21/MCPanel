@@ -11,6 +11,7 @@ export type ActiveJob = {
 };
 
 const AUTOSAVE_STORAGE_KEY = "mcpanel:editor_autosave";
+const WORDWRAP_STORAGE_KEY = "mcpanel:editor_wordwrap";
 
 function getInitialAutosave(): boolean {
   try {
@@ -24,6 +25,18 @@ function getInitialAutosave(): boolean {
   return true; // Default to true so users don't have to manually enable it on every file
 }
 
+function getInitialWordWrap(): boolean {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const stored = window.localStorage.getItem(WORDWRAP_STORAGE_KEY);
+      if (stored !== null) return stored === "true";
+    }
+  } catch {
+    // ignore
+  }
+  return true; // Default to word wrap on for comfortable reading
+}
+
 type UiState = {
   paletteOpen: boolean;
   setPaletteOpen: (open: boolean) => void;
@@ -35,6 +48,8 @@ type UiState = {
   setDroppedFiles: (grants: GrantDto[] | null) => void;
   editorAutosave: boolean;
   setEditorAutosave: (autosave: boolean) => void;
+  editorWordWrap: boolean;
+  setEditorWordWrap: (wordWrap: boolean) => void;
 };
 
 export const useUi = create<UiState>((set) => ({
@@ -59,5 +74,16 @@ export const useUi = create<UiState>((set) => ({
       // ignore
     }
     set({ editorAutosave });
+  },
+  editorWordWrap: getInitialWordWrap(),
+  setEditorWordWrap: (editorWordWrap) => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(WORDWRAP_STORAGE_KEY, String(editorWordWrap));
+      }
+    } catch {
+      // ignore
+    }
+    set({ editorWordWrap });
   },
 }));

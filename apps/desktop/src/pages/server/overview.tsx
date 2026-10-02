@@ -33,6 +33,7 @@ export function ServerOverview() {
   const { data: java } = useJava();
   const { data: audit } = useAudit(id, 8);
   const [copied, setCopied] = useState(false);
+  const [copiedFolder, setCopiedFolder] = useState(false);
 
   if (!server) return null;
   const runtime = java?.find((j) => j.id === server.launch.javaRuntimeId);
@@ -46,6 +47,17 @@ export function ServerOverview() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy address");
+    }
+  };
+
+  const copyFolder = async () => {
+    try {
+      await navigator.clipboard.writeText(server.directory);
+      setCopiedFolder(true);
+      toast.success("Folder path copied");
+      setTimeout(() => setCopiedFolder(false), 2000);
+    } catch {
+      toast.error("Failed to copy folder path");
     }
   };
 
@@ -104,7 +116,19 @@ export function ServerOverview() {
             <dt className="text-muted">Jar</dt>
             <dd className="selectable truncate font-mono text-fg">{server.software.jar}</dd>
             <dt className="text-muted">Folder</dt>
-            <dd className="selectable font-mono break-all text-fg">{server.directory}</dd>
+            <dd className="selectable flex items-center justify-between gap-1.5 font-mono break-all text-fg">
+              <span>{server.directory}</span>
+              <Tooltip content={copiedFolder ? "Copied!" : "Copy folder path"}>
+                <button
+                  type="button"
+                  onClick={() => void copyFolder()}
+                  className="shrink-0 rounded p-1 text-faint hover:bg-surface-2 hover:text-fg"
+                  aria-label="Copy server folder path"
+                >
+                  {copiedFolder ? <Check className="text-success size-3" /> : <Copy className="size-3" />}
+                </button>
+              </Tooltip>
+            </dd>
             {server.pid && (
               <>
                 <dt className="text-muted">Process ID</dt>

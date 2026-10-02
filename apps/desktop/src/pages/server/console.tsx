@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownToLine, Clock, Copy, Download, Eraser, Pause, Play, Search } from "lucide-react";
+import { ArrowDownToLine, Clock, Copy, Download, Eraser, Pause, Play, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
@@ -17,6 +17,16 @@ const MAX_LINES = 20_000;
 const ROW = 18;
 
 type Line = ConsoleLineDto | { seq: number; at: number; stream: "gap"; level: null; text: string };
+
+const QUICK_COMMANDS = [
+  { label: "tps", cmd: "tps", tip: "Check ticks per second" },
+  { label: "mspt", cmd: "mspt", tip: "Check tick duration" },
+  { label: "list", cmd: "list", tip: "List online players" },
+  { label: "save-all", cmd: "save-all", tip: "Save world to disk" },
+  { label: "day", cmd: "time set day", tip: "Set time to day" },
+  { label: "clear weather", cmd: "weather clear", tip: "Clear bad weather" },
+  { label: "reload", cmd: "reload", tip: "Reload server configuration" },
+];
 
 /** Built-in suggestions (vanilla commands); not queried from the server. */
 const COMMANDS = [
@@ -266,18 +276,22 @@ export function ServerConsole() {
   };
 
   const canSend = server?.state === "running" || server?.state === "starting";
-  const send = async () => {
-    const cmd = input.trim();
+  const sendCommand = async (cmdToSend: string) => {
+    const cmd = cmdToSend.trim();
     if (!cmd) return;
     try {
       await api.servers.command(id, cmd);
       history.current = [cmd, ...history.current.filter((h) => h !== cmd)].slice(0, 100);
       historyIdx.current = -1;
-      setInput("");
       setStick(true);
     } catch (e) {
       toast.error(errorMessage(e));
     }
+  };
+
+  const send = async () => {
+    await sendCommand(input);
+    setInput("");
   };
 
   const suggestion = useMemo(() => {
@@ -330,7 +344,25 @@ export function ServerConsole() {
       <div className="mb-2 flex items-center gap-2">
         <div className="relative w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-faint" />
-          <Input className="pl-8" placeholder="Filter output" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <Input
+            className="pr-7 pl-8"
+            placeholder="Filter output"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setFilter("");
+            }}
+          />
+          {filter && (
+            <button
+              type="button"
+              onClick={() => setFilter("")}
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted hover:text-fg"
+              aria-label="Clear filter"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
         <Select
           aria-label="Log level"
@@ -343,6 +375,9 @@ export function ServerConsole() {
             { value: "error", label: "Errors" },
           ]}
         />
+        <span className="text-xs text-muted tabular-nums">
+          {filter.trim() || level !== "all" ? `${visible.length} / ${lines.current.length} lines` : `${lines.current.length} lines`}
+        </span>
         <div className="flex-1" />
         <Tooltip content={showTime ? "Hide receive times" : "Show receive times"}>
           <Button variant={showTime ? "secondary" : "ghost"} size="icon-sm" onClick={() => setShowTime((v) => !v)} aria-label="Timestamps">
@@ -418,6 +453,23 @@ export function ServerConsole() {
           </Button>
         )}
       </div>
+
+      {canSend && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-[11px] font-medium text-faint">Quick:</span>
+          {QUICK_COMMANDS.map((qc) => (
+            <Tooltip key={qc.label} content={qc.tip}>
+              <button
+                type="button"
+                onClick={() => void sendCommand(qc.cmd)}
+                className="rounded border border-border/80 bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-muted transition-colors hover:border-accent hover:text-fg"
+              >
+                {qc.label}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      )}
 
       <div className="relative mt-2">
         <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 font-mono text-[12px] text-accent">&gt;</span>

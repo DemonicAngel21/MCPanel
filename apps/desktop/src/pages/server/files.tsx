@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   Archive,
+  Check,
   ChevronRight,
   Copy,
   Download,
@@ -263,10 +264,51 @@ export function ServerFiles() {
     }
   };
 
+  type FileCategory = "all" | "configs" | "logs" | "jars" | "folders";
+
   const crumbs = path ? path.split("/") : [];
-  const allSelected = !!entries?.length && entries.every((e) => selected.has(e.path));
+  const [category, setCategory] = useState<FileCategory>("all");
+  const [copiedPath, setCopiedPath] = useState(false);
+
+  const copyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(`/${path}`);
+      setCopiedPath(true);
+      toast.success("Folder path copied");
+      setTimeout(() => setCopiedPath(false), 2000);
+    } catch {
+      toast.error("Failed to copy path");
+    }
+  };
+
+  const counts = useMemo(() => {
+    if (!entries) return { all: 0, configs: 0, logs: 0, jars: 0, folders: 0 };
+    let configs = 0;
+    let logs = 0;
+    let jars = 0;
+    let folders = 0;
+    for (const e of entries) {
+      if (e.kind === "directory") folders++;
+      else if (/\.(ya?ml|properties|json|json5|toml|cfg|conf|ini|env)$/i.test(e.name)) configs++;
+      else if (/\.(log|txt|gz)$/i.test(e.name)) logs++;
+      else if (/\.(jar|zip)$/i.test(e.name)) jars++;
+    }
+    return { all: entries.length, configs, logs, jars, folders };
+  }, [entries]);
+
+  const filtered = useMemo(() => {
+    if (!entries) return [];
+    if (category === "configs")
+      return entries.filter((e) => e.kind === "file" && /\.(ya?ml|properties|json|json5|toml|cfg|conf|ini|env)$/i.test(e.name));
+    if (category === "logs") return entries.filter((e) => e.kind === "file" && /\.(log|txt|gz)$/i.test(e.name));
+    if (category === "jars") return entries.filter((e) => e.kind === "file" && /\.(jar|zip)$/i.test(e.name));
+    if (category === "folders") return entries.filter((e) => e.kind === "directory");
+    return entries;
+  }, [entries, category]);
+
+  const sorted = useMemo(() => filtered, [filtered]);
+  const allSelected = !!sorted.length && sorted.every((e) => selected.has(e.path));
   const selectedList = [...selected];
-  const sorted = useMemo(() => entries ?? [], [entries]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
@@ -290,10 +332,38 @@ export function ServerFiles() {
               </button>
             </span>
           ))}
+          <Tooltip content={copiedPath ? "Copied!" : "Copy folder path"}>
+            <button
+              type="button"
+              onClick={() => void copyPath()}
+              className="ml-1 rounded p-1 text-faint hover:bg-surface-3 hover:text-fg"
+              aria-label="Copy folder path"
+            >
+              {copiedPath ? <Check className="text-success size-3" /> : <Copy className="size-3" />}
+            </button>
+          </Tooltip>
         </nav>
         <div className="relative w-56">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-faint" />
-          <Input className="pl-8" placeholder="Search names in this folder" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            className="pr-7 pl-8"
+            placeholder="Search names in this folder"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSearch("");
+            }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted hover:text-fg"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
         <Tooltip content="New folder">
           <Button variant="ghost" size="icon" onClick={() => openName({ kind: "mkdir", initial: "" })} aria-label="New folder">
@@ -327,6 +397,31 @@ export function ServerFiles() {
         </Tooltip>
       </div>
 
+      <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto text-xs">
+        {(
+          [
+            { id: "all", label: "All", count: counts.all },
+            { id: "configs", label: "Configs", count: counts.configs },
+            { id: "logs", label: "Logs", count: counts.logs },
+            { id: "jars", label: "Jars & Zips", count: counts.jars },
+            { id: "folders", label: "Folders", count: counts.folders },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setCategory(tab.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs transition-colors",
+              category === tab.id ? "bg-accent font-medium text-accent-fg" : "bg-surface-2 text-muted hover:bg-surface-3 hover:text-fg",
+            )}
+          >
+            <span>{tab.label}</span>
+            {tab.count > 0 && <span className={cn("text-[10px]", category === tab.id ? "text-accent-fg/80" : "text-faint")}>{tab.count}</span>}
+          </button>
+        ))}
+      </div>
+
       {selected.size > 0 && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs">
           <span className="text-fg">{selected.size} selected</span>
@@ -356,11 +451,17 @@ export function ServerFiles() {
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface">
         {list.isError ? (
           <EmptyState tone="danger" icon={<AlertTriangle />} title="Cannot open this folder" description={errorMessage(list.error)} />
-        ) : entries?.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <EmptyState
             icon={<Folder />}
-            title={search ? "No matches" : "This folder is empty"}
-            description={search ? undefined : "Upload files or drag them onto the window."}
+            title={search ? "No matches" : category !== "all" ? `No ${category} found` : "This folder is empty"}
+            description={
+              search
+                ? undefined
+                : category !== "all"
+                  ? "Try switching to All to see other items in this folder."
+                  : "Upload files or drag them onto the window."
+            }
           />
         ) : (
           <table className="w-full text-[13px]">
@@ -369,7 +470,7 @@ export function ServerFiles() {
                 <th className="w-8 px-3 py-2">
                   <Checkbox
                     checked={allSelected}
-                    onCheckedChange={(c) => setSelected(c ? new Set(entries?.map((e) => e.path)) : new Set())}
+                    onCheckedChange={(c) => setSelected(c ? new Set(sorted.map((e) => e.path)) : new Set())}
                     aria-label="Select all"
                   />
                 </th>
