@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   Coffee,
+  Download,
   ExternalLink,
   Globe,
   Link2,
@@ -190,6 +191,19 @@ function InternetStep() {
   const qc = useQueryClient();
   const { data: agent } = usePlayitAgent();
   const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const installAgent = async () => {
+    setInstalling(true);
+    try {
+      await api.playit.installAgent();
+      await qc.invalidateQueries({ queryKey: qk.playit });
+      toast.success("Playit agent installed successfully");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setInstalling(false);
+    }
+  };
   const link = async () => {
     setBusy(true);
     try {
@@ -214,11 +228,16 @@ function InternetStep() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               <p className="text-sm font-medium text-fg">Add Playit.gg Agent</p>
-              <p className="text-xs text-muted">Download the official Windows installer, then return here to link your agent.</p>
+              <p className="text-xs text-muted">Install the official Playit agent automatically, or download the installer directly.</p>
             </div>
-            <Button variant="outline" onClick={() => void openPlayitDownload()}>
-              Install Playit agent <ExternalLink />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="primary" onClick={() => void installAgent()} disabled={installing}>
+                {installing ? <Spinner /> : <Download />} Install Playit agent
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void openPlayitDownload()}>
+                Website <ExternalLink />
+              </Button>
+            </div>
           </div>
         ) : agent.linked ? (
           <p className="flex items-center gap-2 text-sm text-fg">

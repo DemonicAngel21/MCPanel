@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Check, Copy, ExternalLink, Globe, Link2, Play, Square } from "lucide-react";
+import { ArrowRight, Check, Copy, Download, ExternalLink, Globe, Link2, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TunnelStatusDto } from "@/bindings/TunnelStatusDto";
@@ -43,7 +43,7 @@ const open = (url: string) => api.app.openExternal(url).catch((e) => toast.error
 function useServiceAgent() {
   const qc = useQueryClient();
   const { data: t } = useTunnel();
-  const [busy, setBusy] = useState<null | "start" | "stop" | "link">(null);
+  const [busy, setBusy] = useState<null | "start" | "stop" | "link" | "install">(null);
   const linkState = t?.linkState;
 
   // Report the outcome of a link started here once.
@@ -57,7 +57,7 @@ function useServiceAgent() {
     if (linkState === "failed" && t?.linkError && t.linkError !== "Cancelled") toast.error(t.linkError);
   }, [linkState, t?.linkError]);
 
-  const run = async (kind: "start" | "stop" | "link", fn: () => Promise<unknown>) => {
+  const run = async (kind: "start" | "stop" | "link" | "install", fn: () => Promise<unknown>) => {
     setBusy(kind);
     try {
       const r = await fn();
@@ -72,6 +72,7 @@ function useServiceAgent() {
   return {
     t,
     busy,
+    install: () => run("install", api.tunnels.installAgent),
     start: () => run("start", api.tunnels.startAgent),
     stop: () => run("stop", api.tunnels.stopAgent),
     link: () => run("link", api.tunnels.link),
@@ -81,7 +82,7 @@ function useServiceAgent() {
 
 /** The playit agent: state, version, start/stop and account linking (official program). */
 export function PlayitAgentCard() {
-  const { t, busy, start, stop, link, cancelLink } = useServiceAgent();
+  const { t, busy, install, start, stop, link, cancelLink } = useServiceAgent();
   if (!t) return <Card className="h-28 animate-skeleton" />;
   const state = agentState(t);
   return (
@@ -100,11 +101,16 @@ export function PlayitAgentCard() {
         {!t.installed ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted">
-              The playit program is not installed. Install it from its official site, then come back here to start and link it.
+              The playit program is not installed. Install it automatically or download it from its official site.
             </p>
-            <Button size="sm" variant="primary" onClick={() => open("https://playit.gg/download")}>
-              Download playit <ExternalLink />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="primary" disabled={busy != null} onClick={install}>
+                {busy === "install" ? <Spinner /> : <Download />} Install Playit agent
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => open("https://playit.gg/download")}>
+                Website <ExternalLink />
+              </Button>
+            </div>
           </div>
         ) : (
           <AgentRow t={t} busy={busy} onStart={start} onStop={stop} onLink={link} onCancelLink={cancelLink} />
@@ -173,7 +179,7 @@ function AgentRow({
   onCancelLink,
 }: {
   t: TunnelStatusDto;
-  busy: null | "start" | "stop" | "link";
+  busy: null | "start" | "stop" | "link" | "install";
   onStart: () => void;
   onStop: () => void;
   onLink: () => void;
@@ -219,7 +225,13 @@ function AgentRow({
         {t.canControlAgent &&
           (running ? (
             <Tooltip content="Stops the playit service: all tunnels of this agent go offline.">
-              <Button size="sm" variant="outline" onClick={onStop} disabled={busy != null}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="transition-colors hover:border-danger hover:bg-danger hover:text-white [&:hover_svg]:text-white"
+                onClick={onStop}
+                disabled={busy != null}
+              >
                 {busy === "stop" ? <Spinner /> : <Square />} Stop agent
               </Button>
             </Tooltip>

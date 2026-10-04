@@ -1677,6 +1677,13 @@ impl Api {
         Ok(self.core.tunnels.status().await?.into())
     }
 
+    pub async fn tunnel_install_agent(&self, p: &Principal) -> ApiResult<TunnelStatusDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let status = self.core.tunnels.install_agent().await?;
+        self.audit_tunnel(p, "tunnel.install_agent", None).await;
+        Ok(status.into())
+    }
+
     async fn audit_tunnel(
         &self,
         p: &Principal,
@@ -1849,6 +1856,13 @@ impl Api {
     pub async fn playit_status(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {
         p.authorize(Permission::SystemRead)?;
         Ok(self.core.playit.status().await?.into())
+    }
+
+    pub async fn playit_install_agent(&self, p: &Principal) -> ApiResult<PlayitAgentDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let status = self.core.playit.install_agent().await?;
+        self.audit_tunnel(p, "playit.install_agent", None).await;
+        Ok(status.into())
     }
 
     /// Start linking MCPanel's agent; returns the playit.gg approval page.

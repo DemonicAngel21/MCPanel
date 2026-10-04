@@ -34,7 +34,13 @@ export function ServerControls({ server, compact }: { server: ServerDto; compact
       )}
       {canStop(s) && (
         <>
-          <Button variant="outline" size={compact ? "sm" : "md"} disabled={busy} onClick={() => act(() => api.servers.stop(server.id))}>
+          <Button
+            variant="outline"
+            size={compact ? "sm" : "md"}
+            disabled={busy}
+            className="transition-colors hover:border-danger hover:bg-danger hover:text-white [&:hover_svg]:text-white"
+            onClick={() => act(() => api.servers.stop(server.id))}
+          >
             <Square /> Stop
           </Button>
           {!compact && (

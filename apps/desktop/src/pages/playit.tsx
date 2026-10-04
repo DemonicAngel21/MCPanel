@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Globe, Link2, MoreHorizontal, Pencil, Play, Plus, Square, Trash2, Unlink } from "lucide-react";
+import { Copy, Download, ExternalLink, Globe, Link2, MoreHorizontal, Pencil, Play, Plus, Square, Trash2, Unlink } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { PlayitAgentDto } from "@/bindings/PlayitAgentDto";
@@ -91,10 +91,15 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
       <div className="space-y-3 p-4">
         {!agent.installed ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted">The playit program is needed to run the agent. Install it from its official site.</p>
-            <Button size="sm" variant="primary" onClick={() => open("https://playit.gg/download")}>
-              Install Playit agent <ExternalLink />
-            </Button>
+            <p className="text-xs text-muted">The playit program is needed to run the agent. Install it automatically or download it from its official site.</p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="primary" disabled={busy != null} onClick={() => run("install", api.playit.installAgent)}>
+                {busy === "install" ? <Spinner /> : <Download />} Install Playit agent
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => open("https://playit.gg/download")}>
+                Website <ExternalLink />
+              </Button>
+            </div>
           </div>
         ) : agent.linkState === "waiting" && agent.linkUrl ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-info-soft px-3 py-2.5">
@@ -137,7 +142,12 @@ function McpanelAgentCard({ agent }: { agent: PlayitAgentDto }) {
             </div>
             <span className="flex gap-1.5">
               {agent.running ? (
-                <Button variant="outline" onClick={() => run("stop", api.playit.stop)} disabled={busy != null}>
+                <Button
+                  variant="outline"
+                  className="transition-colors hover:border-danger hover:bg-danger hover:text-white [&:hover_svg]:text-white"
+                  onClick={() => run("stop", api.playit.stop)}
+                  disabled={busy != null}
+                >
                   {busy === "stop" ? <Spinner /> : <Square />} Stop
                 </Button>
               ) : (

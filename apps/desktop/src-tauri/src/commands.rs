@@ -725,6 +725,11 @@ pub async fn playit_status(s: State<'_, AppState>) -> R<PlayitAgentDto> {
     s.api.playit_status(&s.principal()).await
 }
 
+#[tauri::command]
+pub async fn playit_install_agent(s: State<'_, AppState>) -> R<PlayitAgentDto> {
+    s.api.playit_install_agent(&s.principal()).await
+}
+
 /// Start linking MCPanel's playit agent and open the approval page on playit.gg.
 #[tauri::command]
 pub async fn playit_link(app: AppHandle, s: State<'_, AppState>) -> R<String> {
@@ -833,6 +838,11 @@ pub async fn playit_delete_tunnel(s: State<'_, AppState>, id: String) -> R<()> {
 #[tauri::command]
 pub async fn tunnel_start_agent(s: State<'_, AppState>) -> R<TunnelStatusDto> {
     s.api.tunnel_start_agent(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn tunnel_install_agent(s: State<'_, AppState>) -> R<TunnelStatusDto> {
+    s.api.tunnel_install_agent(&s.principal()).await
 }
 
 #[tauri::command]

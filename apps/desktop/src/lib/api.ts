@@ -249,6 +249,7 @@ export const api = {
   },
   tunnels: {
     status: () => call<TunnelStatusDto>("tunnel_status"),
+    installAgent: () => call<TunnelStatusDto>("tunnel_install_agent"),
     startAgent: () => call<TunnelStatusDto>("tunnel_start_agent"),
     stopAgent: () => call<TunnelStatusDto>("tunnel_stop_agent"),
     /** Starts `playit setup` and opens the approval page; returns its URL. */
@@ -278,6 +279,7 @@ export const api = {
   },
   playit: {
     status: () => call<PlayitAgentDto>("playit_status"),
+    installAgent: () => call<PlayitAgentDto>("playit_install_agent"),
     /** Starts linking MCPanel's agent and opens playit.gg; returns the approval URL. */
     link: () => call<string>("playit_link"),
     relink: () => call<string>("playit_relink"),

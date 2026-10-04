@@ -21,7 +21,10 @@
 
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::ids::ServerId;
-use crate::ports::{Platform, ProcessController, ProcessSpec, SettingsRepository};
+use crate::ports::{
+    DownloadRequest, Downloader, ExpectedHash, HashAlgorithm, Platform, ProcessController,
+    ProcessSpec, SettingsRepository,
+};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -154,6 +157,7 @@ pub struct PlayitTunnel {
     link: Mutex<Option<LinkFlow>>,
     /// `--socket-path` for a separate playitd instance (tests); `None` = the service.
     socket_path: Option<String>,
+    downloader: Option<Arc<dyn Downloader>>,
 }
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -179,6 +183,7 @@ impl PlayitTunnel {
             settings,
             link: Mutex::new(None),
             socket_path: None,
+            downloader: None,
         }
     }
 
@@ -186,6 +191,11 @@ impl PlayitTunnel {
     /// installed service.
     pub fn with_socket_path(mut self, socket_path: impl Into<String>) -> Self {
         self.socket_path = Some(socket_path.into());
+        self
+    }
+
+    pub fn with_downloader(mut self, downloader: Arc<dyn Downloader>) -> Self {
+        self.downloader = Some(downloader);
         self
     }
 
@@ -202,15 +212,25 @@ impl PlayitTunnel {
     /// The installed `playit.exe` (installer location first, then PATH).
     pub fn locate() -> Option<PathBuf> {
         let mut candidates: Vec<PathBuf> = Vec::new();
-        for var in ["ProgramFiles", "ProgramW6432"] {
+        for var in ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"] {
             if let Some(dir) = std::env::var_os(var) {
                 candidates.push(Path::new(&dir).join(r"playit_gg\bin\playit.exe"));
             }
+        }
+        if let Some(dir) = std::env::var_os("LocalAppData") {
+            candidates.push(Path::new(&dir).join(r"playit_gg\bin\playit.exe"));
+            candidates.push(Path::new(&dir).join(r"Programs\playit_gg\bin\playit.exe"));
+            candidates.push(Path::new(&dir).join(r"MCPanel\tools\playit\playit.exe"));
         }
         if let Some(path) = std::env::var_os("PATH") {
             candidates.extend(std::env::split_paths(&path).map(|d| d.join("playit.exe")));
         }
         candidates.into_iter().find(|p| p.is_file())
+    }
+
+    pub async fn install_agent(&self) -> CoreResult<TunnelStatus> {
+        install_playit_agent(&self.platform, self.downloader.as_ref()).await?;
+        self.status().await
     }
 
     fn exe() -> CoreResult<PathBuf> {
@@ -444,6 +464,109 @@ impl PlayitTunnel {
             .map_or(serde_json::Value::Null, serde_json::Value::String);
         self.settings.set(&address_key(server), &value).await?;
         Ok(address)
+    }
+}
+
+pub async fn install_playit_agent(
+    platform: &Arc<dyn Platform>,
+    downloader: Option<&Arc<dyn Downloader>>,
+) -> CoreResult<()> {
+    if PlayitTunnel::locate().is_some() {
+        return Ok(());
+    }
+
+    // 1. Try winget if available
+    let winget_path = Path::new("winget.exe");
+    let winget_installed = platform
+        .run_capture(
+            winget_path,
+            &["--version".into()],
+            None,
+            Duration::from_secs(5),
+        )
+        .await
+        .map(|out| out.code == Some(0))
+        .unwrap_or(false);
+
+    if winget_installed {
+        tracing::info!(target: "mcpanel::playit", "Installing playit agent via winget...");
+        let out = platform
+            .run_capture(
+                winget_path,
+                &[
+                    "install".into(),
+                    "--id".into(),
+                    "DevelopedMethods.playit".into(),
+                    "-e".into(),
+                    "--accept-package-agreements".into(),
+                    "--accept-source-agreements".into(),
+                    "--silent".into(),
+                ],
+                None,
+                Duration::from_secs(180),
+            )
+            .await;
+
+        if let Ok(res) = out
+            && res.code == Some(0)
+            && PlayitTunnel::locate().is_some()
+        {
+            tracing::info!(target: "mcpanel::playit", "playit agent successfully installed via winget");
+            return Ok(());
+        }
+    }
+
+    // 2. Download official signed MSI if downloader is available
+    if let Some(dl) = downloader {
+        tracing::info!(target: "mcpanel::playit", "Downloading official playit MSI installer...");
+        let temp_dir = std::env::temp_dir();
+        let msi_path = temp_dir.join("playit-windows-x86_64-signed.msi");
+        let req = DownloadRequest {
+            url: "https://github.com/playit-cloud/playit-agent/releases/download/v1.0.10/playit-windows-x86_64-signed.msi".into(),
+            expected_hash: Some(ExpectedHash {
+                algorithm: HashAlgorithm::Sha256,
+                hex: "18c022281fcfe578fb0d614ac6dc1d36cd6885b4a5439b97655768cd2a82bdc1".into(),
+            }),
+            expected_size: Some(6070272),
+        };
+
+        let cancel = tokio_util::sync::CancellationToken::new();
+        dl.download(&req, &msi_path, &|_, _| {}, &cancel).await?;
+
+        tracing::info!(target: "mcpanel::playit", "Running MSI installer...");
+        let msiexec = Path::new("msiexec.exe");
+        let out = platform
+            .run_capture(
+                msiexec,
+                &[
+                    "/i".into(),
+                    msi_path.to_string_lossy().to_string(),
+                    "/passive".into(),
+                    "/norestart".into(),
+                ],
+                None,
+                Duration::from_secs(180),
+            )
+            .await;
+
+        let _ = std::fs::remove_file(&msi_path);
+
+        if let Ok(res) = out
+            && res.code == Some(0)
+            && PlayitTunnel::locate().is_some()
+        {
+            tracing::info!(target: "mcpanel::playit", "playit agent successfully installed via MSI");
+            return Ok(());
+        }
+    }
+
+    if PlayitTunnel::locate().is_some() {
+        Ok(())
+    } else {
+        Err(CoreError::new(
+            ErrorCode::ProviderError,
+            "Could not install Playit agent automatically. You can download and install it from playit.gg/download.",
+        ))
     }
 }
 

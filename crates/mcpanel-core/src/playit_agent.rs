@@ -15,7 +15,9 @@ use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::playit_api::{
     NewPlayitTunnel, PlayitAgentInfo, PlayitApi, PlayitTunnelInfo, PlayitTunnelKind,
 };
-use crate::ports::{Platform, ProcessController, ProcessSpec, SecretStore, SettingsRepository};
+use crate::ports::{
+    Downloader, Platform, ProcessController, ProcessSpec, SecretStore, SettingsRepository,
+};
 use crate::tunnels::{PlayitTunnel, parse_playit_status};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
@@ -90,6 +92,7 @@ pub struct PlayitAgent {
     process: Mutex<Option<Arc<dyn ProcessController>>>,
     /// Tests: `Some(None)` = no playitd available.
     daemon_override: Option<Option<PathBuf>>,
+    downloader: Option<Arc<dyn Downloader>>,
 }
 
 /// 10 hex characters (5 random bytes), as playit's CLI and plugin generate.
@@ -158,6 +161,7 @@ impl PlayitAgent {
             claim: Mutex::new(None),
             process: Mutex::new(None),
             daemon_override: None,
+            downloader: None,
         }
     }
 
@@ -165,6 +169,16 @@ impl PlayitAgent {
     pub fn with_daemon(mut self, exe: Option<PathBuf>) -> Self {
         self.daemon_override = Some(exe);
         self
+    }
+
+    pub fn with_downloader(mut self, downloader: Arc<dyn Downloader>) -> Self {
+        self.downloader = Some(downloader);
+        self
+    }
+
+    pub async fn install_agent(&self) -> CoreResult<AgentStatus> {
+        crate::tunnels::install_playit_agent(&self.platform, self.downloader.as_ref()).await?;
+        self.status().await
     }
 
     pub fn set_api(&self, api: Arc<dyn PlayitApi>) {

@@ -6,7 +6,6 @@ import {
   Download,
   ExternalLink,
   MoreHorizontal,
-  PackagePlus,
   Power,
   PowerOff,
   RefreshCw,
@@ -284,7 +283,29 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
     enabled: !!provider,
     staleTime: 60_000,
   });
-  const installed = new Set(list.entries.map((e) => `${e.provider}:${e.projectId}`));
+  const isInstalled = (p: ProjectDto): boolean => {
+    const prov = p.provider.toLowerCase();
+    const pid = p.id.toLowerCase();
+    const pslug = p.slug?.toLowerCase();
+    const pname = p.name.toLowerCase();
+
+    return (
+      list.entries.some((e) => {
+        if (e.provider && e.provider.toLowerCase() === prov) {
+          const ep = e.projectId?.toLowerCase();
+          if (ep && (ep === pid || (pslug && ep === pslug))) return true;
+          if (e.name && e.name.toLowerCase() === pname) return true;
+        }
+        if (e.detection?.provider && e.detection.provider.toLowerCase() === prov) {
+          const dp = e.detection.projectId?.toLowerCase();
+          if (dp && (dp === pid || (pslug && dp === pslug))) return true;
+          if (e.detection.name && e.detection.name.toLowerCase() === pname) return true;
+        }
+        return false;
+      }) ||
+      list.pending.some((pend) => pend.action === "install" && pend.name.toLowerCase() === pname)
+    );
+  };
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
@@ -343,8 +364,8 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
               <Button variant="ghost" size="icon-sm" aria-label="Open project page" title="Open project page" onClick={() => openPage(p.pageUrl)}>
                 <ExternalLink />
               </Button>
-              <Button size="sm" disabled={installed.has(`${p.provider}:${p.id}`)} onClick={() => onInstall(p)}>
-                {installed.has(`${p.provider}:${p.id}`) ? "Installed" : "Install…"}
+              <Button size="sm" disabled={isInstalled(p)} onClick={() => onInstall(p)}>
+                {isInstalled(p) ? "Installed" : "Install…"}
               </Button>
             </div>
           </li>
@@ -557,7 +578,6 @@ export function ServerContent() {
   const { data: server } = useServer(id);
   const { data: list, isLoading, error } = useContent(id);
   const { data: recs } = useContentRecommendations(id);
-  const [browse, setBrowse] = useState(false);
   const [installing, setInstalling] = useState<{ provider: string; id: string; name: string; version: string | null } | null>(null);
   const [identifying, setIdentifying] = useState<ContentEntryDto | null>(null);
   const [removing, setRemoving] = useState<ContentEntryDto | null>(null);
@@ -617,14 +637,9 @@ export function ServerContent() {
             </span>
           }
           actions={
-            <>
-              <Button size="sm" variant="ghost" disabled={checking} onClick={check}>
-                {checking ? <Spinner /> : <RefreshCw />} Check for updates
-              </Button>
-              <Button size="sm" variant={browse ? "secondary" : "primary"} onClick={() => setBrowse(!browse)}>
-                <PackagePlus /> {browse ? "Hide browser" : `Browse ${label.toLowerCase()}`}
-              </Button>
-            </>
+            <Button size="sm" variant="ghost" disabled={checking} onClick={check}>
+              {checking ? <Spinner /> : <RefreshCw />} Check for updates
+            </Button>
           }
         />
         {list.entries.length === 0 && list.pending.length === 0 ? (
@@ -701,9 +716,7 @@ export function ServerContent() {
         <RecommendationsCard recs={recs} onInstall={(r) => setInstalling({ provider: r.provider, id: r.projectId, name: r.name, version: null })} />
       )}
 
-      {browse && (
-        <Browser serverId={id} list={list} onInstall={(p) => setInstalling({ provider: p.provider, id: p.id, name: p.name, version: null })} />
-      )}
+      <Browser serverId={id} list={list} onInstall={(p) => setInstalling({ provider: p.provider, id: p.id, name: p.name, version: null })} />
 
       {installing && <InstallDialog serverId={id} project={installing} versionId={installing.version} onClose={() => setInstalling(null)} />}
       {identifying && <IdentifyDialog serverId={id} entry={identifying} onClose={() => setIdentifying(null)} />}

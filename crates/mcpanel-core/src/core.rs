@@ -150,7 +150,7 @@ impl Core {
         let content = ContentService::new(ContentServiceDeps {
             servers: Arc::clone(&servers),
             repo: deps.repos.content,
-            downloader: deps.downloader,
+            downloader: Arc::clone(&deps.downloader),
             jobs: Arc::clone(&jobs),
             audit: Arc::clone(&audit),
             events: events.clone(),
@@ -196,10 +196,13 @@ impl Core {
             Arc::clone(&deps.repos.settings),
             events.clone(),
         );
-        let tunnels = Arc::new(crate::tunnels::PlayitTunnel::new(
-            Arc::clone(&deps.platform),
-            Arc::clone(&deps.repos.settings),
-        ));
+        let tunnels = Arc::new(
+            crate::tunnels::PlayitTunnel::new(
+                Arc::clone(&deps.platform),
+                Arc::clone(&deps.repos.settings),
+            )
+            .with_downloader(Arc::clone(&deps.downloader)),
+        );
         // One pipe per data folder, so a development instance never talks to the
         // installed app's agent.
         let pipe = {
@@ -216,13 +219,16 @@ impl Core {
         ));
         account.set_cloud(Arc::clone(&cloud));
         cloud.set_account_service(Arc::clone(&account));
-        let playit = Arc::new(crate::playit_agent::PlayitAgent::new(
-            Arc::clone(&deps.platform),
-            Arc::clone(&deps.secrets),
-            Arc::clone(&deps.repos.settings),
-            &deps.paths.data_dir,
-            pipe,
-        ));
+        let playit = Arc::new(
+            crate::playit_agent::PlayitAgent::new(
+                Arc::clone(&deps.platform),
+                Arc::clone(&deps.secrets),
+                Arc::clone(&deps.repos.settings),
+                &deps.paths.data_dir,
+                pipe,
+            )
+            .with_downloader(Arc::clone(&deps.downloader)),
+        );
         let multihost = Arc::new(crate::multihost::MultihostService::new(
             Arc::clone(&account),
             Arc::clone(&deps.repos.settings),
