@@ -100,9 +100,7 @@ export function PlayitAgentCard() {
       <div className="p-4">
         {!t.installed ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted">
-              The playit program is not installed. Install it automatically or download it from its official site.
-            </p>
+            <p className="text-xs text-muted">The playit program is not installed. Install it automatically or download it from its official site.</p>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="primary" disabled={busy != null} onClick={install}>
                 {busy === "install" ? <Spinner /> : <Download />} Install Playit agent

@@ -15,6 +15,7 @@ import { BackupsPage } from "@/pages/backups";
 import { SettingsPage } from "@/pages/settings";
 import { AccountPage } from "@/pages/account";
 import { HostsPage } from "@/pages/hosts";
+import { AiPage } from "@/pages/ai";
 import { ServerLayout } from "@/pages/server/layout";
 import { ServerOverview } from "@/pages/server/overview";
 import { ServerManage } from "@/pages/server/manage";
@@ -50,6 +51,7 @@ const playit = createRoute({ getParentRoute: () => rootRoute, path: "/playit", c
 const settings = createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: SettingsPage });
 const account = createRoute({ getParentRoute: () => rootRoute, path: "/account", component: AccountPage });
 const hosts = createRoute({ getParentRoute: () => rootRoute, path: "/hosts", component: HostsPage });
+const ai = createRoute({ getParentRoute: () => rootRoute, path: "/ai", component: AiPage });
 
 export const serverRoute = createRoute({ getParentRoute: () => rootRoute, path: "/servers/$serverId", component: ServerLayout });
 const serverManage = createRoute({ getParentRoute: () => serverRoute, path: "/", component: ServerManage });
@@ -88,6 +90,7 @@ const routeTree = rootRoute.addChildren([
   settings,
   account,
   playit,
+  ai,
   serverRoute.addChildren([
     serverManage,
     serverOverview,

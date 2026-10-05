@@ -25,6 +25,8 @@ pub enum Permission {
     SystemRead,
     MultihostRead,
     MultihostManage,
+    AiManage,
+    AiUse,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,9 +1,13 @@
-import { CheckCircle2, History, XCircle } from "lucide-react";
+import { Bot, CheckCircle2, History, XCircle } from "lucide-react";
 import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { EmptyState, Tooltip } from "./ui/primitives";
 
 const ACTIONS: Record<string, string> = {
+  "ai.configure": "Configured AI Assistant",
+  "ai.command": "Executed server command",
+  "ai.action": "Executed AI task",
+  "ai.task": "Completed AI task",
   "server.create": "Created server",
   "server.import": "Imported server",
   "server.update": "Changed server settings",
@@ -103,10 +107,16 @@ export function ActivityList({ entries, serverNames }: { entries: AuditEntryDto[
               <XCircle className="mt-0.5 size-4 shrink-0 text-danger" />
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] text-fg">
-                {ACTIONS[e.action] ?? e.action}
-                {serverNames && e.serverId && serverNames[e.serverId] && <span className="text-muted"> · {serverNames[e.serverId]}</span>}
-              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[13px] text-fg">{ACTIONS[e.action] ?? e.action}</span>
+                {e.actor === "ai" && (
+                  <span className="inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-300">
+                    <Bot className="size-3" />
+                    AI
+                  </span>
+                )}
+                {serverNames && e.serverId && serverNames[e.serverId] && <span className="text-[13px] text-muted"> · {serverNames[e.serverId]}</span>}
+              </div>
               {d && <p className="selectable truncate font-mono text-[11px] text-muted">{d}</p>}
             </div>
             <Tooltip content={formatDateTime(e.occurredAt)}>

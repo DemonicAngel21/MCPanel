@@ -4,6 +4,7 @@
 //! `mcpanel-core`. Every external API used here is recorded in
 //! `docs/architecture/verification-log.md`.
 
+pub mod ai;
 pub mod cloud;
 mod detect;
 pub mod fabric;

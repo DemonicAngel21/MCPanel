@@ -4,6 +4,11 @@
  * Types come from Rust DTOs via ts-rs (`src/bindings`).
  */
 import { Channel, invoke } from "@tauri-apps/api/core";
+import type { AiChatRequestDto } from "@/bindings/AiChatRequestDto";
+import type { AiChatResponseDto } from "@/bindings/AiChatResponseDto";
+import type { AiConfigDto } from "@/bindings/AiConfigDto";
+import type { AiConfigPatchDto } from "@/bindings/AiConfigPatchDto";
+import type { AiConfirmRequestDto } from "@/bindings/AiConfirmRequestDto";
 import type { ApiError as ApiErrorDto } from "@/bindings/ApiError";
 import type { AppInfoDto } from "@/bindings/AppInfoDto";
 import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
@@ -357,6 +362,13 @@ export const api = {
     remove: (hostId: string) => call<void>("multihost_remove_host", { hostId }),
     ping: (hostId: string) => call<HostPingResultDto>("multihost_ping_host", { hostId }),
     generateToken: () => call<HostEnrollmentTokenDto>("multihost_generate_token"),
+  },
+  ai: {
+    getConfig: () => call<AiConfigDto>("ai_get_config"),
+    saveConfig: (patch: AiConfigPatchDto) => call<AiConfigDto>("ai_save_config", { patch }),
+    testConnection: () => call<void>("ai_test_connection"),
+    chat: (req: AiChatRequestDto) => call<AiChatResponseDto>("ai_chat", { req }),
+    confirmAction: (req: AiConfirmRequestDto) => call<AiChatResponseDto>("ai_confirm_action", { req }),
   },
 };
 

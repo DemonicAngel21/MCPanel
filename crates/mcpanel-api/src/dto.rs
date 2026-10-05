@@ -2920,3 +2920,84 @@ pub struct HostEnrollmentTokenDto {
     pub expires_at: i64,
     pub pairing_command: String,
 }
+
+// ───────────────────────────── AI Assistant ───────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiConfigDto {
+    pub configured: bool,
+    pub provider: String,
+    pub model: String,
+    pub base_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiConfigPatchDto {
+    pub api_key: Option<String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub base_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiToolExecutionDto {
+    pub tool: String,
+    pub description: String,
+    pub is_major: bool,
+    pub result: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiPendingConfirmationDto {
+    pub confirmation_id: String,
+    pub tool: String,
+    pub title: String,
+    pub description: String,
+    pub params: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiChatMessageDto {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: i64,
+    pub pending_confirmation: Option<AiPendingConfirmationDto>,
+    pub tool_executions: Option<Vec<AiToolExecutionDto>>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiChatRequestDto {
+    pub messages: Vec<AiChatMessageDto>,
+    pub server_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiChatResponseDto {
+    pub message: AiChatMessageDto,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AiConfirmRequestDto {
+    pub confirmation_id: String,
+    pub approved: bool,
+    pub messages: Vec<AiChatMessageDto>,
+    pub server_id: Option<String>,
+}

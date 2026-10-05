@@ -140,6 +140,7 @@ pub async fn harness_at(data: tempfile::TempDir, servers: tempfile::TempDir) -> 
         profiles: Arc::new(TestProfiles),
         secrets: Arc::clone(&secrets) as Arc<dyn mcpanel_core::ports::SecretStore>,
         repos: db.repositories(),
+        ai_client: None,
     })
     .await
     .unwrap();

@@ -1479,6 +1479,36 @@ pub async fn multihost_generate_token(s: State<'_, AppState>) -> R<HostEnrollmen
     s.api.multihost_generate_token(&s.principal()).await
 }
 
+// ───────────────────────────── AI Assistant ───────────────────────────
+
+#[tauri::command]
+pub async fn ai_get_config(s: State<'_, AppState>) -> R<AiConfigDto> {
+    s.api.ai_get_config(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn ai_save_config(s: State<'_, AppState>, patch: AiConfigPatchDto) -> R<AiConfigDto> {
+    s.api.ai_save_config(&s.principal(), patch).await
+}
+
+#[tauri::command]
+pub async fn ai_test_connection(s: State<'_, AppState>) -> R<()> {
+    s.api.ai_test_connection(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn ai_chat(s: State<'_, AppState>, req: AiChatRequestDto) -> R<AiChatResponseDto> {
+    s.api.ai_chat(&s.principal(), req).await
+}
+
+#[tauri::command]
+pub async fn ai_confirm_action(
+    s: State<'_, AppState>,
+    req: AiConfirmRequestDto,
+) -> R<AiChatResponseDto> {
+    s.api.ai_confirm_action(&s.principal(), req).await
+}
+
 /// Show and focus the main window (used by tray and single-instance handler).
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {

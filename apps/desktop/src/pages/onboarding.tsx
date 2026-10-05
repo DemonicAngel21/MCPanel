@@ -14,6 +14,7 @@ import {
   Palette,
   Rocket,
   Server,
+  Sparkles,
   Sun,
   UserRound,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import type { SettingsPatchDto } from "@/bindings/SettingsPatchDto";
 import { AccentPicker } from "@/components/accent-picker";
 import { AccountForms, AccountSummary } from "@/components/account-panel";
+import { AiConfigCard } from "@/components/ai-config-card";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Spinner } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
@@ -35,6 +37,7 @@ const STEPS = [
   { id: "account", label: "Account", icon: <UserRound /> },
   { id: "appearance", label: "Appearance", icon: <Palette /> },
   { id: "java", label: "Java", icon: <Coffee /> },
+  { id: "ai", label: "AI Assistant", icon: <Sparkles /> },
   { id: "internet", label: "Internet access", icon: <Globe /> },
   { id: "done", label: "Ready", icon: <Check /> },
 ] as const;
@@ -261,6 +264,20 @@ function InternetStep() {
   );
 }
 
+function AiStep() {
+  return (
+    <div className="space-y-6">
+      <StepTitle
+        title="AI Assistant (optional)"
+        description="MCPanel includes an autonomous AI assistant to manage servers, edit configuration files, install plugins, and handle backups. Add an API key now or configure it later in Settings."
+      />
+      <div className="max-w-3xl">
+        <AiConfigCard />
+      </div>
+    </div>
+  );
+}
+
 function Done() {
   const { data: account } = useAccount();
   const name = account?.profile?.displayName;
@@ -346,6 +363,7 @@ export function OnboardingPage() {
             {id === "account" && <AccountStep next={next} />}
             {id === "appearance" && <AppearanceStep />}
             {id === "java" && <JavaStep />}
+            {id === "ai" && <AiStep />}
             {id === "internet" && <InternetStep />}
             {id === "done" && <Done />}
           </div>
@@ -366,7 +384,7 @@ export function OnboardingPage() {
               </>
             ) : (
               <Button variant="primary" onClick={next}>
-                {id === "account" || id === "internet" ? "Continue" : id === "welcome" ? "Get started" : "Next"} <ArrowRight />
+                {id === "account" || id === "internet" || id === "ai" ? "Continue" : id === "welcome" ? "Get started" : "Next"} <ArrowRight />
               </Button>
             )}
           </div>

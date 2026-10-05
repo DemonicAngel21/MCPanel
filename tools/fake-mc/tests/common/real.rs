@@ -97,6 +97,7 @@ impl RealServer {
             )),
             secrets: Arc::new(mcpanel_core::crypto::MemorySecretStore::default()),
             repos: db.repositories(),
+            ai_client: None,
         })
         .await
         .unwrap();

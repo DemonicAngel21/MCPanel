@@ -45,6 +45,7 @@ pub struct CoreDeps {
     pub profiles: Arc<dyn ProfileLookup>,
     pub secrets: Arc<dyn crate::ports::SecretStore>,
     pub repos: Repositories,
+    pub ai_client: Option<Arc<dyn crate::ai::AiClient>>,
 }
 
 pub struct Core {
@@ -74,6 +75,7 @@ pub struct Core {
     pub encryption: Arc<crate::crypto::EncryptionService>,
     pub cloud: Arc<crate::cloud::CloudService>,
     pub multihost: Arc<crate::multihost::MultihostService>,
+    pub ai: Arc<crate::ai::AiService>,
 }
 
 impl Core {
@@ -238,6 +240,19 @@ impl Core {
             Arc::clone(&audit),
             events.clone(),
         ));
+        let ai_client = deps
+            .ai_client
+            .unwrap_or_else(|| Arc::new(crate::ai::NoopAiClient));
+        let ai = Arc::new(crate::ai::AiService::new(
+            ai_client,
+            Arc::clone(&deps.secrets),
+            Arc::clone(&deps.repos.settings),
+            Arc::clone(&audit),
+            Arc::clone(&servers),
+            Arc::clone(&files),
+            Arc::clone(&backups),
+            Arc::clone(&content),
+        ));
         Ok(Arc::new(Core {
             paths: deps.paths,
             events,
@@ -263,6 +278,7 @@ impl Core {
             encryption,
             cloud,
             multihost,
+            ai,
         }))
     }
 }

@@ -8,6 +8,7 @@ import {
   Network,
   Server,
   Settings,
+  Sparkles,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +21,7 @@ export const MAIN_NAV_ITEMS: { to: string; label: string; icon: LucideIcon; exac
   { to: "/java", label: "Java runtimes", icon: Coffee },
   { to: "/templates", label: "Templates", icon: LayoutTemplate },
   { to: "/playit", label: "Playit.gg", icon: Globe },
+  { to: "/ai", label: "AI Assistant", icon: Sparkles },
   { to: "/account", label: "Account", icon: UserRound },
   { to: "/activity", label: "Activity", icon: Activity },
   { to: "/settings", label: "Settings", icon: Settings },

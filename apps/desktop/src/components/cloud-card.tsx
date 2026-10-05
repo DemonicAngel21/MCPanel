@@ -196,11 +196,7 @@ function ActiveOperationsSection() {
 
   const visibleOps = (operations ?? []).filter((op) => {
     return (
-      op.state === "starting" ||
-      op.state === "uploading" ||
-      op.state === "downloading" ||
-      op.state === "processing" ||
-      op.state === "cancelling"
+      op.state === "starting" || op.state === "uploading" || op.state === "downloading" || op.state === "processing" || op.state === "cancelling"
     );
   });
 
@@ -218,10 +214,8 @@ function ActiveOperationsSection() {
   };
 
   return (
-    <div className="border-t border-border bg-surface-1/40 px-4 py-3">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-        Active Cloud Operations
-      </h4>
+    <div className="bg-surface-1/40 border-t border-border px-4 py-3">
+      <h4 className="mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Active Cloud Operations</h4>
       <div className="space-y-2.5">
         {visibleOps.map((op) => {
           const isCancelling = op.state === "cancelling" || cancellingIds.has(op.id);
@@ -229,32 +223,21 @@ function ActiveOperationsSection() {
           const isFailed = op.state === "failed";
           const isCompleted = op.state === "completed";
           const isFinished = isCancelled || isFailed || isCompleted;
-          const pct = Math.round(
-            op.percentage ??
-              (op.totalBytes && op.totalBytes > 0 ? (op.bytesCompleted / op.totalBytes) * 100 : 0)
-          );
-          const providerLabel =
-            op.provider === "google_drive" ? "Google Drive" : op.provider === "dropbox" ? "Dropbox" : op.provider;
+          const pct = Math.round(op.percentage ?? (op.totalBytes && op.totalBytes > 0 ? (op.bytesCompleted / op.totalBytes) * 100 : 0));
+          const providerLabel = op.provider === "google_drive" ? "Google Drive" : op.provider === "dropbox" ? "Dropbox" : op.provider;
           const isDownload = op.opType === "download" || op.opType === "restore";
           const actionText = isDownload ? "Downloading" : "Uploading";
 
           return (
-            <div
-              key={op.id}
-              className="rounded-lg border border-border bg-surface-1 p-3 shadow-xs space-y-2"
-            >
+            <div key={op.id} className="bg-surface-1 space-y-2 rounded-lg border border-border p-3 shadow-xs">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {isDownload ? (
-                    <CloudDownload className="size-4 shrink-0 text-primary" />
-                  ) : (
-                    <CloudUpload className="size-4 shrink-0 text-primary" />
-                  )}
+                <div className="flex min-w-0 items-center gap-2">
+                  {isDownload ? <CloudDownload className="text-primary size-4 shrink-0" /> : <CloudUpload className="text-primary size-4 shrink-0" />}
                   <span className="truncate text-xs font-medium text-fg">
                     {actionText} <span className="font-mono text-muted">{op.backupName}</span> → {providerLabel}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex shrink-0 items-center gap-2">
                   {isCancelling ? (
                     <Badge tone="warning">Cancelling…</Badge>
                   ) : isCancelled ? (
@@ -268,12 +251,7 @@ function ActiveOperationsSection() {
                   )}
 
                   {!isFinished && !isCancelling && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-xs text-muted hover:text-danger"
-                      onClick={() => void cancelOp(op.id)}
-                    >
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted hover:text-danger" onClick={() => void cancelOp(op.id)}>
                       Cancel
                     </Button>
                   )}
@@ -284,13 +262,7 @@ function ActiveOperationsSection() {
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
                 <div
                   className={`h-full transition-all duration-300 ${
-                    isFailed
-                      ? "bg-danger"
-                      : isCancelled
-                        ? "bg-muted"
-                        : isCompleted
-                          ? "bg-success"
-                          : "bg-primary"
+                    isFailed ? "bg-danger" : isCancelled ? "bg-muted" : isCompleted ? "bg-success" : "bg-primary"
                   }`}
                   style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                 />
@@ -306,14 +278,10 @@ function ActiveOperationsSection() {
                   )}
                 </div>
                 <div>
-                  {isFailed && op.errorMessage && (
-                    <span className="text-danger truncate max-w-xs">{op.errorMessage}</span>
-                  )}
+                  {isFailed && op.errorMessage && <span className="max-w-xs truncate text-danger">{op.errorMessage}</span>}
                   {isCancelled && <span>Cancelled</span>}
                   {isCompleted && <span className="text-success">Finished</span>}
-                  {!isFinished && op.etaSeconds != null && op.etaSeconds > 0 && (
-                    <span>ETA ~{formatEta(op.etaSeconds)}</span>
-                  )}
+                  {!isFinished && op.etaSeconds != null && op.etaSeconds > 0 && <span>ETA ~{formatEta(op.etaSeconds)}</span>}
                 </div>
               </div>
             </div>

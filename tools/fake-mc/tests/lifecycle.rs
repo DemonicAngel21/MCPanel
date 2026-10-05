@@ -318,6 +318,7 @@ async fn orphaned_server_is_detected_by_a_new_session_and_can_be_force_stopped()
         profiles: Arc::new(TestProfiles),
         secrets: Arc::new(mcpanel_core::crypto::MemorySecretStore::default()),
         repos: db2.repositories(),
+        ai_client: None,
     })
     .await
     .unwrap();

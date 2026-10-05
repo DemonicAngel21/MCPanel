@@ -14,6 +14,7 @@ import {
   Plus,
   Server,
   Settings,
+  Sparkles,
   Square,
   Sun,
 } from "lucide-react";
@@ -186,6 +187,9 @@ export function CommandPalette() {
                 </Item>
                 <Item value="playit.gg tunnels internet access" icon={<Globe />} onSelect={() => run(() => navigate({ to: "/playit" }))}>
                   Playit.gg
+                </Item>
+                <Item value="ai assistant chat tasks manage" icon={<Sparkles />} onSelect={() => run(() => navigate({ to: "/ai" }))}>
+                  AI Assistant
                 </Item>
                 <Item value="activity audit log" icon={<Activity />} onSelect={() => run(() => navigate({ to: "/activity" }))}>
                   Activity

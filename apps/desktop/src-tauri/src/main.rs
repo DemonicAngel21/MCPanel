@@ -56,6 +56,7 @@ async fn build_api() -> Result<Started, String> {
         tracing::info!(target: "mcpanel::db", "pre-migration backup: {}", b.display());
     }
     let http = mcpanel_providers::http_client().map_err(|e| e.message)?;
+    let ai_client = Arc::new(mcpanel_providers::ai::GeminiAiClient::new(&http));
     let core = Core::start(CoreDeps {
         paths,
         platform: Arc::new(mcpanel_platform::NativePlatform::new()),
@@ -64,6 +65,7 @@ async fn build_api() -> Result<Started, String> {
         profiles: Arc::new(mcpanel_providers::MojangProfiles::new(http.clone())),
         secrets: Arc::new(mcpanel_platform::NativeSecretStore::new(&secret_namespace())),
         repos: db.repositories(),
+        ai_client: Some(ai_client),
     })
     .await
     .map_err(|e| e.message)?;
@@ -403,6 +405,11 @@ fn main() {
             commands::multihost_remove_host,
             commands::multihost_ping_host,
             commands::multihost_generate_token,
+            commands::ai_get_config,
+            commands::ai_save_config,
+            commands::ai_test_connection,
+            commands::ai_chat,
+            commands::ai_confirm_action,
         ])
         .build(tauri::generate_context!());
 

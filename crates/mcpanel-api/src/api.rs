@@ -2610,4 +2610,196 @@ impl Api {
             pairing_command: token.pairing_command,
         })
     }
+
+    // ───────────────────────────── AI Assistant ───────────────────────────
+
+    pub async fn ai_get_config(&self, p: &Principal) -> ApiResult<AiConfigDto> {
+        p.authorize(Permission::AiUse)?;
+        let c = self.core.ai.get_config().await?;
+        Ok(AiConfigDto {
+            configured: c.configured,
+            provider: c.provider,
+            model: c.model,
+            base_url: c.base_url,
+        })
+    }
+
+    pub async fn ai_save_config(
+        &self,
+        p: &Principal,
+        patch: AiConfigPatchDto,
+    ) -> ApiResult<AiConfigDto> {
+        p.authorize(Permission::AiManage)?;
+        let c = self
+            .core
+            .ai
+            .save_config(mcpanel_core::ai::AiConfigPatch {
+                api_key: patch.api_key,
+                provider: patch.provider,
+                model: patch.model,
+                base_url: patch.base_url,
+            })
+            .await?;
+        self.core
+            .audit
+            .record(
+                p.actor(),
+                "ai.configure",
+                None,
+                Some(c.provider.clone()),
+                mcpanel_core::model::AuditResult::Success,
+                serde_json::json!({ "provider": c.provider, "model": c.model }),
+            )
+            .await;
+        Ok(AiConfigDto {
+            configured: c.configured,
+            provider: c.provider,
+            model: c.model,
+            base_url: c.base_url,
+        })
+    }
+
+    pub async fn ai_test_connection(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::AiManage)?;
+        self.core.ai.test_connection().await?;
+        Ok(())
+    }
+
+    pub async fn ai_chat(
+        &self,
+        p: &Principal,
+        req: AiChatRequestDto,
+    ) -> ApiResult<AiChatResponseDto> {
+        p.authorize(Permission::AiUse)?;
+        let msgs = req
+            .messages
+            .into_iter()
+            .map(|m| mcpanel_core::ai::AiChatMessage {
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                timestamp: m.timestamp,
+                pending_confirmation: m.pending_confirmation.map(|c| {
+                    mcpanel_core::ai::AiPendingConfirmation {
+                        confirmation_id: c.confirmation_id,
+                        tool: c.tool,
+                        title: c.title,
+                        description: c.description,
+                        params: c.params,
+                    }
+                }),
+                tool_executions: m.tool_executions.map(|te| {
+                    te.into_iter()
+                        .map(|e| mcpanel_core::ai::AiToolExecution {
+                            tool: e.tool,
+                            description: e.description,
+                            is_major: e.is_major,
+                            result: e.result,
+                            error: e.error,
+                        })
+                        .collect()
+                }),
+            })
+            .collect();
+
+        let resp = self.core.ai.chat(msgs, req.server_id).await?;
+
+        Ok(AiChatResponseDto {
+            message: AiChatMessageDto {
+                id: resp.id,
+                role: resp.role,
+                content: resp.content,
+                timestamp: resp.timestamp,
+                pending_confirmation: resp.pending_confirmation.map(|c| AiPendingConfirmationDto {
+                    confirmation_id: c.confirmation_id,
+                    tool: c.tool,
+                    title: c.title,
+                    description: c.description,
+                    params: c.params,
+                }),
+                tool_executions: resp.tool_executions.map(|te| {
+                    te.into_iter()
+                        .map(|e| AiToolExecutionDto {
+                            tool: e.tool,
+                            description: e.description,
+                            is_major: e.is_major,
+                            result: e.result,
+                            error: e.error,
+                        })
+                        .collect()
+                }),
+            },
+        })
+    }
+
+    pub async fn ai_confirm_action(
+        &self,
+        p: &Principal,
+        req: AiConfirmRequestDto,
+    ) -> ApiResult<AiChatResponseDto> {
+        p.authorize(Permission::AiUse)?;
+        let msgs = req
+            .messages
+            .into_iter()
+            .map(|m| mcpanel_core::ai::AiChatMessage {
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                timestamp: m.timestamp,
+                pending_confirmation: m.pending_confirmation.map(|c| {
+                    mcpanel_core::ai::AiPendingConfirmation {
+                        confirmation_id: c.confirmation_id,
+                        tool: c.tool,
+                        title: c.title,
+                        description: c.description,
+                        params: c.params,
+                    }
+                }),
+                tool_executions: m.tool_executions.map(|te| {
+                    te.into_iter()
+                        .map(|e| mcpanel_core::ai::AiToolExecution {
+                            tool: e.tool,
+                            description: e.description,
+                            is_major: e.is_major,
+                            result: e.result,
+                            error: e.error,
+                        })
+                        .collect()
+                }),
+            })
+            .collect();
+
+        let resp = self
+            .core
+            .ai
+            .confirm_action(&req.confirmation_id, req.approved, msgs, req.server_id)
+            .await?;
+
+        Ok(AiChatResponseDto {
+            message: AiChatMessageDto {
+                id: resp.id,
+                role: resp.role,
+                content: resp.content,
+                timestamp: resp.timestamp,
+                pending_confirmation: resp.pending_confirmation.map(|c| AiPendingConfirmationDto {
+                    confirmation_id: c.confirmation_id,
+                    tool: c.tool,
+                    title: c.title,
+                    description: c.description,
+                    params: c.params,
+                }),
+                tool_executions: resp.tool_executions.map(|te| {
+                    te.into_iter()
+                        .map(|e| AiToolExecutionDto {
+                            tool: e.tool,
+                            description: e.description,
+                            is_major: e.is_major,
+                            result: e.result,
+                            error: e.error,
+                        })
+                        .collect()
+                }),
+            },
+        })
+    }
 }

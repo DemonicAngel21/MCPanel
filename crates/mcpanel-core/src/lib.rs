@@ -6,6 +6,7 @@
 //! [`software`]. See `docs/architecture/README.md`.
 
 pub mod account;
+pub mod ai;
 pub mod audit;
 pub mod backup;
 pub mod bedrock;

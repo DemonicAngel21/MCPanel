@@ -225,7 +225,7 @@ export function AppShell() {
         <Link to="/" className="mb-3 flex size-9 items-center justify-center" aria-label="MCPanel home">
           <img src="/logo.svg" alt="" className="size-8" />
         </Link>
-        {MAIN_NAV_ITEMS.slice(0, 8).map(railItem)}
+        {MAIN_NAV_ITEMS.filter((item) => item.to !== "/settings").map(railItem)}
         <div className="flex-1" />
         <NotificationInbox />
         {MAIN_NAV_ITEMS.filter((item) => item.to === "/settings").map(railItem)}

@@ -85,6 +85,7 @@ async fn create_start_and_stop_a_real_server() {
         )),
         secrets: Arc::new(mcpanel_core::crypto::MemorySecretStore::default()),
         repos: db.repositories(),
+        ai_client: None,
     })
     .await
     .unwrap();

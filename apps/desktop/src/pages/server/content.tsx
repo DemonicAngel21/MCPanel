@@ -302,8 +302,7 @@ function Browser({ serverId, list, onInstall }: { serverId: string; list: Conten
           if (e.detection.name && e.detection.name.toLowerCase() === pname) return true;
         }
         return false;
-      }) ||
-      list.pending.some((pend) => pend.action === "install" && pend.name.toLowerCase() === pname)
+      }) || list.pending.some((pend) => pend.action === "install" && pend.name.toLowerCase() === pname)
     );
   };
   return (

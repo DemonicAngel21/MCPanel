@@ -41,6 +41,7 @@ export const qk = {
   backupPolicy: (serverId: string) => ["backups", "policy", serverId] as const,
   backupLocation: ["backups", "location"] as const,
   multihost: ["multihost"] as const,
+  aiConfig: ["ai-config"] as const,
 };
 
 export const useAppInfo = () => useQuery({ queryKey: qk.appInfo, queryFn: api.app.info, staleTime: Infinity });
@@ -153,13 +154,15 @@ export const useCloudOperations = () =>
     refetchInterval: (q) => {
       const ops = q.state.data ?? [];
       const hasActive = ops.some(
-        (o) =>
-          o.state === "starting" ||
-          o.state === "uploading" ||
-          o.state === "downloading" ||
-          o.state === "processing" ||
-          o.state === "cancelling"
+        (o) => o.state === "starting" || o.state === "uploading" || o.state === "downloading" || o.state === "processing" || o.state === "cancelling",
       );
       return hasActive ? 1_000 : 5_000;
     },
+  });
+
+export const useAiConfig = () =>
+  useQuery({
+    queryKey: qk.aiConfig,
+    queryFn: api.ai.getConfig,
+    staleTime: 30_000,
   });
