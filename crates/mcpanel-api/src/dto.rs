@@ -2931,6 +2931,10 @@ pub struct AiConfigDto {
     pub provider: String,
     pub model: String,
     pub base_url: Option<String>,
+    pub use_shared_key: bool,
+    pub sync_api_keys: bool,
+    pub has_key_for_provider: bool,
+    pub configured_providers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -2941,6 +2945,8 @@ pub struct AiConfigPatchDto {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub base_url: Option<String>,
+    pub use_shared_key: Option<bool>,
+    pub sync_api_keys: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

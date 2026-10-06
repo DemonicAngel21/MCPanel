@@ -110,7 +110,7 @@ export function ActivityList({ entries, serverNames }: { entries: AuditEntryDto[
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[13px] text-fg">{ACTIONS[e.action] ?? e.action}</span>
                 {e.actor === "ai" && (
-                  <span className="inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-300">
+                  <span className="inline-flex items-center gap-1 rounded border border-accent/30 bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
                     <Bot className="size-3" />
                     AI
                   </span>

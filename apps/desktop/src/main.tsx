@@ -35,11 +35,13 @@ if (root) {
             theme="system"
             gap={8}
             visibleToasts={4}
-            offset={16}
+            offset={20}
+            closeButton
             toastOptions={{
               classNames: {
-                toast: "!bg-surface-2 !border-border-strong !text-fg",
+                toast: "!bg-surface-2 !border-border-strong !text-fg shadow-lg",
                 description: "!text-muted",
+                closeButton: "!bg-surface-3 !border-border !text-muted hover:!text-fg hover:!bg-surface-4 !transition-colors",
               },
             }}
           />

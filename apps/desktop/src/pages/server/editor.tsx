@@ -80,11 +80,15 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
     return () => observer.disconnect();
   }, []);
 
-  const reload = () => {
+  const reload = async () => {
     setSaved(null);
     setDirty(false);
     setConflict(false);
-    void docQuery.refetch();
+    const res = await docQuery.refetch();
+    if (res.data && editorRef.current) {
+      editorRef.current.setValue(res.data.content);
+      validate(res.data.content);
+    }
   };
 
   const readOnly = !!doc?.readOnlyReason;
@@ -227,7 +231,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
         <div className="h-full overflow-hidden rounded-lg border border-border">
           {doc ? (
             <Editor
-              key={`${path}-${doc.sha256}-${conflict}`}
+              key={path}
               defaultValue={doc.content}
               language={language}
               theme={theme === "light" ? "vs" : "vs-dark"}

@@ -73,16 +73,18 @@ function FormattedContent({ content }: { content: string }) {
           <div key={i} className="space-y-1.5">
             {paragraphs.map((p, pIdx) => {
               if (!p.trim()) return null;
-              // Check if bullet list
-              if (p.includes("\n* ") || p.includes("\n- ") || p.startsWith("* ") || p.startsWith("- ")) {
-                const items = p.split(/\n[*|-] /).filter(Boolean);
+              const lines = p.split("\n");
+              const isBulletList = lines.some((l) => l.trim().startsWith("* ") || l.trim().startsWith("- "));
+              if (isBulletList) {
                 return (
                   <ul key={pIdx} className="list-disc space-y-1 pl-5">
-                    {items.map((item, itIdx) => (
-                      <li key={itIdx}>
-                        <InlineFormatted text={item.replace(/^[*|-] /, "")} />
-                      </li>
-                    ))}
+                    {lines
+                      .filter((l) => l.trim().startsWith("* ") || l.trim().startsWith("- "))
+                      .map((l, itIdx) => (
+                        <li key={itIdx}>
+                          <InlineFormatted text={l.trim().slice(2)} />
+                        </li>
+                      ))}
                   </ul>
                 );
               }
@@ -136,7 +138,7 @@ function ToolExecutionsView({ executions }: { executions: AiToolExecutionDto[] }
         className="flex w-full items-center justify-between px-3 py-1.5 text-left text-muted transition-colors hover:text-fg"
       >
         <span className="flex items-center gap-1.5 font-medium">
-          <Wrench className="size-3.5 text-purple-400" />
+          <Wrench className="size-3.5 text-accent" />
           <span>
             {executions.length} tool {executions.length === 1 ? "action" : "actions"} executed autonomously
           </span>
@@ -356,7 +358,7 @@ export function AiPage() {
       <PageHeader
         title={
           <div className="flex items-center gap-2">
-            <Sparkles className="size-5 text-purple-400" />
+            <Sparkles className="size-5 text-accent" />
             <span>AI Assistant</span>
           </div>
         }
@@ -390,7 +392,7 @@ export function AiPage() {
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto rounded-xl border border-border bg-surface p-4 shadow-sm">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center space-y-4 p-8 text-center">
-              <div className="flex size-14 items-center justify-center rounded-2xl border border-purple-500/20 bg-purple-500/10 text-purple-400">
+              <div className="flex size-14 items-center justify-center rounded-2xl border border-accent/20 bg-accent-soft text-accent">
                 <Sparkles className="size-7" />
               </div>
               <div className="max-w-md space-y-1">
@@ -409,7 +411,7 @@ export function AiPage() {
                     onClick={() => void handleSend(prompt)}
                     className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 p-2.5 text-left text-xs text-muted transition-all hover:border-accent/50 hover:bg-surface-3 hover:text-fg"
                   >
-                    <Sparkles className="size-3.5 shrink-0 text-purple-400" />
+                    <Sparkles className="size-3.5 shrink-0 text-accent" />
                     <span className="truncate">{prompt}</span>
                   </button>
                 ))}
@@ -421,7 +423,7 @@ export function AiPage() {
               return (
                 <div key={m.id} className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}>
                   {!isUser && (
-                    <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-purple-500/20 bg-purple-500/10 text-purple-400">
+                    <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-accent/20 bg-accent-soft text-accent">
                       <Bot className="size-4" />
                     </div>
                   )}
@@ -458,11 +460,11 @@ export function AiPage() {
 
           {submitting && (
             <div className="flex animate-pulse items-center justify-start gap-3 text-xs text-muted">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-purple-500/20 bg-purple-500/10 text-purple-400">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-accent/20 bg-accent-soft text-accent">
                 <Bot className="size-4" />
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-4 py-3">
-                <Loader2 className="size-3.5 animate-spin text-purple-400" />
+                <Loader2 className="size-3.5 animate-spin text-accent" />
                 <span>Thinking and managing server tasks…</span>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, Shield } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Coffee, FolderOpen, HardDrive, RefreshCw, Shield } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
@@ -12,7 +13,7 @@ import { Select } from "@/components/ui/overlays";
 import { Badge, Card, CardHeader, Checkbox, Field, Input, Switch } from "@/components/ui/primitives";
 import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import { api } from "@/lib/api";
-import { qk, useAppInfo, useNotificationPrefs, useSettings, useSoftware } from "@/lib/queries";
+import { qk, useAppInfo, useBackupLocation, useJava, useNotificationPrefs, useSettings, useSoftware } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
 
 const RULES: { key: keyof NotificationPrefsDto; label: string; description: string }[] = [
@@ -80,7 +81,6 @@ function Row({ label, description, children }: { label: string; description?: st
 
 function NumberSetting({ value, onSave, label }: { value: number; onSave: (n: number) => void; label: string }) {
   const [text, setText] = useState(String(value));
-  // Sync local text when the canonical value changes externally (e.g. cloud sync, settings reload).
   const [prev, setPrev] = useState(value);
   if (value !== prev) {
     setPrev(value);
@@ -93,6 +93,124 @@ function NumberSetting({ value, onSave, label }: { value: number; onSave: (n: nu
         Save
       </Button>
     </div>
+  );
+}
+
+function BackupsStorageCard() {
+  const qc = useQueryClient();
+  const { data: loc } = useBackupLocation();
+  const [busy, setBusy] = useState(false);
+
+  const chooseFolder = async () => {
+    setBusy(true);
+    try {
+      const grant = await api.dialog.pickFolder("Choose backup storage folder");
+      if (!grant) return;
+      const next = await api.backups.setLocation(grant.token);
+      qc.setQueryData(qk.backupLocation, next);
+      toast.success("Backup storage folder updated");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetFolder = async () => {
+    setBusy(true);
+    try {
+      const next = await api.backups.setLocation(null);
+      qc.setQueryData(qk.backupLocation, next);
+      toast.success("Reset to default backup storage folder");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Backup Storage Location"
+        description="Choose where world and server backups are saved on your computer."
+        actions={
+          loc?.isDefault ? (
+            <Badge tone="neutral">Default location</Badge>
+          ) : (
+            <Badge tone="success">Custom location</Badge>
+          )
+        }
+      />
+      <div className="space-y-3 p-4 text-[13px]">
+        <Field label="Current folder">
+          <p className="selectable font-mono text-xs text-muted truncate">{loc?.directory}</p>
+        </Field>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button size="sm" variant="outline" onClick={() => void api.backups.openFolder().catch((e) => toast.error(errorMessage(e)))}>
+            <FolderOpen /> Open Folder
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => void chooseFolder()} disabled={busy}>
+            <HardDrive /> Change Folder…
+          </Button>
+          {!loc?.isDefault && (
+            <Button size="sm" variant="ghost" onClick={() => void resetFolder()} disabled={busy}>
+              Reset to default
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function JavaSummaryCard() {
+  const qc = useQueryClient();
+  const { data: javaList } = useJava();
+  const [detecting, setDetecting] = useState(false);
+
+  const validCount = (javaList ?? []).filter((j) => j.valid).length;
+
+  const detect = async () => {
+    setDetecting(true);
+    try {
+      const list = await api.java.detect();
+      qc.setQueryData(qk.java, list);
+      toast.success(`Found ${list.filter((j) => j.valid).length} Java runtimes`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Java Runtimes"
+        description="Manage the Java versions installed on your machine for Minecraft compatibility."
+        actions={
+          <Badge tone={validCount > 0 ? "success" : "warning"}>
+            {validCount} usable runtime{validCount === 1 ? "" : "s"}
+          </Badge>
+        }
+      />
+      <div className="space-y-3 p-4 text-[13px]">
+        <p className="text-xs text-muted">
+          Modern Minecraft requires Java 21+. Each server selects its own appropriate Java runtime automatically.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link to="/java">
+              <Coffee className="size-3.5" /> Manage Runtimes
+            </Link>
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => void detect()} disabled={detecting}>
+            <RefreshCw className={`size-3.5 ${detecting ? "animate-spin" : ""}`} /> Detect Runtimes
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -142,6 +260,10 @@ export function SettingsPage() {
           </Row>
           <AccentPicker value={settings?.accent ?? "green"} onChange={(accent) => update({ accent })} />
         </Card>
+
+        <BackupsStorageCard />
+
+        <JavaSummaryCard />
 
         <Card>
           <CardHeader title="Behaviour" />

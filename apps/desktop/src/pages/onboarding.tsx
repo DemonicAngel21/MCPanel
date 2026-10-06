@@ -7,6 +7,8 @@ import {
   Coffee,
   Download,
   ExternalLink,
+  FastForward,
+  FilePlus2,
   Globe,
   Link2,
   Monitor,
@@ -63,7 +65,7 @@ function StepTitle({ title, description }: { title: string; description: string 
   );
 }
 
-function Welcome() {
+function Welcome({ onSkip }: { onSkip?: () => void }) {
   const features = [
     { icon: <Server />, title: "Servers in minutes", text: "Paper, Purpur, Fabric, Forge and vanilla, with the right Java picked for you." },
     { icon: <Globe />, title: "Play with friends anywhere", text: "playit.gg tunnels without touching your router." },
@@ -84,6 +86,14 @@ function Welcome() {
           </Card>
         ))}
       </div>
+      {onSkip && (
+        <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2 p-4 text-xs text-muted">
+          <span>Already know your way around? You can skip this setup wizard anytime and go straight to the dashboard.</span>
+          <Button variant="outline" size="sm" onClick={onSkip}>
+            <FastForward className="size-3.5" /> Skip setup now
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -144,6 +154,7 @@ function JavaStep() {
   const qc = useQueryClient();
   const { data: java, isLoading } = useJava();
   const [busy, setBusy] = useState(false);
+
   const detect = async () => {
     setBusy(true);
     try {
@@ -156,34 +167,61 @@ function JavaStep() {
       setBusy(false);
     }
   };
+
+  const addManually = async () => {
+    try {
+      const grant = await api.dialog.pickJava();
+      if (!grant) return;
+      const rt = await api.java.add(grant.token);
+      await qc.invalidateQueries({ queryKey: qk.java });
+      toast.success(`Added Java ${rt.major} (${rt.version})`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+
   const valid = (java ?? []).filter((j) => j.valid);
   return (
     <div className="space-y-6">
       <StepTitle
         title="Java"
-        description="Minecraft servers run on Java. MCPanel finds the Java installations on this computer and picks the right one for each server."
+        description="Minecraft servers run on Java. MCPanel detects installed runtimes automatically, or you can select your own java.exe directly."
       />
       <Card className="max-w-3xl">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <p className="text-sm text-fg">{isLoading ? "Looking…" : `${valid.length} usable runtime${valid.length === 1 ? "" : "s"}`}</p>
-          <Button size="sm" variant="primary" onClick={() => void detect()} disabled={busy}>
-            {busy ? <Spinner className="text-accent-fg" /> : <Coffee />} Detect Java
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => void addManually()} disabled={busy}>
+              <FilePlus2 className="size-3.5" /> Choose Java manually
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => void detect()} disabled={busy}>
+              {busy ? <Spinner className="text-accent-fg" /> : <Coffee className="size-3.5" />} Detect Java
+            </Button>
+          </div>
         </div>
         {valid.length > 0 ? (
-          <ul className="divide-y divide-border">
+          <ul className="divide-y border-border">
             {valid.map((j) => (
               <li key={j.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs">
-                <span className="font-medium text-fg">Java {j.major}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-fg">Java {j.major}</span>
+                  {j.source === "manual" && (
+                    <Badge tone="info" className="text-[10px]">
+                      Manual
+                    </Badge>
+                  )}
+                </div>
                 <span className="truncate font-mono text-muted">{j.path}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="px-4 py-4 text-xs text-muted">
-            No Java found yet. Current Minecraft versions need Java 21 or newer; install a JDK (for example Eclipse Temurin from adoptium.net), then
-            press Detect Java.
-          </p>
+          <div className="space-y-2 px-4 py-4 text-xs text-muted">
+            <p>
+              No Java found yet. Current Minecraft versions need Java 21 or newer; install a JDK (for example Eclipse Temurin from adoptium.net), then
+              press <strong>Detect Java</strong> — or click <strong>Choose Java manually</strong> to select your java.exe directly.
+            </p>
+          </div>
         )}
       </Card>
     </div>
@@ -334,9 +372,14 @@ export function OnboardingPage() {
           ))}
         </ol>
         <div className="flex-1" />
-        <button className="cursor-default text-left text-xs text-muted hover:text-fg" onClick={() => void finish("/")}>
-          Skip setup
-        </button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-center gap-1.5 text-xs text-muted hover:text-fg"
+          onClick={() => void finish("/")}
+        >
+          <FastForward className="size-3.5" /> Skip setup
+        </Button>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="setup-content min-h-0 flex-1 overflow-y-auto px-10 py-10">
@@ -359,7 +402,7 @@ export function OnboardingPage() {
             </div>
           </div>
           <div key={id} className="animate-page-in">
-            {id === "welcome" && <Welcome />}
+            {id === "welcome" && <Welcome onSkip={() => void finish("/")} />}
             {id === "account" && <AccountStep next={next} />}
             {id === "appearance" && <AppearanceStep />}
             {id === "java" && <JavaStep />}
@@ -369,9 +412,20 @@ export function OnboardingPage() {
           </div>
         </div>
         <footer className="flex items-center justify-between gap-3 border-t border-border bg-surface px-10 py-4">
-          <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
-            <ArrowLeft /> Back
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+              <ArrowLeft /> Back
+            </Button>
+            {id !== "done" && (
+              <Button
+                variant="ghost"
+                onClick={() => void finish("/")}
+                className="text-muted hover:text-fg flex items-center gap-1.5"
+              >
+                <FastForward className="size-3.5" /> Skip setup
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             {id === "done" ? (
               <>

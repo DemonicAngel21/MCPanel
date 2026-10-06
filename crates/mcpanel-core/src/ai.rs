@@ -24,12 +24,29 @@ pub const AI_SETTINGS_KEY: &str = "ai_config";
 pub const DEFAULT_PROVIDER: &str = "gemini";
 pub const DEFAULT_MODEL: &str = "gemini-3.8-flash";
 
+pub const KNOWN_PROVIDERS: &[&str] = &[
+    "gemini",
+    "openai",
+    "anthropic",
+    "deepseek",
+    "groq",
+    "openrouter",
+    "mistral",
+    "ollama",
+    "lmstudio",
+    "custom",
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
     pub configured: bool,
     pub provider: String,
     pub model: String,
     pub base_url: Option<String>,
+    pub use_shared_key: bool,
+    pub sync_api_keys: bool,
+    pub has_key_for_provider: bool,
+    pub configured_providers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +55,8 @@ pub struct AiConfigPatch {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub base_url: Option<String>,
+    pub use_shared_key: Option<bool>,
+    pub sync_api_keys: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,6 +214,7 @@ pub struct AiService {
     files: Arc<ServerFiles>,
     backups: Arc<BackupService>,
     content: Arc<ContentService>,
+    account: Option<Arc<crate::account::AccountService>>,
     pending_confirmations: Mutex<HashMap<String, StoredConfirmation>>,
 }
 
@@ -219,8 +239,110 @@ impl AiService {
             files,
             backups,
             content,
+            account: None,
             pending_confirmations: Mutex::new(HashMap::new()),
         }
+    }
+
+    pub fn with_account(mut self, account: Arc<crate::account::AccountService>) -> Self {
+        self.account = Some(account);
+        self
+    }
+
+    /// Retrieve the current logged-in account ID/UID, or "default" if guest/offline/sync disabled.
+    async fn current_account_id(&self) -> String {
+        let sync_enabled: bool = self
+            .settings
+            .get(AI_SETTINGS_KEY)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|v| v.get("syncApiKeys").and_then(|s| s.as_bool()))
+            .unwrap_or(true);
+
+        if !sync_enabled {
+            return "default".to_string();
+        }
+
+        if let Some(acc) = &self.account
+            && let Ok(st) = acc.status().await
+            && let Some(prof) = st.profile
+            && !prof.uid.is_empty()
+        {
+            return prof.uid;
+        }
+        "default".to_string()
+    }
+
+    /// Calculate secret store key name for a provider under an account.
+    pub fn secret_key_for_provider(account_id: &str, provider: &str, use_shared: bool) -> String {
+        let p = provider.to_ascii_lowercase();
+        if use_shared {
+            format!("ai_api_key:{account_id}:shared")
+        } else {
+            format!("ai_api_key:{account_id}:{p}")
+        }
+    }
+
+    /// Resolve an API key checking account-scoped provider keys, shared keys, and legacy fallbacks.
+    pub async fn resolve_api_key(
+        &self,
+        provider: &str,
+        use_shared: bool,
+    ) -> CoreResult<Option<SecretString>> {
+        if Self::is_local_provider(provider) {
+            return Ok(Some(SecretString::new("local".into())));
+        }
+        let account_id = self.current_account_id().await;
+
+        // 1. Account-specific key (provider-specific or shared)
+        let key_name = Self::secret_key_for_provider(&account_id, provider, use_shared);
+        if let Some(k) = self.secrets.get(&key_name)? {
+            return Ok(Some(k));
+        }
+
+        // 2. If provider-specific didn't match, check account shared key
+        if !use_shared {
+            let shared_key = Self::secret_key_for_provider(&account_id, provider, true);
+            if let Some(k) = self.secrets.get(&shared_key)? {
+                return Ok(Some(k));
+            }
+        }
+
+        // 3. Fallback: Global provider key without account scope
+        let p = provider.to_ascii_lowercase();
+        let global_p_key = format!("ai_api_key:{p}");
+        if let Some(k) = self.secrets.get(&global_p_key)? {
+            return Ok(Some(k));
+        }
+
+        // 4. Fallback: Legacy flat AI_SECRET_KEY
+        if let Some(k) = self.secrets.get(AI_SECRET_KEY)? {
+            return Ok(Some(k));
+        }
+
+        Ok(None)
+    }
+
+    pub async fn has_key_for_provider(&self, provider: &str, use_shared: bool) -> bool {
+        if Self::is_local_provider(provider) {
+            return true;
+        }
+        self.resolve_api_key(provider, use_shared)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+    }
+
+    pub async fn configured_providers(&self, use_shared: bool) -> Vec<String> {
+        let mut list = Vec::new();
+        for &p in KNOWN_PROVIDERS {
+            if self.has_key_for_provider(p, use_shared).await {
+                list.push(p.to_string());
+            }
+        }
+        list
     }
 
     /// Whether an action is major and requires explicit user confirmation.
@@ -247,7 +369,7 @@ impl AiService {
 
     pub async fn get_config(&self) -> CoreResult<AiConfig> {
         let stored = self.settings.get(AI_SETTINGS_KEY).await?;
-        let (provider, mut model, base_url) = match stored {
+        let (provider, mut model, base_url, use_shared_key, sync_api_keys) = match stored {
             Some(v) => (
                 v.get("provider")
                     .and_then(|p| p.as_str())
@@ -260,11 +382,19 @@ impl AiService {
                 v.get("baseUrl")
                     .and_then(|b| b.as_str())
                     .map(|b| b.to_string()),
+                v.get("useSharedKey")
+                    .and_then(|u| u.as_bool())
+                    .unwrap_or(false),
+                v.get("syncApiKeys")
+                    .and_then(|s| s.as_bool())
+                    .unwrap_or(true),
             ),
             None => (
                 DEFAULT_PROVIDER.to_string(),
                 DEFAULT_MODEL.to_string(),
                 None,
+                false,
+                true,
             ),
         };
         if provider == "gemini"
@@ -272,28 +402,75 @@ impl AiService {
         {
             model = DEFAULT_MODEL.to_string();
         }
-        let configured =
-            Self::is_local_provider(&provider) || self.secrets.get(AI_SECRET_KEY)?.is_some();
+
+        let has_key = self.has_key_for_provider(&provider, use_shared_key).await;
+        let is_local = Self::is_local_provider(&provider);
+        let configured = (is_local || has_key) && provider != "none";
+        let configured_providers = self.configured_providers(use_shared_key).await;
+
         Ok(AiConfig {
             configured,
             provider,
             model,
             base_url,
+            use_shared_key,
+            sync_api_keys,
+            has_key_for_provider: has_key,
+            configured_providers,
         })
     }
 
     pub async fn save_config(&self, patch: AiConfigPatch) -> CoreResult<AiConfig> {
         let current = self.get_config().await?;
+        let use_shared_key = patch.use_shared_key.unwrap_or(current.use_shared_key);
+        let sync_api_keys = patch.sync_api_keys.unwrap_or(current.sync_api_keys);
+        let provider = patch.provider.unwrap_or(current.provider);
+        let account_id = if sync_api_keys {
+            if let Some(acc) = &self.account
+                && let Ok(st) = acc.status().await
+                && let Some(prof) = st.profile
+                && !prof.uid.is_empty()
+            {
+                prof.uid
+            } else {
+                "default".to_string()
+            }
+        } else {
+            "default".to_string()
+        };
+
+        // Check if explicitly disconnecting
+        let is_disconnect = patch.api_key.as_deref() == Some("") && patch.model.is_none();
+        if is_disconnect {
+            let p_key = Self::secret_key_for_provider(&account_id, &provider, false);
+            let s_key = Self::secret_key_for_provider(&account_id, &provider, true);
+            let _ = self.secrets.delete(&p_key);
+            let _ = self.secrets.delete(&s_key);
+            let _ = self.secrets.delete(AI_SECRET_KEY);
+
+            let value = json!({
+                "provider": "none",
+                "model": DEFAULT_MODEL,
+                "baseUrl": null,
+                "useSharedKey": false,
+                "syncApiKeys": sync_api_keys,
+            });
+            self.settings.set(AI_SETTINGS_KEY, &value).await?;
+            return self.get_config().await;
+        }
+
         if let Some(key) = patch.api_key {
             let trimmed = key.trim();
+            let key_name = Self::secret_key_for_provider(&account_id, &provider, use_shared_key);
             if trimmed.is_empty() {
-                self.secrets.delete(AI_SECRET_KEY)?;
+                let _ = self.secrets.delete(&key_name);
+                let _ = self.secrets.delete(AI_SECRET_KEY);
             } else {
                 let sec = SecretString::new(trimmed.to_string().into_boxed_str());
-                self.secrets.set(AI_SECRET_KEY, &sec)?;
+                self.secrets.set(&key_name, &sec)?;
             }
         }
-        let provider = patch.provider.unwrap_or(current.provider);
+
         let mut model = patch.model.unwrap_or(current.model);
         if provider == "gemini"
             && (model == "gemini-2.5-flash" || model == "models/gemini-2.5-flash")
@@ -306,6 +483,8 @@ impl AiService {
             "provider": provider,
             "model": model,
             "baseUrl": base_url,
+            "useSharedKey": use_shared_key,
+            "syncApiKeys": sync_api_keys,
         });
         self.settings.set(AI_SETTINGS_KEY, &value).await?;
 
@@ -314,13 +493,16 @@ impl AiService {
 
     pub async fn test_connection(&self) -> CoreResult<()> {
         let config = self.get_config().await?;
-        let key = match self.secrets.get(AI_SECRET_KEY)? {
+        let key = match self
+            .resolve_api_key(&config.provider, config.use_shared_key)
+            .await?
+        {
             Some(k) => k,
             None if Self::is_local_provider(&config.provider) => SecretString::new("local".into()),
             None => {
                 return Err(CoreError::new(
                     ErrorCode::InvalidInput,
-                    "No AI API key set. Please enter an API key or select a local provider.",
+                    "No AI API key set for this provider. Please enter an API key or select a local provider.",
                 ));
             }
         };
@@ -773,7 +955,7 @@ impl AiService {
     /// System instructions given to the AI.
     fn system_prompt(&self, focused_server_id: Option<&str>) -> String {
         let mut prompt = String::from(
-            "You are MCPanel AI Assistant, an expert AI embedded inside the MCPanel desktop application. \
+            "You are MCPanel AI Assistant, an expert, high-speed AI embedded inside the MCPanel desktop application. \
              You have full access to manage local Minecraft Java and Bedrock servers for the user.\n\n\
              Capabilities:\n\
              - You can list, inspect, and configure servers.\n\
@@ -781,19 +963,19 @@ impl AiService {
              - You can search, install, and check plugins/mods.\n\
              - You can read console logs and diagnose crashes.\n\
              - You can create, list, and restore backups.\n\n\
-             Guidelines:\n\
+             Guidelines for Speed & Efficiency:\n\
+             - Be concise and direct in your responses.\n\
+             - Execute tasks with the minimum number of tool calls necessary. Do not call redundant listing tools if you already have the server ID.\n\
              - Minor operations (editing plugin configs, editing server.properties, reading files, searching plugins, listing backups) \
                are executed efficiently without bothering the user for confirmation.\n\
              - Major operations (starting, stopping, or restarting servers; deleting files; deleting backups; restoring backups; sending console commands) \
                will automatically be paused by MCPanel to ask the user for confirmation.\n\
-             - When editing plugin configs or server.properties, explain what changes you made cleanly.\n\
-             - If you need to inspect files before editing, call read_file or read_server_properties first.\n\
-             - Always respond clearly and politely in Markdown format.",
+             - When editing plugin configs or server.properties, explain what changes you made cleanly in brief Markdown format.",
         );
 
         if let Some(sid) = focused_server_id {
             prompt.push_str(&format!(
-                "\n\nThe user currently has server '{}' selected as context.",
+                "\n\nThe user currently has server '{}' selected as context. Use this server ID directly without calling list_servers.",
                 sid
             ));
         }
@@ -1053,8 +1235,8 @@ impl AiService {
                 let sid_str = args.get("server_id").and_then(|v| v.as_str()).unwrap_or("");
                 let sid = ServerId::from_str(sid_str)
                     .map_err(|_| CoreError::new(ErrorCode::NotFound, "Invalid server_id"))?;
-                let max_lines = args.get("lines").and_then(|v| v.as_i64()).unwrap_or(50) as usize;
-                let max_lines = max_lines.clamp(1, 200);
+                let max_lines = args.get("lines").and_then(|v| v.as_i64()).unwrap_or(40) as usize;
+                let max_lines = max_lines.clamp(1, 100);
 
                 let log_text = match self
                     .files
@@ -1065,7 +1247,18 @@ impl AiService {
                     Err(_) => "logs/latest.log not available or empty".to_string(),
                 };
 
-                let lines: Vec<&str> = log_text.lines().collect();
+                // For speed and memory, only examine the last 64KB if log is large
+                let log_slice = if log_text.len() > 65536 {
+                    let offset = log_text.len() - 65536;
+                    match log_text[offset..].find('\n') {
+                        Some(pos) => &log_text[offset + pos + 1..],
+                        None => &log_text[offset..],
+                    }
+                } else {
+                    &log_text[..]
+                };
+
+                let lines: Vec<&str> = log_slice.lines().collect();
                 let start = if lines.len() > max_lines {
                     lines.len() - max_lines
                 } else {
@@ -1220,19 +1413,36 @@ impl AiService {
         }
     }
 
-    /// Convert UI chat messages to LLM messages.
+    /// Convert UI chat messages to LLM messages with speed optimizations.
     fn prepare_llm_messages(messages: &[AiChatMessage]) -> Vec<AiLlmMessage> {
         let mut llm_msgs = Vec::new();
-        for m in messages {
+        // Limit context to the most recent 12 messages for faster token processing
+        let start = if messages.len() > 12 {
+            messages.len() - 12
+        } else {
+            0
+        };
+        let slice = &messages[start..];
+
+        for (idx, m) in slice.iter().enumerate() {
             let role = match m.role.as_str() {
                 "user" => "user".to_string(),
                 "assistant" => "model".to_string(),
                 "system" => "system".to_string(),
                 other => other.to_string(),
             };
+            // Truncate older messages' content if very large to save tokens and inference latency
+            let is_latest = idx + 1 == slice.len();
+            let content = if !is_latest && m.content.len() > 1500 {
+                let mut truncated = m.content[..1500].to_string();
+                truncated.push_str("\n...[older output truncated for speed]");
+                truncated
+            } else {
+                m.content.clone()
+            };
             llm_msgs.push(AiLlmMessage {
                 role,
-                content: Some(m.content.clone()),
+                content: Some(content),
                 function_calls: None,
                 function_responses: None,
             });
@@ -1248,7 +1458,10 @@ impl AiService {
         focused_server_id: Option<String>,
     ) -> CoreResult<AiChatMessage> {
         let config = self.get_config().await?;
-        let key = match self.secrets.get(AI_SECRET_KEY)? {
+        let key = match self
+            .resolve_api_key(&config.provider, config.use_shared_key)
+            .await?
+        {
             Some(k) => k,
             None if Self::is_local_provider(&config.provider) => SecretString::new("local".into()),
             None => {
@@ -1370,7 +1583,7 @@ impl AiService {
 
             // All function calls in this turn are minor actions. Execute them efficiently!
             let mut tool_responses = Vec::new();
-            for call in response.function_calls {
+            for call in &response.function_calls {
                 let call_name = call.name.clone();
                 match self.execute_minor_tool(&call_name, &call.args).await {
                     Ok(res_val) => {
@@ -1409,16 +1622,7 @@ impl AiService {
             llm_messages.push(AiLlmMessage {
                 role: "model".into(),
                 content: response.content,
-                function_calls: Some(
-                    tool_responses
-                        .iter()
-                        .map(|r| AiFunctionCall {
-                            id: r.id.clone(),
-                            name: r.name.clone(),
-                            args: json!({}),
-                        })
-                        .collect(),
-                ),
+                function_calls: Some(response.function_calls),
                 function_responses: None,
             });
 
@@ -1449,11 +1653,17 @@ impl AiService {
         .ok_or_else(|| CoreError::new(ErrorCode::NotFound, "Confirmation expired or not found"))?;
 
         let config = self.get_config().await?;
-        let key = match self.secrets.get(AI_SECRET_KEY)? {
+        let key = match self
+            .resolve_api_key(&config.provider, config.use_shared_key)
+            .await?
+        {
             Some(k) => k,
             None if Self::is_local_provider(&config.provider) => SecretString::new("local".into()),
             None => {
-                return Err(CoreError::new(ErrorCode::InvalidInput, "No AI API key set"));
+                return Err(CoreError::new(
+                    ErrorCode::InvalidInput,
+                    "No AI API key set for this provider",
+                ));
             }
         };
 
@@ -1501,6 +1711,34 @@ impl AiService {
 
         // Now continue LLM conversation with the action result
         let mut llm_messages = Self::prepare_llm_messages(&messages);
+
+        // Protocol requirement: ensure the assistant message right before the function response
+        // contains the corresponding function call with confirmation_id!
+        let tool_call = AiFunctionCall {
+            id: confirmation_id.to_string(),
+            name: stored.tool.clone(),
+            args: stored.args.clone(),
+        };
+
+        if let Some(last) = llm_messages.last_mut() {
+            if last.role == "model" || last.role == "assistant" {
+                last.function_calls = Some(vec![tool_call]);
+            } else {
+                llm_messages.push(AiLlmMessage {
+                    role: "model".into(),
+                    content: Some("Proceeding with requested action upon confirmation.".into()),
+                    function_calls: Some(vec![tool_call]),
+                    function_responses: None,
+                });
+            }
+        } else {
+            llm_messages.push(AiLlmMessage {
+                role: "model".into(),
+                content: Some("Proceeding with requested action upon confirmation.".into()),
+                function_calls: Some(vec![tool_call]),
+                function_responses: None,
+            });
+        }
 
         llm_messages.push(AiLlmMessage {
             role: "function".into(),

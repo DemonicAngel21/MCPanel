@@ -324,6 +324,7 @@ impl GeminiAiClient {
         let mut payload = json!({
             "model": model,
             "messages": messages,
+            "stream": false,
         });
 
         if !request.tools.is_empty() {

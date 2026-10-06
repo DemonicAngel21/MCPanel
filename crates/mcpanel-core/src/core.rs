@@ -243,16 +243,19 @@ impl Core {
         let ai_client = deps
             .ai_client
             .unwrap_or_else(|| Arc::new(crate::ai::NoopAiClient));
-        let ai = Arc::new(crate::ai::AiService::new(
-            ai_client,
-            Arc::clone(&deps.secrets),
-            Arc::clone(&deps.repos.settings),
-            Arc::clone(&audit),
-            Arc::clone(&servers),
-            Arc::clone(&files),
-            Arc::clone(&backups),
-            Arc::clone(&content),
-        ));
+        let ai = Arc::new(
+            crate::ai::AiService::new(
+                ai_client,
+                Arc::clone(&deps.secrets),
+                Arc::clone(&deps.repos.settings),
+                Arc::clone(&audit),
+                Arc::clone(&servers),
+                Arc::clone(&files),
+                Arc::clone(&backups),
+                Arc::clone(&content),
+            )
+            .with_account(Arc::clone(&account)),
+        );
         Ok(Arc::new(Core {
             paths: deps.paths,
             events,

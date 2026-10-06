@@ -2621,6 +2621,10 @@ impl Api {
             provider: c.provider,
             model: c.model,
             base_url: c.base_url,
+            use_shared_key: c.use_shared_key,
+            sync_api_keys: c.sync_api_keys,
+            has_key_for_provider: c.has_key_for_provider,
+            configured_providers: c.configured_providers,
         })
     }
 
@@ -2638,6 +2642,8 @@ impl Api {
                 provider: patch.provider,
                 model: patch.model,
                 base_url: patch.base_url,
+                use_shared_key: patch.use_shared_key,
+                sync_api_keys: patch.sync_api_keys,
             })
             .await?;
         self.core
@@ -2656,6 +2662,10 @@ impl Api {
             provider: c.provider,
             model: c.model,
             base_url: c.base_url,
+            use_shared_key: c.use_shared_key,
+            sync_api_keys: c.sync_api_keys,
+            has_key_for_provider: c.has_key_for_provider,
+            configured_providers: c.configured_providers,
         })
     }
 

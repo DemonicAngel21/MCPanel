@@ -1,13 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckCircle2, Key, Loader2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Bot, CheckCircle2, Key, Loader2, ShieldCheck, Sparkles, Trash2, UserRound } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/overlays";
-import { Badge, Card, CardHeader, Field, Input } from "@/components/ui/primitives";
+import { Badge, Card, CardHeader, Field, Input, Label, Switch } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { qk, useAiConfig } from "@/lib/queries";
+import { qk, useAccount, useAiConfig } from "@/lib/queries";
 import { errorMessage } from "@/lib/utils";
+import type { AiConfigDto } from "@/bindings/AiConfigDto";
 
 interface ProviderOption {
   value: string;
@@ -161,41 +162,41 @@ const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
   lmstudio: [{ value: "local-model", label: "Currently Loaded Model in LM Studio" }],
 };
 
-export function AiConfigCard() {
+function AiConfigForm({ config }: { config: AiConfigDto | undefined }) {
   const qc = useQueryClient();
-  const { data: config } = useAiConfig();
+  const { data: account } = useAccount();
 
-  const [provider, setProvider] = useState<string>("gemini");
-  const [model, setModel] = useState<string>("gemini-3.8-flash");
+  const activeProvider = config?.provider || "gemini";
+  const rawModel =
+    config?.model === "gemini-2.5-flash" || config?.model === "models/gemini-2.5-flash"
+      ? "gemini-3.8-flash"
+      : config?.model || "gemini-3.8-flash";
+  const knownModels = (PROVIDER_MODELS[activeProvider] || []).map((m) => m.value);
+  const isCustomInitially = Boolean(config?.model && !knownModels.includes(rawModel));
+
+  const [provider, setProvider] = useState<string>(activeProvider);
+  const [model, setModel] = useState<string>(isCustomInitially ? "custom" : rawModel);
+  const [customModel, setCustomModel] = useState<string>(isCustomInitially ? rawModel : "");
+  const [isCustomModel, setIsCustomModel] = useState<boolean>(isCustomInitially);
   const [apiKey, setApiKey] = useState<string>("");
-  const [baseUrl, setBaseUrl] = useState<string>("");
-  const [customModel, setCustomModel] = useState<string>("");
-  const [isCustomModel, setIsCustomModel] = useState<boolean>(false);
+  const [baseUrl, setBaseUrl] = useState<string>(config?.baseUrl || "");
+  const [useSharedKey, setUseSharedKey] = useState<boolean>(config?.useSharedKey ?? false);
+  const [syncApiKeys, setSyncApiKeys] = useState<boolean>(config?.syncApiKeys ?? true);
 
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
-  // Sync state from query when loaded
-  const [synced, setSynced] = useState(false);
-  if (config && !synced) {
-    const activeProvider = config.provider || "gemini";
-    setProvider(activeProvider);
-    const activeModel = config.model === "gemini-2.5-flash" || config.model === "models/gemini-2.5-flash" ? "gemini-3.8-flash" : config.model;
-    const knownModels = (PROVIDER_MODELS[activeProvider] || []).map((m) => m.value);
-    if (knownModels.includes(activeModel)) {
-      setModel(activeModel);
-      setIsCustomModel(false);
-    } else {
-      setModel("custom");
-      setCustomModel(activeModel || "");
-      setIsCustomModel(true);
-    }
-    setBaseUrl(config.baseUrl || "");
-    setSynced(true);
-  }
-
   const currentProvider = PROVIDERS.find((p) => p.value === provider) ?? DEFAULT_PROVIDER;
   const isLocal = currentProvider.isLocal;
+
+  const currentProviderHasKey = Boolean(
+    useSharedKey
+      ? config?.configured
+      : config?.configuredProviders?.includes(provider) || (config?.provider === provider && config?.hasKeyForProvider),
+  );
+
+  const accountLabel =
+    account?.profile?.displayName || account?.profile?.email || (account?.signedIn ? "Signed-in user" : "Local profile (Offline / Guest)");
 
   const handleProviderChange = (newProvider: string) => {
     setProvider(newProvider);
@@ -207,6 +208,9 @@ export function AiConfigCard() {
       setBaseUrl(pConfig.defaultBaseUrl);
     } else if (newProvider === "gemini" || newProvider === "openai" || newProvider === "anthropic") {
       setBaseUrl("");
+    }
+    if (!useSharedKey) {
+      setApiKey("");
     }
   };
 
@@ -230,6 +234,8 @@ export function AiConfigCard() {
         model: effectiveModel,
         baseUrl: baseUrl.trim() ? baseUrl.trim() : null,
         apiKey: apiKey.trim() ? apiKey.trim() : null,
+        useSharedKey,
+        syncApiKeys,
       });
       await qc.invalidateQueries({ queryKey: qk.aiConfig });
       setApiKey("");
@@ -244,10 +250,14 @@ export function AiConfigCard() {
   const handleTest = async () => {
     setTesting(true);
     try {
-      // If user typed a new key or changed provider/model, save first
       const hasKeyChange = apiKey.trim().length > 0;
       const hasSettingChange =
-        config && (config.provider !== provider || config.model !== effectiveModel || (config.baseUrl || "") !== baseUrl.trim());
+        config &&
+        (config.provider !== provider ||
+          config.model !== effectiveModel ||
+          (config.baseUrl || "") !== baseUrl.trim() ||
+          (config.useSharedKey ?? false) !== useSharedKey ||
+          (config.syncApiKeys ?? true) !== syncApiKeys);
 
       if (hasKeyChange || hasSettingChange) {
         await api.ai.saveConfig({
@@ -255,6 +265,8 @@ export function AiConfigCard() {
           model: effectiveModel,
           baseUrl: baseUrl.trim() ? baseUrl.trim() : null,
           apiKey: apiKey.trim() ? apiKey.trim() : null,
+          useSharedKey,
+          syncApiKeys,
         });
         await qc.invalidateQueries({ queryKey: qk.aiConfig });
         setApiKey("");
@@ -279,6 +291,8 @@ export function AiConfigCard() {
         model: null,
         baseUrl: null,
         apiKey: "",
+        useSharedKey: null,
+        syncApiKeys: null,
       });
       await qc.invalidateQueries({ queryKey: qk.aiConfig });
       setApiKey("");
@@ -293,16 +307,42 @@ export function AiConfigCard() {
   const baseModels = PROVIDER_MODELS[provider] || [];
   const modelOptions = [...baseModels, { value: "custom", label: "Custom model identifier…" }];
 
-  const canTest = config?.configured || isLocal || apiKey.trim().length > 0;
+  const canTest = isLocal || currentProviderHasKey || apiKey.trim().length > 0;
   const isUnchanged =
-    !apiKey.trim() && config?.provider === provider && config?.model === effectiveModel && (config?.baseUrl || "") === baseUrl.trim();
+    !apiKey.trim() &&
+    config?.provider === provider &&
+    config?.model === effectiveModel &&
+    (config?.baseUrl || "") === baseUrl.trim() &&
+    (config?.useSharedKey ?? false) === useSharedKey &&
+    (config?.syncApiKeys ?? true) === syncApiKeys;
+
+  // Key field placeholders and hints respecting shared key option
+  const keyLabel = isLocal
+    ? "API Key (Optional for local models)"
+    : useSharedKey
+      ? "Shared API Key (used for all AI providers)"
+      : `API Key (${currentProvider.label})`;
+
+  const keyPlaceholder = currentProviderHasKey
+    ? isLocal
+      ? "Not required for local models (leave blank)"
+      : useSharedKey
+        ? "•••••••••••••••••••••••••••••••• (leave blank to keep existing shared key)"
+        : "•••••••••••••••••••••••••••••••• (leave blank to keep existing key)"
+    : useSharedKey
+      ? "Paste your shared API key (used across all providers)"
+      : currentProvider.keyPlaceholder;
+
+  const keyHint = useSharedKey
+    ? "This shared API key will be used across all AI providers that you select."
+    : currentProvider.keyHint;
 
   return (
     <Card>
       <CardHeader
         title={
           <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-purple-400" />
+            <Sparkles className="size-4 text-accent" />
             <span>AI Assistant</span>
           </div>
         }
@@ -319,13 +359,32 @@ export function AiConfigCard() {
       />
 
       <div className="space-y-4 p-4 text-[13px]">
+        {/* Account Linking Information */}
+        <div className="flex items-center justify-between rounded-md border border-border bg-surface-2 px-3 py-2 text-xs">
+          <div className="flex items-center gap-2 text-muted">
+            <UserRound className="size-3.5 text-accent" />
+            <span>
+              API Key Storage: <strong className="text-fg">{syncApiKeys ? accountLabel : "Local machine only (Sync disabled)"}</strong>
+            </span>
+          </div>
+          <Badge tone={syncApiKeys && account?.signedIn ? "success" : "neutral"} className="text-[10px]">
+            {syncApiKeys && account?.signedIn ? "Account linked" : syncApiKeys ? "Local profile" : "Sync disabled"}
+          </Badge>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="AI Provider">
             <Select
               aria-label="AI Provider"
               value={provider}
               onValueChange={handleProviderChange}
-              options={PROVIDERS.map((p) => ({ value: p.value, label: p.label }))}
+              options={PROVIDERS.map((p) => {
+                const isConfigured = config?.configuredProviders?.includes(p.value);
+                return {
+                  value: p.value,
+                  label: isConfigured && !p.isLocal ? `${p.label} (Configured)` : p.label,
+                };
+              })}
             />
           </Field>
 
@@ -366,27 +425,60 @@ export function AiConfigCard() {
           </Field>
         )}
 
+        {/* Per-Provider vs Shared API Key Toggle */}
+        <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-surface-2 p-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="shared-key-toggle" className="cursor-pointer text-xs font-medium text-fg">
+              Use same API key for all AI providers
+            </Label>
+            <p className="text-[11px] text-faint">
+              By default, each AI provider stores its own separate API key. Enable this if you use an aggregator or want one shared key across all providers.
+            </p>
+          </div>
+          <Switch
+            id="shared-key-toggle"
+            checked={useSharedKey}
+            onCheckedChange={(checked) => setUseSharedKey(checked)}
+          />
+        </div>
+
+        {/* API Key Syncing with Account Toggle */}
+        <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-surface-2 p-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="sync-api-keys-toggle" className="cursor-pointer text-xs font-medium text-fg">
+              Sync API keys with account
+            </Label>
+            <p className="text-[11px] text-faint">
+              When enabled, your API keys are linked to your signed-in MCPanel account profile. Turn this off to disable API syncing and keep all API keys strictly local to this machine.
+            </p>
+          </div>
+          <Switch
+            id="sync-api-keys-toggle"
+            checked={syncApiKeys}
+            onCheckedChange={(checked) => setSyncApiKeys(checked)}
+          />
+        </div>
+
         <Field
           label={
             <div className="flex items-center justify-between">
-              <span>{isLocal ? "API Key (Optional for local models)" : "API Key"}</span>
-              {config?.configured && !isLocal && <span className="text-[11px] text-accent">Key stored securely in Windows Credential Manager</span>}
+              <span>{keyLabel}</span>
+              {currentProviderHasKey && !isLocal && (
+                <span className="flex items-center gap-1 text-[11px] font-normal text-accent">
+                  <CheckCircle2 className="size-3" />
+                  {useSharedKey ? "Shared key configured" : `Key configured for ${currentProvider.label}`}
+                </span>
+              )}
             </div>
           }
-          hint={currentProvider.keyHint}
+          hint={keyHint}
         >
           <div className="relative">
             <Input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={
-                config?.configured
-                  ? isLocal
-                    ? "Not required for local models (leave blank)"
-                    : "•••••••••••••••••••••••••••••••• (leave blank to keep existing key)"
-                  : currentProvider.keyPlaceholder
-              }
+              placeholder={keyPlaceholder}
               aria-label="AI API Key"
               className="pr-8"
             />
@@ -441,4 +533,13 @@ export function AiConfigCard() {
       </div>
     </Card>
   );
+}
+
+export function AiConfigCard() {
+  const { data: config } = useAiConfig();
+  const formKey = config
+    ? `${config.provider}:${config.model}:${config.useSharedKey}:${config.syncApiKeys}:${config.configuredProviders?.join(",")}`
+    : "loading";
+
+  return <AiConfigForm key={formKey} config={config} />;
 }
