@@ -20,7 +20,7 @@ jobs:
     name: Rust (fmt, clippy, test)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install toolchain (from rust-toolchain.toml)
         run: rustup show
       - uses: Swatinem/rust-cache@v2
@@ -40,7 +40,7 @@ jobs:
     name: UI (format, lint, typecheck, test, build)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -58,7 +58,7 @@ jobs:
     runs-on: windows-latest
     needs: [rust, ui]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - uses: pnpm/action-setup@v4
