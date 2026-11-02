@@ -48,6 +48,7 @@ import type { ConfigureOauthDto } from "@/bindings/ConfigureOauthDto";
 import type { AddHostDto } from "@/bindings/AddHostDto";
 import type { AddGoogleHostDto } from "@/bindings/AddGoogleHostDto";
 import type { GoogleComputeAuthDto } from "@/bindings/GoogleComputeAuthDto";
+import type { GoogleVmDiscoveryDto } from "@/bindings/GoogleVmDiscoveryDto";
 import type { HostDto } from "@/bindings/HostDto";
 import type { MultihostStatusDto } from "@/bindings/MultihostStatusDto";
 import type { PlayitAgentDto } from "@/bindings/PlayitAgentDto";
@@ -284,6 +285,7 @@ export const api = {
     google: () => call<void>("account_google"),
     cancelGoogle: () => call<void>("account_cancel_google"),
     connectGoogleCompute: () => call<void>("google_compute_auth_begin"),
+    connectGoogleAccountSearch: () => call<void>("google_account_compute_auth_begin"),
     googleComputeStatus: () => call<GoogleComputeAuthDto>("google_compute_auth_status"),
     cancelGoogleCompute: () => call<void>("google_compute_auth_cancel"),
     /** Opens Microsoft's consent page in the browser; the result shows up in `status`. */
@@ -376,6 +378,7 @@ export const api = {
     list: () => call<HostDto[]>("multihost_list_hosts"),
     add: (req: AddHostDto) => call<HostDto>("multihost_add_host", { req }),
     addGoogle: (req: AddGoogleHostDto) => call<HostDto>("multihost_add_google_host", { req }),
+    discoverGoogle: (useAccount: boolean) => call<GoogleVmDiscoveryDto>("multihost_discover_google_vms", { useAccount }),
     refreshGoogle: (hostId: string) => call<HostDto>("multihost_refresh_google_host", { hostId }),
     setGooglePower: (hostId: string, start: boolean) =>
       call<void>("multihost_set_google_host_power", { hostId, start }),

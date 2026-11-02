@@ -21,9 +21,10 @@ Users select **Connect Google Cloud** in the Hosts page and grant the requested 
 Engine OAuth scope, then add a VM by project ID, zone, and instance name. No Google Cloud
 CLI, SSH port, service-account key, or Firebase account is required for this VM link.
 
-The OAuth client must be configured for the desktop app and the Compute Engine API scope
-must be enabled on its consent screen. Public releases may require Google OAuth scope
-verification. Users need Compute Engine permissions to inspect, start, or stop each VM.
+The OAuth client must be configured for the desktop app with the Compute Engine and
+Cloud Resource Manager project-read scopes. Public releases may require Google OAuth scope
+verification. Users need project visibility and Compute Engine permissions to inspect,
+start, or stop each VM.
 The integration does not install Minecraft or manage Minecraft server processes.
 
 ## Everyday commands

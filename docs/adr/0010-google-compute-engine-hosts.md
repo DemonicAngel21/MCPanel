@@ -12,9 +12,12 @@ for users who already run Minecraft servers on Google Compute Engine Linux VMs.
 ## Decision
 
 - Connect to an existing VM using its Google Cloud project ID, zone, and instance name.
-- Use a dedicated Google OAuth consent flow with the Compute Engine scope. Keep the refresh
+- Use dedicated Google OAuth consent flows with Compute Engine and Cloud Resource Manager
+  project-read scopes. Keep refresh
   token in the platform secret store and refresh short-lived access tokens in the backend.
-- Call the Compute Engine REST API directly for VM metadata and explicit start/stop actions.
+- Search projects visible to the authorized identity with Resource Manager, then use
+  Compute Engine aggregated instance listing across zones for discovery. Call the Compute
+  Engine REST API directly for VM metadata and explicit start/stop actions.
 - Require the corresponding Compute Engine IAM permissions for VM start and stop. Those
   actions control the VM only and do not manage Minecraft processes.
 - Never interpolate arbitrary user commands into the remote shell. Validate all GCE
@@ -27,5 +30,8 @@ for users who already run Minecraft servers on Google Compute Engine Linux VMs.
 - Firebase configuration is not required for the Google host connection.
 - Users authorize MCPanel through Google OAuth and need permission to inspect/start/stop
   the VM as needed. No local Google Cloud CLI or inbound SSH access is required.
+- The Hosts page scans the connected Google identity automatically. A separate opt-in flow
+  can search with the Google identity signed into MCPanel; users authorize that access
+  separately and discovered hosts retain the credential source used for VM actions.
 - The implementation reports VM status and network address from Compute Engine. It does not deploy or
   control Minecraft servers on the VM.

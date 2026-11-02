@@ -2918,6 +2918,7 @@ pub struct GoogleCloudVmDto {
     pub project_id: String,
     pub zone: String,
     pub instance_name: String,
+    pub use_account: bool,
 }
 
 impl From<&mcpanel_core::multihost::GoogleCloudVm> for GoogleCloudVmDto {
@@ -2926,6 +2927,7 @@ impl From<&mcpanel_core::multihost::GoogleCloudVm> for GoogleCloudVmDto {
             project_id: vm.project_id.clone(),
             zone: vm.zone.clone(),
             instance_name: vm.instance_name.clone(),
+            use_account: vm.use_account,
         }
     }
 }
@@ -2955,6 +2957,8 @@ pub struct AddGoogleHostDto {
     pub project_id: String,
     pub zone: String,
     pub instance_name: String,
+    #[serde(default)]
+    pub use_account: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -2964,6 +2968,46 @@ pub struct GoogleComputeAuthDto {
     pub connected: bool,
     pub state: Option<String>,
     pub message: Option<String>,
+    pub account_search_connected: bool,
+    pub account_search_state: Option<String>,
+    pub account_search_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GoogleVmCandidateDto {
+    pub project_id: String,
+    pub project_name: String,
+    pub zone: String,
+    pub instance_name: String,
+    pub status: String,
+    pub external_ip: Option<String>,
+    pub use_account: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GoogleVmDiscoveryDto {
+    pub instances: Vec<GoogleVmCandidateDto>,
+    pub projects_scanned: u32,
+    pub projects_unavailable: u32,
+    pub truncated: bool,
+}
+
+impl From<mcpanel_core::multihost::GoogleVmCandidate> for GoogleVmCandidateDto {
+    fn from(vm: mcpanel_core::multihost::GoogleVmCandidate) -> Self {
+        Self {
+            project_id: vm.project_id,
+            project_name: vm.project_name,
+            zone: vm.zone,
+            instance_name: vm.instance_name,
+            status: vm.status,
+            external_ip: vm.external_ip,
+            use_account: vm.use_account,
+        }
+    }
 }
 
 // ───────────────────────────── AI Assistant ───────────────────────────

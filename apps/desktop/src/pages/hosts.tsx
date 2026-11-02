@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Cloud, Copy, Cpu, HardDrive, MoreHorizontal, Network, Plus, Power, RefreshCw, Server, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Activity, Cloud, Copy, Cpu, HardDrive, MoreHorizontal, Network, Plus, Power, RefreshCw, Search, Server, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import type { HostDto } from "@/bindings/HostDto";
+import type { GoogleVmCandidateDto } from "@/bindings/GoogleVmDiscoveryDto";
 import { Button } from "@/components/ui/button";
 import {
   ConfirmDialog,
@@ -26,7 +28,22 @@ export function HostsPage() {
   const googleAuth = useQuery({
     queryKey: ["google-compute-auth"],
     queryFn: api.account.googleComputeStatus,
-    refetchInterval: (query) => query.state.data?.state === "waiting" ? 1000 : false,
+    refetchInterval: (query) => query.state.data?.state === "waiting" || query.state.data?.accountSearchState === "waiting" ? 1000 : false,
+  });
+  const accountStatus = useQuery({ queryKey: qk.account, queryFn: api.account.status });
+  const connectedDiscovery = useQuery({
+    queryKey: ["google-vm-discovery", "connected"],
+    queryFn: () => api.multihost.discoverGoogle(false),
+    enabled: googleAuth.data?.connected === true,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const accountDiscovery = useQuery({
+    queryKey: ["google-vm-discovery", "account"],
+    queryFn: () => api.multihost.discoverGoogle(true),
+    enabled: googleAuth.data?.accountSearchConnected === true,
+    staleTime: 60_000,
+    retry: false,
   });
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [removingHost, setRemovingHost] = useState<HostDto | null>(null);
@@ -59,6 +76,28 @@ export function HostsPage() {
     onError: (error) => toast.error(`Google Cloud authorization failed: ${errorMessage(error)}`),
   });
 
+  const connectAccountSearchMutation = useMutation({
+    mutationFn: api.account.connectGoogleAccountSearch,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["google-compute-auth"] }),
+    onError: (error) => toast.error(`Google account search authorization failed: ${errorMessage(error)}`),
+  });
+
+  const addDiscoveredMutation = useMutation({
+    mutationFn: (vm: { projectId: string; projectName: string; zone: string; instanceName: string; useAccount: boolean }) =>
+      api.multihost.addGoogle({
+        name: `${vm.instanceName.slice(0, 30)} (${vm.projectId.slice(0, 18)}/${vm.zone.slice(-12)})`,
+        projectId: vm.projectId,
+        zone: vm.zone,
+        instanceName: vm.instanceName,
+        useAccount: vm.useAccount,
+      }),
+    onSuccess: (host) => {
+      void refresh();
+      toast.success(`Added ${host.name} to Hosts`);
+    },
+    onError: (error) => toast.error(`Could not add VM: ${errorMessage(error)}`),
+  });
+
   useEffect(() => {
     if (googleAuth.data?.state === "done") {
       toast.success("Google Cloud connected");
@@ -67,6 +106,15 @@ export function HostsPage() {
       toast.error(googleAuth.data.message ?? "Google Cloud authorization failed");
     }
   }, [googleAuth.data?.state, googleAuth.data?.message, qc]);
+
+  useEffect(() => {
+    if (googleAuth.data?.accountSearchState === "done") {
+      toast.success("Signed-in Google account connected for VM search");
+      void qc.invalidateQueries({ queryKey: ["google-vm-discovery", "account"] });
+    } else if (googleAuth.data?.accountSearchState === "failed") {
+      toast.error(googleAuth.data.accountSearchMessage ?? "Google account search authorization failed");
+    }
+  }, [googleAuth.data?.accountSearchState, googleAuth.data?.accountSearchMessage, qc]);
 
   const powerGoogleMutation = useMutation({
     mutationFn: ({ hostId, start }: { hostId: string; start: boolean }) => api.multihost.setGooglePower(hostId, start),
@@ -83,6 +131,21 @@ export function HostsPage() {
   const remoteHosts = hosts.filter((h) => !h.isLocal && h.googleCloud != null);
   const totalServers = hosts.reduce((acc, h) => acc + h.serversCount, 0);
   const runningServers = hosts.reduce((acc, h) => acc + h.runningServersCount, 0);
+  const discoveredVmMap = new Map<string, GoogleVmCandidateDto>();
+  for (const vm of [...(connectedDiscovery.data?.instances ?? []), ...(accountDiscovery.data?.instances ?? [])]) {
+    const key = `${vm.projectId}/${vm.zone}/${vm.instanceName}`;
+    if (!discoveredVmMap.has(key)) discoveredVmMap.set(key, vm);
+  }
+  const discoveredVms = [...discoveredVmMap.values()];
+  const discoveryScrollRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const discoveryVirtualizer = useVirtualizer({
+    count: discoveredVms.length,
+    getScrollElement: () => discoveryScrollRef.current,
+    estimateSize: () => 72,
+    overscan: 8,
+  });
+  const addedVmKeys = new Set(remoteHosts.flatMap((host) => host.googleCloud ? [`${host.googleCloud.projectId}/${host.googleCloud.zone}/${host.googleCloud.instanceName}`] : []));
 
   return (
     <>
@@ -207,6 +270,76 @@ export function HostsPage() {
                   </Button>
                 )}
               </div>
+
+              {(googleAuth.data?.connected || accountStatus.data?.profile?.accountType === "google") && (
+                <Card className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-fg">Discovered Google VMs</h4>
+                      <p className="text-xs text-muted">Scanning projects you can access for Compute Engine instances.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {googleAuth.data?.connected && (
+                        <Button variant="outline" size="sm" onClick={() => void qc.invalidateQueries({ queryKey: ["google-vm-discovery", "connected"] })} disabled={connectedDiscovery.isFetching}>
+                          {connectedDiscovery.isFetching ? <Spinner /> : <RefreshCw />} Scan connected account
+                        </Button>
+                      )}
+                      {accountStatus.data?.profile?.accountType === "google" && (
+                        googleAuth.data?.accountSearchConnected ? (
+                          <Button variant="outline" size="sm" onClick={() => void qc.invalidateQueries({ queryKey: ["google-vm-discovery", "account"] })} disabled={accountDiscovery.isFetching}>
+                            {accountDiscovery.isFetching ? <Spinner /> : <Search />} Search with signed-in account
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => connectAccountSearchMutation.mutate()} disabled={connectAccountSearchMutation.isPending || googleAuth.data?.accountSearchState === "waiting"}>
+                            {connectAccountSearchMutation.isPending || googleAuth.data?.accountSearchState === "waiting" ? <Spinner /> : <Search />} Authorize signed-in account
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  {((connectedDiscovery.data?.projectsUnavailable ?? 0) + (accountDiscovery.data?.projectsUnavailable ?? 0)) > 0 && (
+                    <p className="text-xs text-warning">{(connectedDiscovery.data?.projectsUnavailable ?? 0) + (accountDiscovery.data?.projectsUnavailable ?? 0)} project scan(s) were unavailable. Check Compute Engine API access and IAM permissions in those projects.</p>
+                  )}
+                  {(connectedDiscovery.data?.truncated || accountDiscovery.data?.truncated) && (
+                    <p className="text-xs text-warning">A scan ended before all instance pages were read. Run the scan again to retry.</p>
+                  )}
+                  {connectedDiscovery.isError && <p className="text-xs text-danger">Connected-account scan failed: {errorMessage(connectedDiscovery.error)}</p>}
+                  {accountDiscovery.isError && <p className="text-xs text-danger">Signed-in-account scan failed: {errorMessage(accountDiscovery.error)}</p>}
+                  {(connectedDiscovery.data || accountDiscovery.data) && (
+                    <p className="text-xs text-muted">{(connectedDiscovery.data?.projectsScanned ?? 0) + (accountDiscovery.data?.projectsScanned ?? 0)} project scans completed; {discoveredVms.length} unique VM(s) found.</p>
+                  )}
+                  {discoveredVms.length === 0 && !connectedDiscovery.isFetching && !accountDiscovery.isFetching ? (
+                    <p className="text-xs text-muted">
+                      {googleAuth.data?.connected || googleAuth.data?.accountSearchConnected
+                        ? "No accessible VMs found yet."
+                        : "Authorize one of the Google accounts above to search for VMs."}
+                    </p>
+                  ) : (
+                    <div ref={discoveryScrollRef} className="h-[420px] overflow-y-auto pr-1">
+                      <div className="relative w-full" style={{ height: `${discoveryVirtualizer.getTotalSize()}px` }}>
+                      {discoveryVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const vm = discoveredVms[virtualRow.index];
+                        if (!vm) return null;
+                        const key = `${vm.projectId}/${vm.zone}/${vm.instanceName}`;
+                        return (
+                          <div key={key} className="absolute left-0 top-0 w-full pb-2" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+                          <div className="flex h-full flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-fg">{vm.instanceName}</div>
+                              <div className="truncate text-xs text-muted">{vm.projectName || vm.projectId} / {vm.zone} / {vm.status}{vm.externalIp ? ` / ${vm.externalIp}` : ""} / {vm.useAccount ? "MCPanel account" : "Connected account"}</div>
+                            </div>
+                            <Button variant="outline" size="sm" disabled={addedVmKeys.has(key) || addDiscoveredMutation.isPending} onClick={() => addDiscoveredMutation.mutate(vm)}>
+                              {addedVmKeys.has(key) ? "Added" : "Add to Hosts"}
+                            </Button>
+                          </div>
+                          </div>
+                        );
+                      })}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )}
 
               {remoteHosts.length === 0 ? (
                 <EmptyState
@@ -398,6 +531,7 @@ function EnrollHostDialog({ open, onOpenChange, onEnrolled }: { open: boolean; o
         projectId: projectId.trim(),
         zone: zone.trim(),
         instanceName: instanceName.trim(),
+        useAccount: false,
       });
 
       toast.success(`Google Cloud VM '${name}' saved.`);

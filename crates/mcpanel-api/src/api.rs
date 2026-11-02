@@ -2626,11 +2626,27 @@ impl Api {
                     project_id: body.project_id,
                     zone: body.zone,
                     instance_name: body.instance_name,
+                    use_account: body.use_account,
                 },
                 p.actor(),
             )
             .await?;
         Ok((&host).into())
+    }
+
+    pub async fn multihost_discover_google_vms(
+        &self,
+        p: &Principal,
+        use_account: bool,
+    ) -> ApiResult<GoogleVmDiscoveryDto> {
+        p.authorize(Permission::MultihostRead)?;
+        let discovered = self.core.multihost.discover_google_vms(use_account).await?;
+        Ok(GoogleVmDiscoveryDto {
+            instances: discovered.instances.into_iter().map(Into::into).collect(),
+            projects_scanned: discovered.projects_scanned,
+            projects_unavailable: discovered.projects_unavailable,
+            truncated: discovered.truncated,
+        })
     }
 
     pub async fn multihost_refresh_google_host(
@@ -2659,10 +2675,28 @@ impl Api {
             }
             None => (None, None),
         };
+        let account_progress = self.core.account.google_account_compute_progress();
+        let (account_search_state, account_search_message) = match account_progress {
+            Some(mcpanel_core::account::GoogleSignIn::Waiting { .. }) => {
+                (Some("waiting".into()), None)
+            }
+            Some(mcpanel_core::account::GoogleSignIn::Done) => (Some("done".into()), None),
+            Some(mcpanel_core::account::GoogleSignIn::Failed { message }) => {
+                (Some("failed".into()), Some(message))
+            }
+            None => (None, None),
+        };
         Ok(GoogleComputeAuthDto {
             connected: self.core.account.google_compute_connected()?,
             state,
             message,
+            account_search_connected: self
+                .core
+                .account
+                .google_account_compute_matches_signed_in()
+                .await?,
+            account_search_state,
+            account_search_message,
         })
     }
 
@@ -2671,9 +2705,20 @@ impl Api {
         Ok(self.core.account.begin_google_compute().await?)
     }
 
+    pub async fn google_account_compute_auth_begin(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::MultihostManage)?;
+        Ok(self.core.account.begin_google_account_compute().await?)
+    }
+
     pub fn google_compute_auth_cancel(&self, p: &Principal) -> ApiResult<()> {
         p.authorize(Permission::MultihostManage)?;
         self.core.account.cancel_google_compute();
+        Ok(())
+    }
+
+    pub fn google_account_compute_auth_cancel(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::MultihostManage)?;
+        self.core.account.cancel_google_account_compute();
         Ok(())
     }
 

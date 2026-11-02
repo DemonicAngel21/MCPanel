@@ -243,9 +243,10 @@ e.g. `plugins/floodgate/key.pem` and loader equivalents). Highly sensitive files
 
 ### Google Compute Engine hosts
 
-Existing VMs can be linked by project ID, zone, and instance name. A separate Google OAuth
-consent grants Compute Engine API access; the refresh token is kept in the platform secret
-store. The app calls Compute Engine REST for VM status, addresses, start, and stop. It does
+Existing VMs can be linked by project ID, zone, and instance name. Google OAuth grants
+Compute Engine access and project-read access; refresh tokens are kept in the platform
+secret store. MCPanel searches accessible projects and lists instances across zones, then
+calls Compute Engine REST for VM status, addresses, start, and stop. It does
 not require gcloud or SSH, and does not provision VMs, install Minecraft, or manage Minecraft
 processes. See [ADR-0010](../adr/0010-google-compute-engine-hosts.md).
 

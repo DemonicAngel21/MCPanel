@@ -15,12 +15,15 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
+use std::time::Instant;
 
 const REFRESH_SECRET: &str = "account-refresh-token";
 const PROFILE_KEY: &str = "account.profile";
 pub const OAUTH_CREDENTIALS_SETTINGS_KEY: &str = "account.oauth_credentials";
 pub const GOOGLE_SECRET_KEY: &str = "account-google-secret";
 pub const GOOGLE_COMPUTE_REFRESH_SECRET: &str = "google-compute-refresh-token";
+pub const GOOGLE_ACCOUNT_COMPUTE_REFRESH_SECRET: &str = "google-account-compute-refresh-token";
+const GOOGLE_ACCOUNT_COMPUTE_EMAIL_KEY: &str = "account.google_compute_search_email";
 pub const MICROSOFT_SECRET_KEY: &str = "account-microsoft-secret";
 pub const GUEST_KEY: &str = "account.is_guest";
 const GOOGLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -159,6 +162,7 @@ pub trait AuthBackend: Send + Sync {
         _redirect: &str,
         _challenge: &str,
         _state: &str,
+        _login_hint: Option<&str>,
     ) -> CoreResult<String> {
         Err(CoreError::new(
             ErrorCode::Unsupported,
@@ -179,6 +183,15 @@ pub trait AuthBackend: Send + Sync {
         Err(CoreError::new(
             ErrorCode::Unsupported,
             "Google Cloud authorization is not supported.",
+        ))
+    }
+    async fn google_email_for_access_token(
+        &self,
+        _access_token: &SecretString,
+    ) -> CoreResult<String> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Google account verification is not supported.",
         ))
     }
     async fn google_compute_request(
@@ -272,6 +285,9 @@ pub struct AccountService {
     settings: Arc<dyn SettingsRepository>,
     google: Mutex<Option<GoogleFlow>>,
     google_compute: Mutex<Option<GoogleFlow>>,
+    google_account_compute: Mutex<Option<GoogleFlow>>,
+    google_compute_access: Mutex<Option<(SecretString, Instant)>>,
+    google_account_compute_access: Mutex<Option<(SecretString, Instant)>>,
     microsoft: Mutex<Option<MicrosoftFlow>>,
     sync_service: crate::sync::SettingsSyncService,
     credentials_loaded: AtomicBool,
@@ -313,6 +329,9 @@ impl AccountService {
             settings,
             google: Mutex::new(None),
             google_compute: Mutex::new(None),
+            google_account_compute: Mutex::new(None),
+            google_compute_access: Mutex::new(None),
+            google_account_compute_access: Mutex::new(None),
             microsoft: Mutex::new(None),
             credentials_loaded: AtomicBool::new(false),
             cloud: OnceLock::new(),
@@ -730,7 +749,60 @@ impl AccountService {
     }
 
     pub async fn begin_google_compute(self: &Arc<Self>) -> CoreResult<String> {
-        if let Some(GoogleSignIn::Waiting { url }) = self.google_compute_progress() {
+        self.begin_google_compute_for(GOOGLE_COMPUTE_REFRESH_SECRET, None, None, false)
+            .await
+    }
+
+    pub async fn begin_google_account_compute(self: &Arc<Self>) -> CoreResult<String> {
+        let profile = self.cached_profile().await?.ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Sign in to MCPanel with Google before using that account to search projects.",
+            )
+        })?;
+        if profile.account_type != AccountType::Google {
+            return Err(CoreError::new(
+                ErrorCode::PermissionDenied,
+                "The MCPanel account is not signed in with Google.",
+            ));
+        }
+        let hint = profile.email.ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::InvalidInput,
+                "The signed-in Google account has no email address to match.",
+            )
+        })?;
+        self.begin_google_compute_for(
+            GOOGLE_ACCOUNT_COMPUTE_REFRESH_SECRET,
+            Some(hint.clone()),
+            Some(hint),
+            true,
+        )
+        .await
+    }
+
+    async fn begin_google_compute_for(
+        self: &Arc<Self>,
+        secret_key: &'static str,
+        login_hint: Option<String>,
+        expected_email: Option<String>,
+        account_flow: bool,
+    ) -> CoreResult<String> {
+        let progress_lock = if account_flow {
+            &self.google_account_compute
+        } else {
+            &self.google_compute
+        };
+        let existing_url = {
+            let current = progress_lock.lock().unwrap_or_else(|e| e.into_inner());
+            current.as_ref().and_then(|(state, _)| {
+                match state.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+                    GoogleSignIn::Waiting { url } => Some(url),
+                    _ => None,
+                }
+            })
+        };
+        if let Some(url) = existing_url {
             return Ok(url);
         }
         let backend = self.backend.get().cloned().ok_or_else(|| {
@@ -753,10 +825,13 @@ impl AccountService {
             &redirect,
             &pkce::challenge_s256(&verifier),
             &state,
+            login_hint.as_deref(),
         )?;
         let progress = Arc::new(Mutex::new(GoogleSignIn::Waiting { url: url.clone() }));
         let prog = Arc::clone(&progress);
         let secrets = Arc::clone(&self.secrets);
+        let settings = Arc::clone(&self.settings);
+        let email_for_save = expected_email.clone();
         let task = tokio::spawn(async move {
             let result: CoreResult<()> = async {
                 let code = match loopback.wait(GOOGLE_TIMEOUT).await? {
@@ -766,11 +841,29 @@ impl AccountService {
                     Callback::Error { error, description, .. } => return Err(CoreError::new(ErrorCode::ProviderError, format!("Google Cloud authorization failed: {}", description.unwrap_or(error)))),
                 };
                 let tokens = backend.google_exchange(&code, &verifier, &redirect).await?;
+                if let Some(expected_email) = expected_email {
+                    let access = tokens.access_token.as_ref().ok_or_else(|| CoreError::new(
+                        ErrorCode::ProviderError,
+                        "Google did not return an access token to verify the signed-in account.",
+                    ))?;
+                    let actual_email = backend.google_email_for_access_token(access).await?;
+                    if !actual_email.eq_ignore_ascii_case(&expected_email) {
+                        return Err(CoreError::new(
+                            ErrorCode::PermissionDenied,
+                            "The Google account selected does not match the Google account signed into MCPanel.",
+                        ));
+                    }
+                }
                 let refresh = tokens.refresh_token.ok_or_else(|| CoreError::new(
                     ErrorCode::GrantInvalid,
                     "Google did not return offline access. Remove MCPanel access from your Google Account and connect again.",
                 ))?;
-                secrets.set(GOOGLE_COMPUTE_REFRESH_SECRET, &refresh)?;
+                secrets.set(secret_key, &refresh)?;
+                if let Some(email) = email_for_save {
+                    settings
+                        .set(GOOGLE_ACCOUNT_COMPUTE_EMAIL_KEY, &serde_json::Value::String(email))
+                        .await?;
+                }
                 Ok(())
             }.await;
             *prog.lock().unwrap_or_else(|e| e.into_inner()) = match result {
@@ -778,8 +871,7 @@ impl AccountService {
                 Err(e) => GoogleSignIn::Failed { message: e.message },
             };
         });
-        if let Some((_, old)) = self
-            .google_compute
+        if let Some((_, old)) = progress_lock
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .replace((progress, task))
@@ -801,9 +893,76 @@ impl AccountService {
         Ok(self.secrets.get(GOOGLE_COMPUTE_REFRESH_SECRET)?.is_some())
     }
 
+    pub fn google_account_compute_connected(&self) -> CoreResult<bool> {
+        Ok(self
+            .secrets
+            .get(GOOGLE_ACCOUNT_COMPUTE_REFRESH_SECRET)?
+            .is_some())
+    }
+
+    pub async fn google_account_compute_matches_signed_in(&self) -> CoreResult<bool> {
+        if !self.google_account_compute_connected()? {
+            return Ok(false);
+        }
+        let Some(profile) = self.cached_profile().await? else {
+            return Ok(false);
+        };
+        if profile.account_type != AccountType::Google {
+            return Ok(false);
+        }
+        let saved_email = self
+            .settings
+            .get(GOOGLE_ACCOUNT_COMPUTE_EMAIL_KEY)
+            .await?
+            .and_then(|value| value.as_str().map(str::to_owned));
+        Ok(saved_email.is_some_and(|email| {
+            profile
+                .email
+                .as_deref()
+                .is_some_and(|current| current.eq_ignore_ascii_case(&email))
+        }))
+    }
+
+    pub fn google_account_compute_progress(&self) -> Option<GoogleSignIn> {
+        self.google_account_compute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|(state, _)| state.lock().unwrap_or_else(|e| e.into_inner()).clone())
+    }
+
+    pub async fn google_compute_request_for_account(
+        &self,
+        use_account: bool,
+        method: &str,
+        url: &str,
+    ) -> CoreResult<serde_json::Value> {
+        self.google_compute_request_with_secret(
+            if use_account {
+                GOOGLE_ACCOUNT_COMPUTE_REFRESH_SECRET
+            } else {
+                GOOGLE_COMPUTE_REFRESH_SECRET
+            },
+            method,
+            url,
+        )
+        .await
+    }
+
     pub fn cancel_google_compute(&self) {
         if let Some((_, task)) = self
             .google_compute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        {
+            task.abort();
+        }
+    }
+
+    pub fn cancel_google_account_compute(&self) {
+        if let Some((_, task)) = self
+            .google_account_compute
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take()
@@ -817,22 +976,46 @@ impl AccountService {
         method: &str,
         url: &str,
     ) -> CoreResult<serde_json::Value> {
-        let refresh = self
-            .secrets
-            .get(GOOGLE_COMPUTE_REFRESH_SECRET)?
-            .ok_or_else(|| {
-                CoreError::new(
-                    ErrorCode::PermissionDenied,
-                    "Connect a Google account with Compute Engine access first.",
-                )
-            })?;
+        self.google_compute_request_with_secret(GOOGLE_COMPUTE_REFRESH_SECRET, method, url)
+            .await
+    }
+
+    async fn google_compute_request_with_secret(
+        &self,
+        secret_key: &str,
+        method: &str,
+        url: &str,
+    ) -> CoreResult<serde_json::Value> {
+        let refresh = self.secrets.get(secret_key)?.ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Connect a Google account with Compute Engine access first.",
+            )
+        })?;
         let backend = self.backend.get().cloned().ok_or_else(|| {
             CoreError::new(
                 ErrorCode::Unsupported,
                 "Google OAuth is not configured in this build.",
             )
         })?;
-        let access = backend.google_refresh_access_token(&refresh).await?;
+        let cache = if secret_key == GOOGLE_ACCOUNT_COMPUTE_REFRESH_SECRET {
+            &self.google_account_compute_access
+        } else {
+            &self.google_compute_access
+        };
+        let access = if let Some((token, expiry)) =
+            cache.lock().unwrap_or_else(|e| e.into_inner()).as_ref()
+            && *expiry > Instant::now()
+        {
+            token.clone()
+        } else {
+            let token = backend.google_refresh_access_token(&refresh).await?;
+            *cache.lock().unwrap_or_else(|e| e.into_inner()) = Some((
+                token.clone(),
+                Instant::now() + std::time::Duration::from_secs(50 * 60),
+            ));
+            token
+        };
         backend.google_compute_request(&access, method, url).await
     }
 
@@ -947,6 +1130,7 @@ impl AccountService {
     pub async fn sign_out(&self) -> CoreResult<()> {
         self.cancel_google();
         self.cancel_microsoft();
+        self.cancel_google_account_compute();
         self.secrets.delete(REFRESH_SECRET)?;
         self.settings
             .set(GUEST_KEY, &serde_json::Value::Bool(false))

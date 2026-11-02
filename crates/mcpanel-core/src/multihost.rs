@@ -84,6 +84,29 @@ pub struct GoogleCloudVm {
     pub project_id: String,
     pub zone: String,
     pub instance_name: String,
+    #[serde(default)]
+    pub use_account: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleVmCandidate {
+    pub project_id: String,
+    pub project_name: String,
+    pub zone: String,
+    pub instance_name: String,
+    pub status: String,
+    pub external_ip: Option<String>,
+    pub use_account: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleVmDiscovery {
+    pub instances: Vec<GoogleVmCandidate>,
+    pub projects_scanned: u32,
+    pub projects_unavailable: u32,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -347,6 +370,132 @@ impl MultihostService {
         Ok(updated)
     }
 
+    pub async fn discover_google_vms(&self, use_account: bool) -> CoreResult<GoogleVmDiscovery> {
+        let mut projects = Vec::new();
+        let mut page_token = None::<String>;
+        let truncated = false;
+        loop {
+            let mut url =
+                "https://cloudresourcemanager.googleapis.com/v3/projects:search?pageSize=100"
+                    .to_string();
+            if let Some(token) = &page_token {
+                url.push_str("&pageToken=");
+                url.push_str(&url_component(token));
+            }
+            let response = self
+                .account
+                .google_compute_request_for_account(use_account, "GET", &url)
+                .await?;
+            if let Some(batch) = response.get("projects").and_then(Value::as_array) {
+                projects.extend(batch.iter().filter_map(|project| {
+                    Some((
+                        project.get("projectId")?.as_str()?.to_string(),
+                        project
+                            .get("displayName")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                    ))
+                }));
+            }
+            page_token = response
+                .get("nextPageToken")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            if page_token.is_none() {
+                break;
+            }
+        }
+
+        let mut result = GoogleVmDiscovery {
+            instances: Vec::new(),
+            projects_scanned: 0,
+            projects_unavailable: 0,
+            truncated,
+        };
+        for (project_id, display_name) in projects {
+            let mut instance_page = None::<String>;
+            let mut first_page = true;
+            loop {
+                let mut url = format!(
+                    "https://compute.googleapis.com/compute/v1/projects/{project_id}/aggregated/instances?returnPartialSuccess=true&maxResults=500"
+                );
+                if let Some(token) = &instance_page {
+                    url.push_str("&pageToken=");
+                    url.push_str(&url_component(token));
+                }
+                let response = match self
+                    .account
+                    .google_compute_request_for_account(use_account, "GET", &url)
+                    .await
+                {
+                    Ok(response) => response,
+                    Err(_) if first_page => {
+                        result.projects_unavailable += 1;
+                        break;
+                    }
+                    Err(_) => {
+                        result.truncated = true;
+                        break;
+                    }
+                };
+                if first_page {
+                    result.projects_scanned += 1;
+                }
+                first_page = false;
+                if let Some(scopes) = response.get("items").and_then(Value::as_object) {
+                    for scope in scopes.values() {
+                        let Some(instances) = scope.get("instances").and_then(Value::as_array)
+                        else {
+                            continue;
+                        };
+                        for instance in instances {
+                            let Some(name) = instance.get("name").and_then(Value::as_str) else {
+                                continue;
+                            };
+                            let Some(zone) = instance
+                                .get("zone")
+                                .and_then(Value::as_str)
+                                .and_then(|zone| zone.rsplit('/').next())
+                            else {
+                                continue;
+                            };
+                            let single = serde_json::json!({"networkInterfaces": instance.get("networkInterfaces")});
+                            result.instances.push(GoogleVmCandidate {
+                                project_id: project_id.clone(),
+                                project_name: display_name.clone(),
+                                zone: zone.to_string(),
+                                instance_name: name.to_string(),
+                                status: instance
+                                    .get("status")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("UNKNOWN")
+                                    .to_string(),
+                                external_ip: google_external_ip(&single),
+                                use_account,
+                            });
+                        }
+                    }
+                }
+                instance_page = response
+                    .get("nextPageToken")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+                if instance_page.is_none() {
+                    break;
+                }
+            }
+        }
+        result.instances.sort_by(|a, b| {
+            (&a.project_name, &a.zone, &a.instance_name).cmp(&(
+                &b.project_name,
+                &b.zone,
+                &b.instance_name,
+            ))
+        });
+        Ok(result)
+    }
+
     pub async fn set_google_host_power(
         &self,
         host_id: &str,
@@ -370,7 +519,9 @@ impl MultihostService {
             "https://compute.googleapis.com/compute/v1/projects/{}/zones/{}/instances/{}/{}",
             vm.project_id, vm.zone, vm.instance_name, action
         );
-        self.account.google_compute_request("POST", &url).await?;
+        self.account
+            .google_compute_request_for_account(vm.use_account, "POST", &url)
+            .await?;
         self.audit
             .record(
                 actor,
@@ -399,7 +550,9 @@ impl MultihostService {
             "https://compute.googleapis.com/compute/v1/projects/{}/zones/{}/instances/{}",
             vm.project_id, vm.zone, vm.instance_name
         );
-        self.account.google_compute_request("GET", &url).await
+        self.account
+            .google_compute_request_for_account(vm.use_account, "GET", &url)
+            .await
     }
 
     pub async fn add_host(
@@ -524,4 +677,16 @@ impl MultihostService {
         self.events.publish(DomainEvent::HostsChanged);
         Ok(())
     }
+}
+
+fn url_component(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            other => format!("%{other:02X}"),
+        })
+        .collect()
 }

@@ -668,6 +668,29 @@ pub async fn google_compute_auth_begin(app: AppHandle, s: State<'_, AppState>) -
 }
 
 #[tauri::command]
+pub async fn google_account_compute_auth_begin(app: AppHandle, s: State<'_, AppState>) -> R<()> {
+    let url = s
+        .api
+        .google_account_compute_auth_begin(&s.principal())
+        .await?;
+    let ok = tauri::Url::parse(&url)
+        .is_ok_and(|u| u.scheme() == "https" && u.host_str() == Some("accounts.google.com"));
+    if !ok {
+        s.api.google_account_compute_auth_cancel(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected Google authorization address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(error) = app.opener().open_url(url, None::<&str>) {
+        s.api.google_account_compute_auth_cancel(&s.principal())?;
+        return Err(ApiError::new(
+            "IO",
+            format!("Cannot open the browser: {error}"),
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn google_compute_auth_status(s: State<'_, AppState>) -> R<GoogleComputeAuthDto> {
     s.api.google_compute_auth_status(&s.principal()).await
 }
@@ -1513,6 +1536,16 @@ pub async fn multihost_add_google_host(
     req: AddGoogleHostDto,
 ) -> R<HostDto> {
     s.api.multihost_add_google_host(&s.principal(), req).await
+}
+
+#[tauri::command]
+pub async fn multihost_discover_google_vms(
+    s: State<'_, AppState>,
+    use_account: bool,
+) -> R<GoogleVmDiscoveryDto> {
+    s.api
+        .multihost_discover_google_vms(&s.principal(), use_account)
+        .await
 }
 
 #[tauri::command]

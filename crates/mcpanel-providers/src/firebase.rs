@@ -23,7 +23,9 @@ const IDENTITY: &str = "https://identitytoolkit.googleapis.com/v1";
 const SECURE_TOKEN: &str = "https://securetoken.googleapis.com/v1/token";
 const GOOGLE_AUTH: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO: &str = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_COMPUTE: &str = "https://compute.googleapis.com/compute/v1";
+const GOOGLE_RESOURCE_MANAGER: &str = "https://cloudresourcemanager.googleapis.com/v3";
 const MICROSOFT_AUTH: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 const MICROSOFT_TOKEN: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const FIRESTORE: &str = "https://firestore.googleapis.com/v1";
@@ -543,6 +545,7 @@ impl AuthBackend for FirebaseAuth {
         redirect: &str,
         challenge: &str,
         state: &str,
+        login_hint: Option<&str>,
     ) -> CoreResult<String> {
         let guard = self
             .google_client_id
@@ -554,24 +557,25 @@ impl AuthBackend for FirebaseAuth {
                 "Google sign-in is not available in this build.",
             )
         })?;
-        Ok(format!(
-            "{GOOGLE_AUTH}?{}",
-            form(&[
-                ("client_id", id),
-                ("redirect_uri", redirect),
-                ("response_type", "code"),
-                (
-                    "scope",
-                    "openid email profile https://www.googleapis.com/auth/compute"
-                ),
-                ("access_type", "offline"),
-                ("include_granted_scopes", "true"),
-                ("code_challenge", challenge),
-                ("code_challenge_method", "S256"),
-                ("state", state),
-                ("prompt", "consent select_account"),
-            ])
-        ))
+        let mut params = vec![
+            ("client_id", id),
+            ("redirect_uri", redirect),
+            ("response_type", "code"),
+            (
+                "scope",
+                "openid email profile https://www.googleapis.com/auth/compute https://www.googleapis.com/auth/cloudplatformprojects.readonly",
+            ),
+            ("access_type", "offline"),
+            ("include_granted_scopes", "true"),
+            ("code_challenge", challenge),
+            ("code_challenge_method", "S256"),
+            ("state", state),
+            ("prompt", "consent select_account"),
+        ];
+        if let Some(hint) = login_hint {
+            params.push(("login_hint", hint));
+        }
+        Ok(format!("{GOOGLE_AUTH}?{}", form(&params)))
     }
 
     async fn google_exchange(
@@ -690,13 +694,45 @@ impl AuthBackend for FirebaseAuth {
             })
     }
 
+    async fn google_email_for_access_token(
+        &self,
+        access_token: &SecretString,
+    ) -> CoreResult<String> {
+        let response = self
+            .client
+            .get(GOOGLE_USERINFO)
+            .bearer_auth(access_token.expose_secret())
+            .timeout(Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(unreachable_err)?;
+        let value = read(response).await?;
+        if value.get("email_verified").and_then(Value::as_bool) != Some(true) {
+            return Err(CoreError::new(
+                ErrorCode::PermissionDenied,
+                "Google did not verify the selected account email.",
+            ));
+        }
+        str_of(&value, "email").ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::ProviderError,
+                "Google did not return an account email.",
+            )
+        })
+    }
+
     async fn google_compute_request(
         &self,
         access_token: &SecretString,
         method: &str,
         url: &str,
     ) -> CoreResult<Value> {
-        if !url.starts_with(GOOGLE_COMPUTE) || !matches!(method, "GET" | "POST") {
+        let compute_api = url.starts_with(GOOGLE_COMPUTE);
+        let resource_manager_api = url.starts_with(GOOGLE_RESOURCE_MANAGER);
+        if !(compute_api || resource_manager_api)
+            || !matches!(method, "GET" | "POST")
+            || (resource_manager_api && method != "GET")
+        {
             return Err(CoreError::invalid("Invalid Google Compute Engine request."));
         }
         let request = match method {
