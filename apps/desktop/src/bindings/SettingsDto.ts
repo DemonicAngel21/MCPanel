@@ -8,4 +8,4 @@ theme: string, trayNoticeShown: boolean, consoleBufferLines: number, quitStopTim
 /**
  * Preset name, "system" or "#rrggbb".
  */
-accent: string, onboardingCompleted: boolean, };
+accent: string, onboardingCompleted: boolean, autoCheckUpdates: boolean, checkPrereleaseUpdates: boolean, };

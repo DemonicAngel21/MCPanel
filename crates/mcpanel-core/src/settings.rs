@@ -33,6 +33,10 @@ pub struct AppSettings {
     pub accent: String,
     /// The first-time setup was finished or skipped.
     pub onboarding_completed: bool,
+    /// Automatically check for updates on startup.
+    pub auto_check_updates: bool,
+    /// Include pre-release builds when checking for updates.
+    pub check_prerelease_updates: bool,
 }
 
 /// Accent presets offered in Settings (green is MCPanel's own).
@@ -58,6 +62,8 @@ impl Default for AppSettings {
             tick_sampling: true,
             accent: "green".into(),
             onboarding_completed: false,
+            auto_check_updates: true,
+            check_prerelease_updates: false,
         }
     }
 }
@@ -90,6 +96,10 @@ pub struct AppSettingsPatch {
     pub accent: Option<String>,
     #[serde(default)]
     pub onboarding_completed: Option<bool>,
+    #[serde(default)]
+    pub auto_check_updates: Option<bool>,
+    #[serde(default)]
+    pub check_prerelease_updates: Option<bool>,
 }
 
 pub struct SettingsService {
@@ -187,6 +197,12 @@ fn apply(s: &mut AppSettings, p: AppSettingsPatch) {
     }
     if let Some(v) = p.onboarding_completed {
         s.onboarding_completed = v;
+    }
+    if let Some(v) = p.auto_check_updates {
+        s.auto_check_updates = v;
+    }
+    if let Some(v) = p.check_prerelease_updates {
+        s.check_prerelease_updates = v;
     }
 }
 

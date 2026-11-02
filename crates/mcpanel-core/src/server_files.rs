@@ -324,4 +324,17 @@ impl ServerFiles {
         })
         .await
     }
+
+    pub async fn search_content(
+        &self,
+        id: ServerId,
+        path: String,
+        query: String,
+        limit: usize,
+    ) -> CoreResult<Vec<service::ContentMatch>> {
+        self.blocking(id, move |r| {
+            service::search_content(r, &path, &query, limit.clamp(1, 200))
+        })
+        .await
+    }
 }

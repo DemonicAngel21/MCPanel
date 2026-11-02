@@ -7,10 +7,19 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AiChatRequestDto } from "@/bindings/AiChatRequestDto";
 import type { AiChatResponseDto } from "@/bindings/AiChatResponseDto";
 import type { AiConfigDto } from "@/bindings/AiConfigDto";
-import type { AiConfigPatchDto } from "@/bindings/AiConfigPatchDto";
+
+export type AiConfigPatchInput = Partial<{
+  apiKey: string | null;
+  provider: string | null;
+  model: string | null;
+  baseUrl: string | null;
+  useSharedKey: boolean | null;
+  syncApiKeys: boolean | null;
+}>;
 import type { AiConfirmRequestDto } from "@/bindings/AiConfirmRequestDto";
 import type { ApiError as ApiErrorDto } from "@/bindings/ApiError";
 import type { AppInfoDto } from "@/bindings/AppInfoDto";
+import type { AppUpdateInfoDto } from "@/bindings/AppUpdateInfoDto";
 import type { AuditEntryDto } from "@/bindings/AuditEntryDto";
 import type { BackupDto } from "@/bindings/BackupDto";
 import type { BackupLocationDto } from "@/bindings/BackupLocationDto";
@@ -18,6 +27,7 @@ import type { BackupPolicyDto } from "@/bindings/BackupPolicyDto";
 import type { BackupPolicyUpdateDto } from "@/bindings/BackupPolicyUpdateDto";
 import type { ConsoleBatchDto } from "@/bindings/ConsoleBatchDto";
 import type { ContentListDto } from "@/bindings/ContentListDto";
+import type { ContentMatchDto } from "@/bindings/ContentMatchDto";
 import type { ContentVersionDto } from "@/bindings/ContentVersionDto";
 import type { ConsoleLineDto } from "@/bindings/ConsoleLineDto";
 import type { BedrockEnableDto } from "@/bindings/BedrockEnableDto";
@@ -36,9 +46,9 @@ import type { NotificationPrefsDto } from "@/bindings/NotificationPrefsDto";
 import type { AccountDto } from "@/bindings/AccountDto";
 import type { ConfigureOauthDto } from "@/bindings/ConfigureOauthDto";
 import type { AddHostDto } from "@/bindings/AddHostDto";
+import type { AddGoogleHostDto } from "@/bindings/AddGoogleHostDto";
+import type { GoogleComputeAuthDto } from "@/bindings/GoogleComputeAuthDto";
 import type { HostDto } from "@/bindings/HostDto";
-import type { HostEnrollmentTokenDto } from "@/bindings/HostEnrollmentTokenDto";
-import type { HostPingResultDto } from "@/bindings/HostPingResultDto";
 import type { MultihostStatusDto } from "@/bindings/MultihostStatusDto";
 import type { PlayitAgentDto } from "@/bindings/PlayitAgentDto";
 import type { PlayitTunnelsDto } from "@/bindings/PlayitTunnelsDto";
@@ -80,6 +90,7 @@ import type { TemplateDto } from "@/bindings/TemplateDto";
 import type { TextDocumentDto } from "@/bindings/TextDocumentDto";
 import type { UpdateInfoDto } from "@/bindings/UpdateInfoDto";
 import type { UpdateServerDto } from "@/bindings/UpdateServerDto";
+import type { UpdateStatusDto } from "@/bindings/UpdateStatusDto";
 import type { WriteTextDto } from "@/bindings/WriteTextDto";
 
 export class ApiError extends Error {
@@ -201,6 +212,8 @@ export const api = {
     import: (id: string, grants: string[], destination: string) => call<FileEntryDto[]>("files_import", { id, grants, destination }),
     export: (id: string, path: string, grant: string) => call<number>("files_export", { id, path, grant }),
     search: (id: string, path: string, query: string, limit: number) => call<FileEntryDto[]>("files_search", { id, path, query, limit }),
+    searchContent: (id: string, path: string, query: string, limit = 50) =>
+      call<ContentMatchDto[]>("files_search_content", { id, path, query, limit }),
   },
   templates: {
     list: () => call<TemplateDto[]>("templates_list"),
@@ -270,6 +283,9 @@ export const api = {
     /** Opens Google's consent page in the browser; the result shows up in `status`. */
     google: () => call<void>("account_google"),
     cancelGoogle: () => call<void>("account_cancel_google"),
+    connectGoogleCompute: () => call<void>("google_compute_auth_begin"),
+    googleComputeStatus: () => call<GoogleComputeAuthDto>("google_compute_auth_status"),
+    cancelGoogleCompute: () => call<void>("google_compute_auth_cancel"),
     /** Opens Microsoft's consent page in the browser; the result shows up in `status`. */
     microsoft: () => call<void>("account_microsoft"),
     cancelMicrosoft: () => call<void>("account_cancel_microsoft"),
@@ -359,16 +375,26 @@ export const api = {
     status: () => call<MultihostStatusDto>("multihost_status"),
     list: () => call<HostDto[]>("multihost_list_hosts"),
     add: (req: AddHostDto) => call<HostDto>("multihost_add_host", { req }),
+    addGoogle: (req: AddGoogleHostDto) => call<HostDto>("multihost_add_google_host", { req }),
+    refreshGoogle: (hostId: string) => call<HostDto>("multihost_refresh_google_host", { hostId }),
+    setGooglePower: (hostId: string, start: boolean) =>
+      call<void>("multihost_set_google_host_power", { hostId, start }),
     remove: (hostId: string) => call<void>("multihost_remove_host", { hostId }),
-    ping: (hostId: string) => call<HostPingResultDto>("multihost_ping_host", { hostId }),
-    generateToken: () => call<HostEnrollmentTokenDto>("multihost_generate_token"),
   },
   ai: {
     getConfig: () => call<AiConfigDto>("ai_get_config"),
-    saveConfig: (patch: AiConfigPatchDto) => call<AiConfigDto>("ai_save_config", { patch }),
+    saveConfig: (patch: AiConfigPatchInput) => call<AiConfigDto>("ai_save_config", { patch }),
     testConnection: () => call<void>("ai_test_connection"),
+    testProvider: (provider: string, model: string, baseUrl?: string | null, apiKey?: string | null) =>
+      call<void>("ai_test_provider", { provider, model, baseUrl: baseUrl || null, apiKey: apiKey || null }),
     chat: (req: AiChatRequestDto) => call<AiChatResponseDto>("ai_chat", { req }),
     confirmAction: (req: AiConfirmRequestDto) => call<AiChatResponseDto>("ai_confirm_action", { req }),
+  },
+  updates: {
+    check: (force?: boolean) => call<AppUpdateInfoDto>("updates_check", { force: force ?? false }),
+    getStatus: () => call<UpdateStatusDto>("updates_get_status"),
+    download: () => call<UpdateStatusDto>("updates_download"),
+    install: () => call<void>("updates_install"),
   },
 };
 

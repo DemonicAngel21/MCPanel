@@ -50,6 +50,8 @@ type UiState = {
   setEditorAutosave: (autosave: boolean) => void;
   editorWordWrap: boolean;
   setEditorWordWrap: (wordWrap: boolean) => void;
+  sessionOnboardingDismissed: boolean;
+  setSessionOnboardingDismissed: (dismissed: boolean) => void;
 };
 
 export const useUi = create<UiState>((set) => ({
@@ -86,4 +88,6 @@ export const useUi = create<UiState>((set) => ({
     }
     set({ editorWordWrap });
   },
+  sessionOnboardingDismissed: false,
+  setSessionOnboardingDismissed: (sessionOnboardingDismissed) => set({ sessionOnboardingDismissed }),
 }));

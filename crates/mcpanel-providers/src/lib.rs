@@ -20,6 +20,7 @@ pub mod playit;
 pub mod profiles;
 pub mod purpur;
 pub mod spiget;
+pub mod updates;
 
 use mcpanel_core::error::CoreResult;
 use mcpanel_core::software::ProviderRegistry;
@@ -27,6 +28,7 @@ use std::sync::Arc;
 
 pub use http::{HttpClient, HttpDownloader};
 pub use profiles::MojangProfiles;
+pub use updates::GitHubUpdateClient;
 
 /// Build the registry of built-in providers: server software (Vanilla, Paper, Purpur,
 /// Fabric, Quilt, NeoForge, Forge) and content (Modrinth, Hangar,

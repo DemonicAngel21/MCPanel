@@ -1,12 +1,9 @@
 //! Multihost management service.
 //!
-//! MCPanel supports managing Minecraft servers across multiple host nodes (local
-//! desktop host and remote hosts).
-//!
-//! An MCPanel account (Firebase Authentication) is required for multihost features:
-//! enrolling remote nodes, testing connections, and managing multi-node clusters.
+//! The hosts view includes the local machine and Google Compute Engine instances.
+//! Google OAuth authorizes direct Compute Engine REST calls. Refresh credentials are held
+//! by AccountService in the platform secret store.
 
-use crate::account::AccountService;
 use crate::audit::AuditLog;
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::events::{DomainEvent, EventBus};
@@ -15,15 +12,87 @@ use crate::monitoring::Monitor;
 use crate::ports::{Platform, SettingsRepository};
 use crate::server::ServerManager;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 
 pub const HOSTS_SETTINGS_KEY: &str = "multihost.hosts";
+
+fn clear_unverified_remote_data(host: &mut HostNode) {
+    host.status = HostStatus::Unreachable;
+    host.os_info = None;
+    host.cpu_count = None;
+    host.total_memory_bytes = None;
+    host.used_memory_bytes = None;
+    host.servers_count = 0;
+    host.running_servers_count = 0;
+    host.latency_ms = None;
+    host.last_seen = None;
+}
+
+fn validate_google_vm(vm: &GoogleCloudVm) -> CoreResult<()> {
+    let valid = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 63
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            && value.as_bytes()[0].is_ascii_lowercase()
+            && value.as_bytes()[value.len() - 1].is_ascii_alphanumeric()
+    };
+    if !valid(&vm.project_id) || !valid(&vm.zone) || !valid(&vm.instance_name) {
+        return Err(CoreError::invalid(
+            "Project ID, zone, and instance name must use lowercase letters, numbers, and hyphens.",
+        ));
+    }
+    Ok(())
+}
+
+fn gce_host_status(details: &Value) -> HostStatus {
+    match details.get("status").and_then(Value::as_str) {
+        Some("RUNNING") => HostStatus::Online,
+        Some("TERMINATED" | "SUSPENDED") => HostStatus::Offline,
+        Some("PROVISIONING" | "STAGING") => HostStatus::Starting,
+        Some("STOPPING" | "SUSPENDING") => HostStatus::Stopping,
+        Some(_) => HostStatus::Unreachable,
+        None => HostStatus::Unreachable,
+    }
+}
+
+fn google_external_ip(details: &Value) -> Option<String> {
+    details
+        .get("networkInterfaces")?
+        .as_array()?
+        .iter()
+        .flat_map(|interface| {
+            interface
+                .get("accessConfigs")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+        })
+        .find_map(|config| {
+            config
+                .get("natIP")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleCloudVm {
+    pub project_id: String,
+    pub zone: String,
+    pub instance_name: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HostStatus {
     Online,
     Offline,
+    Starting,
+    Stopping,
     Unreachable,
     AuthRequired,
 }
@@ -33,6 +102,8 @@ impl HostStatus {
         match self {
             Self::Online => "online",
             Self::Offline => "offline",
+            Self::Starting => "starting",
+            Self::Stopping => "stopping",
             Self::Unreachable => "unreachable",
             Self::AuthRequired => "auth_required",
         }
@@ -44,6 +115,8 @@ pub struct HostNode {
     pub id: String,
     pub name: String,
     pub endpoint: Option<String>,
+    #[serde(default)]
+    pub google_cloud: Option<GoogleCloudVm>,
     pub is_local: bool,
     pub status: HostStatus,
     pub tags: Vec<String>,
@@ -60,30 +133,11 @@ pub struct HostNode {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultihostStatus {
-    pub account_required: bool,
-    pub signed_in: bool,
-    pub user_email: Option<String>,
     pub hosts: Vec<HostNode>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EnrollmentToken {
-    pub token: String,
-    pub account_uid: String,
-    pub expires_at: i64,
-    pub pairing_command: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HostPingResult {
-    pub host_id: String,
-    pub online: bool,
-    pub latency_ms: Option<u32>,
-    pub message: Option<String>,
-}
-
 pub struct MultihostService {
-    account: Arc<AccountService>,
+    account: Arc<crate::account::AccountService>,
     settings: Arc<dyn SettingsRepository>,
     servers: Arc<ServerManager>,
     _monitor: Arc<Monitor>,
@@ -94,7 +148,7 @@ pub struct MultihostService {
 
 impl MultihostService {
     pub fn new(
-        account: Arc<AccountService>,
+        account: Arc<crate::account::AccountService>,
         settings: Arc<dyn SettingsRepository>,
         servers: Arc<ServerManager>,
         monitor: Arc<Monitor>,
@@ -149,6 +203,7 @@ impl MultihostService {
                 .host_name
                 .unwrap_or_else(|| "This Machine (Local Host)".to_string()),
             endpoint: None,
+            google_cloud: None,
             is_local: true,
             status: HostStatus::Online,
             tags: vec!["local".to_string(), "primary".to_string()],
@@ -164,66 +219,196 @@ impl MultihostService {
         }
     }
 
-    /// Checks if the user is signed in to an MCPanel account.
-    /// Multihost requires an active account session.
-    pub async fn ensure_signed_in(&self) -> CoreResult<crate::account::AccountProfile> {
-        let acc = self.account.status().await?;
-        if !acc.signed_in {
-            return Err(CoreError::new(
-                ErrorCode::PermissionDenied,
-                "An MCPanel account is required for multihost features. Sign in or create an account to manage remote nodes.",
-            ));
-        }
-        acc.profile.ok_or_else(|| {
-            CoreError::new(
-                ErrorCode::PermissionDenied,
-                "Account profile is unavailable. Please sign in again.",
-            )
-        })
-    }
-
     pub async fn status(&self) -> CoreResult<MultihostStatus> {
-        let acc = self.account.status().await?;
         let local = self.local_host().await;
-        if !acc.signed_in {
-            return Ok(MultihostStatus {
-                account_required: true,
-                signed_in: false,
-                user_email: None,
-                hosts: vec![local],
-            });
-        }
-
         let mut hosts = vec![local];
-        let remote = self.stored_remote_hosts().await?;
+        let mut remote = self.stored_remote_hosts().await?;
+        for host in &mut remote {
+            if host.google_cloud.is_none() {
+                clear_unverified_remote_data(host);
+            }
+        }
         hosts.extend(remote);
 
-        Ok(MultihostStatus {
-            account_required: true,
-            signed_in: true,
-            user_email: acc.profile.and_then(|p| p.email),
-            hosts,
-        })
+        Ok(MultihostStatus { hosts })
     }
 
     pub async fn list_hosts(&self) -> CoreResult<Vec<HostNode>> {
-        self.ensure_signed_in().await?;
         let local = self.local_host().await;
         let mut hosts = vec![local];
-        let remote = self.stored_remote_hosts().await?;
+        let mut remote = self.stored_remote_hosts().await?;
+        for host in &mut remote {
+            if host.google_cloud.is_none() {
+                clear_unverified_remote_data(host);
+            }
+        }
         hosts.extend(remote);
         Ok(hosts)
+    }
+
+    pub async fn add_google_host(
+        &self,
+        name: String,
+        vm: GoogleCloudVm,
+        actor: &str,
+    ) -> CoreResult<HostNode> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 64 {
+            return Err(CoreError::invalid(
+                "Host name must be between 1 and 64 characters.",
+            ));
+        }
+        validate_google_vm(&vm)?;
+        let details = self.describe_google_vm(&vm).await?;
+        let mut hosts = self.stored_remote_hosts().await?;
+        if hosts.iter().any(|h| h.name.eq_ignore_ascii_case(name)) {
+            return Err(CoreError::conflict("A host with this name already exists."));
+        }
+        if hosts.iter().any(|h| {
+            h.google_cloud.as_ref().is_some_and(|existing| {
+                existing.project_id == vm.project_id
+                    && existing.zone == vm.zone
+                    && existing.instance_name == vm.instance_name
+            })
+        }) {
+            return Err(CoreError::conflict(
+                "This Google Cloud VM is already saved.",
+            ));
+        }
+
+        let now = crate::time::Timestamp::now().millis();
+        let mut host = HostNode {
+            id: format!("host_{}", uuid::Uuid::new_v4().simple()),
+            name: name.to_string(),
+            endpoint: google_external_ip(&details),
+            google_cloud: Some(vm.clone()),
+            is_local: false,
+            status: gce_host_status(&details),
+            tags: vec!["google-cloud".into(), "gce".into()],
+            os_info: None,
+            cpu_count: None,
+            total_memory_bytes: None,
+            used_memory_bytes: None,
+            servers_count: 0,
+            running_servers_count: 0,
+            latency_ms: None,
+            last_seen: None,
+            created_at: now,
+        };
+        if host.status != HostStatus::Offline {
+            host.status = HostStatus::Unreachable;
+        }
+        hosts.push(host.clone());
+        self.save_remote_hosts(&hosts).await?;
+        self.audit
+            .record(
+                actor,
+                "multihost.add_google_host",
+                None,
+                Some(name.to_string()),
+                AuditResult::Success,
+                serde_json::json!({
+                    "host_id": host.id,
+                    "project_id": vm.project_id,
+                    "zone": vm.zone,
+                    "instance_name": vm.instance_name,
+                }),
+            )
+            .await;
+        self.events.publish(DomainEvent::HostsChanged);
+        Ok(host)
+    }
+
+    pub async fn refresh_google_host(&self, host_id: &str) -> CoreResult<HostNode> {
+        let mut hosts = self.stored_remote_hosts().await?;
+        let host = hosts
+            .iter_mut()
+            .find(|host| host.id == host_id)
+            .ok_or_else(|| CoreError::not_found("Host not found."))?;
+        let vm = host.google_cloud.as_ref().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                "This saved host is not a Google Compute Engine VM.",
+            )
+        })?;
+        let details = self.describe_google_vm(vm).await?;
+        host.endpoint = google_external_ip(&details);
+        host.status = gce_host_status(&details);
+        host.os_info = None;
+        host.cpu_count = None;
+        host.total_memory_bytes = None;
+        host.used_memory_bytes = None;
+        host.latency_ms = None;
+        host.last_seen = Some(crate::time::Timestamp::now().millis());
+
+        let updated = host.clone();
+        self.save_remote_hosts(&hosts).await?;
+        self.events.publish(DomainEvent::HostsChanged);
+        Ok(updated)
+    }
+
+    pub async fn set_google_host_power(
+        &self,
+        host_id: &str,
+        start: bool,
+        actor: &str,
+    ) -> CoreResult<()> {
+        let hosts = self.stored_remote_hosts().await?;
+        let host = hosts
+            .iter()
+            .find(|host| host.id == host_id)
+            .ok_or_else(|| CoreError::not_found("Host not found."))?;
+        let vm = host.google_cloud.as_ref().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                "This saved host is not a Google Compute Engine VM.",
+            )
+        })?;
+        validate_google_vm(vm)?;
+        let action = if start { "start" } else { "stop" };
+        let url = format!(
+            "https://compute.googleapis.com/compute/v1/projects/{}/zones/{}/instances/{}/{}",
+            vm.project_id, vm.zone, vm.instance_name, action
+        );
+        self.account.google_compute_request("POST", &url).await?;
+        self.audit
+            .record(
+                actor,
+                if start {
+                    "multihost.google_start"
+                } else {
+                    "multihost.google_stop"
+                },
+                None,
+                Some(host.name.clone()),
+                AuditResult::Success,
+                serde_json::json!({
+                    "host_id": host.id,
+                    "project_id": vm.project_id,
+                    "zone": vm.zone,
+                    "instance_name": vm.instance_name,
+                }),
+            )
+            .await;
+        self.events.publish(DomainEvent::HostsChanged);
+        Ok(())
+    }
+
+    async fn describe_google_vm(&self, vm: &GoogleCloudVm) -> CoreResult<Value> {
+        let url = format!(
+            "https://compute.googleapis.com/compute/v1/projects/{}/zones/{}/instances/{}",
+            vm.project_id, vm.zone, vm.instance_name
+        );
+        self.account.google_compute_request("GET", &url).await
     }
 
     pub async fn add_host(
         &self,
         name: String,
         endpoint: String,
-        _auth_token: Option<String>,
         tags: Vec<String>,
         actor: &str,
     ) -> CoreResult<HostNode> {
-        self.ensure_signed_in().await?;
         let name = name.trim();
         if name.is_empty() || name.chars().count() > 64 {
             return Err(CoreError::invalid(
@@ -231,8 +416,21 @@ impl MultihostService {
             ));
         }
         let endpoint = endpoint.trim().trim_end_matches('/');
-        if endpoint.is_empty() {
-            return Err(CoreError::invalid("Host endpoint URL cannot be empty."));
+        let authority = endpoint
+            .strip_prefix("https://")
+            .unwrap_or_default()
+            .split(['/', '?', '#'])
+            .next()
+            .unwrap_or_default();
+        if !endpoint.starts_with("https://")
+            || authority.is_empty()
+            || authority.starts_with(':')
+            || endpoint.contains('@')
+            || endpoint.chars().any(char::is_whitespace)
+        {
+            return Err(CoreError::invalid(
+                "Remote host endpoints must be HTTPS URLs without embedded credentials.",
+            ));
         }
 
         let mut hosts = self.stored_remote_hosts().await?;
@@ -260,8 +458,9 @@ impl MultihostService {
             id: host_id.clone(),
             name: name.to_string(),
             endpoint: Some(endpoint.to_string()),
+            google_cloud: None,
             is_local: false,
-            status: HostStatus::Online,
+            status: HostStatus::Unreachable,
             tags: clean_tags,
             os_info: None,
             cpu_count: None,
@@ -269,8 +468,8 @@ impl MultihostService {
             used_memory_bytes: None,
             servers_count: 0,
             running_servers_count: 0,
-            latency_ms: Some(15),
-            last_seen: Some(now),
+            latency_ms: None,
+            last_seen: None,
             created_at: now,
         };
 
@@ -293,7 +492,6 @@ impl MultihostService {
     }
 
     pub async fn remove_host(&self, host_id: &str, actor: &str) -> CoreResult<()> {
-        self.ensure_signed_in().await?;
         if host_id == "local" {
             return Err(CoreError::invalid("Cannot remove the local host."));
         }
@@ -325,49 +523,5 @@ impl MultihostService {
 
         self.events.publish(DomainEvent::HostsChanged);
         Ok(())
-    }
-
-    pub async fn ping_host(&self, host_id: &str) -> CoreResult<HostPingResult> {
-        self.ensure_signed_in().await?;
-        if host_id == "local" {
-            return Ok(HostPingResult {
-                host_id: "local".to_string(),
-                online: true,
-                latency_ms: Some(0),
-                message: Some("Local host is responsive".to_string()),
-            });
-        }
-
-        let hosts = self.stored_remote_hosts().await?;
-        let host = hosts
-            .iter()
-            .find(|h| h.id == host_id)
-            .ok_or_else(|| CoreError::not_found("Host not found."))?;
-
-        let latency = 12 + ((uuid::Uuid::new_v4().as_u128() % 15) as u32);
-        Ok(HostPingResult {
-            host_id: host.id.clone(),
-            online: true,
-            latency_ms: Some(latency),
-            message: Some(format!("Host '{}' responded in {} ms", host.name, latency)),
-        })
-    }
-
-    pub async fn generate_enrollment_token(&self) -> CoreResult<EnrollmentToken> {
-        let profile = self.ensure_signed_in().await?;
-        let token = format!("mcp_{}", uuid::Uuid::new_v4().simple());
-        let now = crate::time::Timestamp::now().millis();
-        let expires_at = now + 3600 * 1000;
-        let pairing_command = format!(
-            "mcpanel-node enroll --token {token} --account {}",
-            profile.uid
-        );
-
-        Ok(EnrollmentToken {
-            token,
-            account_uid: profile.uid,
-            expires_at,
-            pairing_command,
-        })
     }
 }

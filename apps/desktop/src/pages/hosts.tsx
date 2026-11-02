@@ -1,27 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import {
-  Activity,
-  Check,
-  Copy,
-  Cpu,
-  HardDrive,
-  KeyRound,
-  Lock,
-  MoreHorizontal,
-  Network,
-  Plus,
-  Radio,
-  RefreshCw,
-  Server,
-  Trash2,
-  UserCheck,
-} from "lucide-react";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, Cloud, Copy, Cpu, HardDrive, MoreHorizontal, Network, Plus, Power, RefreshCw, Server, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/app/app-shell";
 import type { HostDto } from "@/bindings/HostDto";
-import type { HostEnrollmentTokenDto } from "@/bindings/HostEnrollmentTokenDto";
 import { Button } from "@/components/ui/button";
 import {
   ConfirmDialog,
@@ -34,87 +16,92 @@ import {
 } from "@/components/ui/overlays";
 import { Badge, Card, EmptyState, Field, Input, SkeletonRows, Spinner, StatusDot } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { formatBytes, formatCount, formatRelative } from "@/lib/format";
-import { qk, useAccount, useMultihostStatus } from "@/lib/queries";
+import { formatBytes, formatCount } from "@/lib/format";
+import { qk, useMultihostStatus } from "@/lib/queries";
 import { cn, errorMessage } from "@/lib/utils";
 
 export function HostsPage() {
   const qc = useQueryClient();
   const { data: status, isLoading } = useMultihostStatus();
-  const { data: account } = useAccount();
+  const googleAuth = useQuery({
+    queryKey: ["google-compute-auth"],
+    queryFn: api.account.googleComputeStatus,
+    refetchInterval: (query) => query.state.data?.state === "waiting" ? 1000 : false,
+  });
   const [enrollOpen, setEnrollOpen] = useState(false);
-  const [tokenOpen, setTokenOpen] = useState(false);
-  const [activeToken, setActiveToken] = useState<HostEnrollmentTokenDto | null>(null);
   const [removingHost, setRemovingHost] = useState<HostDto | null>(null);
-  const [pingLatencies, setPingLatencies] = useState<Record<string, number | null>>({});
-  const [pinging, setPinging] = useState<Record<string, boolean>>({});
+  const [powerAction, setPowerAction] = useState<{ host: HostDto; start: boolean } | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: qk.multihost });
-
-  const pingMutation = useMutation({
-    mutationFn: (hostId: string) => api.multihost.ping(hostId),
-    onMutate: (hostId) => {
-      setPinging((prev) => ({ ...prev, [hostId]: true }));
-    },
-    onSuccess: (res) => {
-      setPinging((prev) => ({ ...prev, [res.hostId]: false }));
-      setPingLatencies((prev) => ({ ...prev, [res.hostId]: res.latencyMs }));
-      toast.success(res.message ?? `Ping: ${res.latencyMs ?? 0} ms`);
-    },
-    onError: (err, hostId) => {
-      setPinging((prev) => ({ ...prev, [hostId]: false }));
-      toast.error(`Ping failed: ${errorMessage(err)}`);
-    },
-  });
 
   const removeMutation = useMutation({
     mutationFn: (hostId: string) => api.multihost.remove(hostId),
     onSuccess: () => {
       void refresh();
       setRemovingHost(null);
-      toast.success("Host removed from multihost cluster");
+      toast.success("Saved host removed");
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  const generateToken = async () => {
-    try {
-      const res = await api.multihost.generateToken();
-      setActiveToken(res);
-      setTokenOpen(true);
-    } catch (e) {
-      toast.error(`Could not generate pairing token: ${errorMessage(e)}`);
+  const refreshGoogleMutation = useMutation({
+    mutationFn: (hostId: string) => api.multihost.refreshGoogle(hostId),
+    onSuccess: (host) => {
+      void refresh();
+      toast.success(`${host.name} VM details refreshed`);
+    },
+    onError: (error) => toast.error(`Google Cloud connection failed: ${errorMessage(error)}`),
+  });
+
+  const connectGoogleMutation = useMutation({
+    mutationFn: api.account.connectGoogleCompute,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["google-compute-auth"] }),
+    onError: (error) => toast.error(`Google Cloud authorization failed: ${errorMessage(error)}`),
+  });
+
+  useEffect(() => {
+    if (googleAuth.data?.state === "done") {
+      toast.success("Google Cloud connected");
+      void qc.invalidateQueries({ queryKey: qk.multihost });
+    } else if (googleAuth.data?.state === "failed") {
+      toast.error(googleAuth.data.message ?? "Google Cloud authorization failed");
     }
-  };
+  }, [googleAuth.data?.state, googleAuth.data?.message, qc]);
+
+  const powerGoogleMutation = useMutation({
+    mutationFn: ({ hostId, start }: { hostId: string; start: boolean }) => api.multihost.setGooglePower(hostId, start),
+    onSuccess: (_, variables) => {
+      void refresh();
+      setPowerAction(null);
+      toast.success(variables.start ? "Google Cloud VM start requested" : "Google Cloud VM stop requested");
+    },
+    onError: (error) => toast.error(`Google Cloud action failed: ${errorMessage(error)}`),
+  });
 
   const hosts = status?.hosts ?? [];
   const localHost = hosts.find((h) => h.isLocal);
-  // Account query is the immediate source of truth for login state.
-  const signedIn = Boolean(account?.signedIn && status?.signedIn);
-  const remoteHosts = signedIn ? hosts.filter((h) => !h.isLocal) : [];
-  const totalServers = (signedIn ? hosts : localHost ? [localHost] : []).reduce((acc, h) => acc + h.serversCount, 0);
-  const runningServers = (signedIn ? hosts : localHost ? [localHost] : []).reduce((acc, h) => acc + h.runningServersCount, 0);
+  const remoteHosts = hosts.filter((h) => !h.isLocal && h.googleCloud != null);
+  const totalServers = hosts.reduce((acc, h) => acc + h.serversCount, 0);
+  const runningServers = hosts.reduce((acc, h) => acc + h.runningServersCount, 0);
 
   return (
     <>
       <PageHeader
         title="Hosts"
-        description="Manage servers across your local machine and remote nodes. An MCPanel account is required for multihost management."
+        description="Connect and control Google Compute Engine VMs directly from MCPanel."
         actions={
           <>
             <Button variant="outline" size="sm" onClick={refresh} title="Refresh hosts and statuses">
               <RefreshCw className={cn(isLoading && "animate-spin")} /> Refresh
             </Button>
-            {signedIn && (
-              <>
-                <Button variant="outline" size="sm" onClick={generateToken}>
-                  <KeyRound /> Pairing token
-                </Button>
-                <Button variant="primary" size="sm" onClick={() => setEnrollOpen(true)}>
-                  <Plus /> Enroll host
-                </Button>
-              </>
+            {!googleAuth.data?.connected && (
+              <Button variant="primary" size="sm" onClick={() => connectGoogleMutation.mutate()} disabled={connectGoogleMutation.isPending}>
+                {connectGoogleMutation.isPending ? <Spinner /> : <Cloud />} Connect Google Cloud
+              </Button>
             )}
+            <Button variant="primary" size="sm" onClick={() => setEnrollOpen(true)} disabled={!googleAuth.data?.connected}>
+              <Plus /> Add Google VM
+            </Button>
           </>
         }
       />
@@ -125,76 +112,40 @@ export function HostsPage() {
           </Card>
         ) : (
           <>
-            {/* Account requirement banner when signed out */}
-            {!signedIn && (
-              <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-r from-accent/10 via-surface to-surface p-5 shadow-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3.5">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-accent">
-                      <Lock className="size-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-semibold text-fg">
-                          {account?.isGuest ? "Multihost Locked in Guest Mode" : "Account Required for Multihost"}
-                        </h2>
-                        <Badge tone="warning">{account?.isGuest ? "Guest Mode" : "Account Needed"}</Badge>
-                      </div>
-                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted">
-                        {account?.isGuest
-                          ? "Local servers on this machine are fully active. Sign in to an MCPanel account to link and manage remote nodes."
-                          : "Sign in or create an MCPanel account to enroll remote nodes, monitor latency, and operate distributed Minecraft servers."}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Button asChild variant="primary" size="sm">
-                      <Link to="/account">{account?.isGuest ? "Upgrade Account" : "Sign In or Register"}</Link>
-                    </Button>
-                  </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card className="p-3.5">
+                <div className="flex items-center justify-between text-xs text-muted">
+                  <span>Hosts</span>
+                  <Network className="size-4 text-accent" />
                 </div>
+                <div className="mt-1 text-2xl font-bold text-fg">{hosts.length}</div>
+                <div className="mt-0.5 text-[11px] text-faint">{remoteHosts.length} Google Cloud VM(s)</div>
               </Card>
-            )}
-
-            {/* Authenticated summary stats */}
-            {signedIn && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Card className="p-3.5">
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Total Nodes</span>
-                    <Network className="size-4 text-accent" />
-                  </div>
-                  <div className="mt-1 text-2xl font-bold text-fg">{hosts.length}</div>
-                  <div className="mt-0.5 text-[11px] text-faint">1 local · {remoteHosts.length} remote</div>
-                </Card>
-                <Card className="p-3.5">
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Account</span>
-                    <UserCheck className="text-success size-4" />
-                  </div>
-                  <div className="mt-1 truncate text-sm font-semibold text-fg" title={account?.profile?.email ?? status?.userEmail ?? ""}>
-                    {account?.profile?.email ?? status?.userEmail ?? "Connected"}
-                  </div>
-                  <div className="text-success mt-0.5 text-[11px]">Cluster active</div>
-                </Card>
-                <Card className="p-3.5">
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Servers Hosted</span>
-                    <Server className="size-4 text-accent" />
-                  </div>
-                  <div className="mt-1 text-2xl font-bold text-fg">{totalServers}</div>
-                  <div className="mt-0.5 text-[11px] text-faint">Across all enrolled nodes</div>
-                </Card>
-                <Card className="p-3.5">
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Active Processes</span>
-                    <Activity className="text-success size-4" />
-                  </div>
-                  <div className="mt-1 text-2xl font-bold text-fg">{runningServers}</div>
-                  <div className="mt-0.5 text-[11px] text-faint">{formatCount(runningServers, "server")} running</div>
-                </Card>
-              </div>
-            )}
+              <Card className="p-3.5">
+                <div className="flex items-center justify-between text-xs text-muted">
+                  <span>Google Cloud</span>
+                  <Cloud className="size-4 text-accent" />
+                </div>
+                <div className="mt-1 truncate text-sm font-semibold text-fg">Compute Engine API</div>
+                <div className="text-success mt-0.5 text-[11px]">{googleAuth.data?.connected ? "OAuth connected" : "Authorization required"}</div>
+              </Card>
+              <Card className="p-3.5">
+                <div className="flex items-center justify-between text-xs text-muted">
+                  <span>Servers Hosted</span>
+                  <Server className="size-4 text-accent" />
+                </div>
+                <div className="mt-1 text-2xl font-bold text-fg">{totalServers}</div>
+                <div className="mt-0.5 text-[11px] text-faint">Reported by available hosts</div>
+              </Card>
+              <Card className="p-3.5">
+                <div className="flex items-center justify-between text-xs text-muted">
+                  <span>Active Processes</span>
+                  <Activity className="text-success size-4" />
+                </div>
+                <div className="mt-1 text-2xl font-bold text-fg">{runningServers}</div>
+                <div className="mt-0.5 text-[11px] text-faint">{formatCount(runningServers, "server")} running</div>
+              </Card>
+            </div>
 
             {/* Local Host Node Card */}
             <div>
@@ -237,10 +188,6 @@ export function HostsPage() {
                         </div>
                         <div className="text-[11px] text-muted">Running Servers</div>
                       </div>
-                      <div className="rounded-lg bg-surface-2 px-3 py-1.5 text-center">
-                        <div className="text-success font-semibold">0 ms</div>
-                        <div className="text-[11px] text-muted">Latency</div>
-                      </div>
                     </div>
                   </div>
                 </Card>
@@ -251,49 +198,36 @@ export function HostsPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs font-semibold tracking-wider text-muted uppercase">Enrolled Remote Nodes</h3>
-                  <p className="text-[11px] text-faint">Nodes running MCPanel daemon or remote agent linked to your account.</p>
+                  <h3 className="text-xs font-semibold tracking-wider text-muted uppercase">Google Compute Engine</h3>
+                  <p className="text-[11px] text-faint">Live VM state and network details come from the Compute Engine API.</p>
                 </div>
-                {signedIn && remoteHosts.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={() => setEnrollOpen(true)}>
-                    <Plus /> Add Node
+                {remoteHosts.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setEnrollOpen(true)} disabled={!googleAuth.data?.connected}>
+                    <Plus /> Add Google VM
                   </Button>
                 )}
               </div>
 
-              {!signedIn ? (
-                <Card className="p-8 text-center">
-                  <Network className="mx-auto size-9 text-muted/60" />
-                  <h4 className="mt-3 text-sm font-medium text-fg">Remote Nodes Locked</h4>
-                  <p className="mx-auto mt-1 max-w-md text-xs text-muted">
-                    Sign in to your MCPanel account to unlock remote node management and add dedicated servers or VPS instances.
-                  </p>
-                  <Button asChild variant="outline" size="sm" className="mt-4">
-                    <Link to="/account">Sign In to Continue</Link>
-                  </Button>
-                </Card>
-              ) : remoteHosts.length === 0 ? (
+              {remoteHosts.length === 0 ? (
                 <EmptyState
-                  icon={<Network />}
-                  title="No remote nodes enrolled yet"
-                  description="Add remote VPS, cloud, or dedicated servers to monitor hardware and manage Minecraft instances alongside your local machine."
+                  icon={<Cloud />}
+                  title="No Google Cloud VMs connected"
+                  description="Connect Google Cloud, then add an existing VM by project, zone, and instance name."
                   action={
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={generateToken}>
-                        <KeyRound /> Pair Node with Token
-                      </Button>
-                      <Button variant="primary" size="sm" onClick={() => setEnrollOpen(true)}>
-                        <Plus /> Enroll Host Manually
-                      </Button>
-                    </div>
+                    <Button variant="primary" size="sm" onClick={() => setEnrollOpen(true)}>
+                      <Plus /> Add Google VM
+                    </Button>
                   }
                 />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {remoteHosts.map((host) => {
-                    const latency = pingLatencies[host.id] ?? host.latencyMs;
-                    const isPinging = pinging[host.id] ?? false;
-
+                    const vm = host.googleCloud;
+                    if (!vm) return null;
+                    const isOnline = host.status === "online";
+                    const isOffline = host.status === "offline";
+                    const isStarting = host.status === "starting";
+                    const isStopping = host.status === "stopping";
                     return (
                       <Card key={host.id} className="flex flex-col justify-between p-4">
                         <div className="space-y-2.5">
@@ -301,9 +235,9 @@ export function HostsPage() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-fg">{host.name}</span>
-                                <Badge tone={host.status === "online" ? "success" : host.status === "offline" ? "neutral" : "warning"}>
-                                  {host.status === "online" ? <StatusDot tone="success" pulse /> : <StatusDot tone="neutral" />}
-                                  <span className="capitalize">{host.status}</span>
+                                <Badge tone={isOnline ? "success" : isOffline ? "neutral" : "warning"}>
+                                  <StatusDot tone={isOnline ? "success" : "neutral"} pulse={isOnline} />
+                                  <span>{isOnline ? "VM running" : isOffline ? "VM stopped" : isStarting ? "Starting" : isStopping ? "Stopping" : "VM unavailable"}</span>
                                 </Badge>
                               </div>
                               {host.endpoint && (
@@ -320,9 +254,6 @@ export function HostsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => pingMutation.mutate(host.id)}>
-                                  <Radio /> Ping Node
-                                </DropdownMenuItem>
                                 {host.endpoint && (
                                   <DropdownMenuItem
                                     onClick={() => {
@@ -340,6 +271,25 @@ export function HostsPage() {
                             </DropdownMenu>
                           </div>
 
+                          <div className="text-xs text-muted">
+                            <div className="font-medium text-fg">{vm.instanceName}</div>
+                            <div>
+                              {vm.projectId} · {vm.zone}
+                            </div>
+                          </div>
+
+                          {(host.osInfo || host.cpuCount != null || host.totalMemoryBytes != null) && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                              {host.osInfo && <span>{host.osInfo}</span>}
+                              {host.cpuCount != null && <span>{host.cpuCount} vCPU</span>}
+                              {host.totalMemoryBytes != null && (
+                                <span>
+                                  {formatBytes(host.usedMemoryBytes)} / {formatBytes(host.totalMemoryBytes)} RAM
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <div className="flex flex-wrap gap-1">
                             {host.tags.map((t) => (
                               <span key={t} className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">
@@ -351,31 +301,27 @@ export function HostsPage() {
 
                         <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
                           <div className="flex items-center gap-3">
-                            <span title="Running servers on this host">
-                              <span className="font-semibold text-fg">{host.runningServersCount}</span>
-                              <span className="text-[11px] text-faint">/{host.serversCount} running</span>
+                            <span className="text-[11px] text-faint">
+                              {host.lastSeen ? `Checked ${new Date(host.lastSeen).toLocaleString()}` : "VM details saved locally"}
                             </span>
-                            <span>·</span>
-                            <span className="text-[11px] text-faint">seen {formatRelative(host.lastSeen)}</span>
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              disabled={isPinging}
-                              onClick={() => pingMutation.mutate(host.id)}
-                            >
-                              {isPinging ? (
-                                <Spinner className="size-3 text-accent" />
-                              ) : (
-                                <span className={cn(latency && latency < 50 ? "text-success" : "text-fg")}>
-                                  {latency != null ? `${latency} ms` : "Ping"}
-                                </span>
-                              )}
-                            </Button>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={refreshGoogleMutation.isPending}
+                            onClick={() => refreshGoogleMutation.mutate(host.id)}
+                          >
+                            {refreshGoogleMutation.isPending ? <Spinner /> : <RefreshCw />}
+                            Refresh VM
+                          </Button>
+                          <Button
+                            variant={isOnline ? "outline" : "primary"}
+                            size="sm"
+                            disabled={powerGoogleMutation.isPending || (!isOnline && !isOffline)}
+                            onClick={() => setPowerAction({ host, start: isOffline })}
+                          >
+                            <Power /> {isOnline ? "Stop VM" : isStarting ? "Starting" : isStopping ? "Stopping" : "Start VM"}
+                          </Button>
                         </div>
                       </Card>
                     );
@@ -387,11 +333,22 @@ export function HostsPage() {
         )}
       </PageBody>
 
-      {/* Enroll Host Dialog */}
+      {/* Add Google Compute Engine VM */}
       <EnrollHostDialog open={enrollOpen} onOpenChange={setEnrollOpen} onEnrolled={refresh} />
 
-      {/* Pairing Token Dialog */}
-      {activeToken && <PairingTokenDialog open={tokenOpen} onOpenChange={setTokenOpen} token={activeToken} />}
+      {powerAction && (
+        <ConfirmDialog
+          open={Boolean(powerAction)}
+          onOpenChange={(open) => !open && setPowerAction(null)}
+          title={`${powerAction.start ? "Start" : "Stop"} '${powerAction.host.name}'?`}
+          description={powerAction.start
+            ? "This will start the Google Cloud VM. Compute Engine charges may apply while it runs."
+            : "This will stop the VM and disconnect any players or processes running on it."}
+          confirmLabel={powerAction.start ? "Start VM" : "Stop VM"}
+          destructive={!powerAction.start}
+          onConfirm={() => powerGoogleMutation.mutate({ hostId: powerAction.host.id, start: powerAction.start })}
+        />
+      )}
 
       {/* Remove Host Confirmation */}
       {removingHost && (
@@ -399,7 +356,7 @@ export function HostsPage() {
           open={Boolean(removingHost)}
           onOpenChange={(open) => !open && setRemovingHost(null)}
           title={`Remove '${removingHost.name}'?`}
-          description="Removing this host disconnects it from your MCPanel cluster. Servers running on the remote node will not be deleted."
+          description="Remove this VM reference from MCPanel. This does not stop or delete the Google Cloud VM."
           confirmLabel="Remove Host"
           destructive
           onConfirm={() => removeMutation.mutate(removingHost.id)}
@@ -411,16 +368,16 @@ export function HostsPage() {
 
 function EnrollHostDialog({ open, onOpenChange, onEnrolled }: { open: boolean; onOpenChange: (open: boolean) => void; onEnrolled: () => void }) {
   const [name, setName] = useState("");
-  const [endpoint, setEndpoint] = useState("");
-  const [authToken, setAuthToken] = useState("");
-  const [tags, setTags] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [zone, setZone] = useState("");
+  const [instanceName, setInstanceName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
     setName("");
-    setEndpoint("");
-    setAuthToken("");
-    setTags("");
+    setProjectId("");
+    setZone("");
+    setInstanceName("");
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -429,26 +386,21 @@ function EnrollHostDialog({ open, onOpenChange, onEnrolled }: { open: boolean; o
       toast.error("Host name is required");
       return;
     }
-    if (!endpoint.trim()) {
-      toast.error("Endpoint URL is required");
+    if (!projectId.trim() || !zone.trim() || !instanceName.trim()) {
+      toast.error("Project ID, zone, and instance name are required.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const cleanTags = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-
-      await api.multihost.add({
+      await api.multihost.addGoogle({
         name: name.trim(),
-        endpoint: endpoint.trim(),
-        authToken: authToken.trim() || null,
-        tags: cleanTags.length > 0 ? cleanTags : ["remote"],
+        projectId: projectId.trim(),
+        zone: zone.trim(),
+        instanceName: instanceName.trim(),
       });
 
-      toast.success(`Host '${name}' enrolled successfully`);
+      toast.success(`Google Cloud VM '${name}' saved.`);
       reset();
       onOpenChange(false);
       onEnrolled();
@@ -462,90 +414,40 @@ function EnrollHostDialog({ open, onOpenChange, onEnrolled }: { open: boolean; o
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title="Enroll Remote Host"
-        description="Connect a remote server running MCPanel Node or compatible daemon."
+        title="Add Google Compute Engine VM"
+        description="Connect an existing VM with the Google account authorized for Compute Engine access."
         footer={
           <>
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
             <Button variant="primary" onClick={submit} disabled={submitting}>
-              {submitting ? <Spinner /> : <Plus />} Enroll Host
+              {submitting ? <Spinner /> : <Plus />} Add VM
             </Button>
           </>
         }
       >
         <form onSubmit={submit} className="space-y-4">
-          <Field label="Host Name" hint="A friendly name to identify this machine.">
-            <Input placeholder="e.g. Frankfurt VPS 1" value={name} onChange={(e) => setName(e.target.value)} disabled={submitting} autoFocus />
+          <Field label="Display Name">
+            <Input placeholder="e.g. Minecraft Europe" value={name} onChange={(e) => setName(e.target.value)} disabled={submitting} autoFocus />
           </Field>
 
-          <Field label="Endpoint Address" hint="The HTTPS or HTTP URL where the node agent listens.">
-            <Input
-              placeholder="https://node1.example.com:8443"
-              value={endpoint}
-              onChange={(e) => setEndpoint(e.target.value)}
-              disabled={submitting}
-            />
+          <Field label="Google Cloud Project ID">
+            <Input placeholder="my-minecraft-project" value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={submitting} />
           </Field>
 
-          <Field label="Node Secret Token (Optional)" hint="Authentication secret configured on the remote node.">
-            <Input
-              type="password"
-              placeholder="Secret token"
-              value={authToken}
-              onChange={(e) => setAuthToken(e.target.value)}
-              disabled={submitting}
-            />
+          <Field label="Zone" hint="For example, us-central1-a">
+            <Input placeholder="us-central1-a" value={zone} onChange={(e) => setZone(e.target.value)} disabled={submitting} />
           </Field>
 
-          <Field label="Tags (Optional)" hint="Comma-separated labels for grouping (e.g. europe, survival, vps).">
-            <Input placeholder="vps, europe, dedicated" value={tags} onChange={(e) => setTags(e.target.value)} disabled={submitting} />
+          <Field label="VM Instance Name">
+            <Input placeholder="minecraft-server-1" value={instanceName} onChange={(e) => setInstanceName(e.target.value)} disabled={submitting} />
           </Field>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
-function PairingTokenDialog({ open, onOpenChange, token }: { open: boolean; onOpenChange: (open: boolean) => void; token: HostEnrollmentTokenDto }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(token.pairingCommand);
-      setCopied(true);
-      toast.success("Pairing command copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Failed to copy command");
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title="Node Pairing Command"
-        description="Run this command on your remote server to enroll it into your MCPanel cluster."
-        footer={
-          <Button variant="primary" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        }
-      >
-        <div className="space-y-4">
           <p className="text-xs text-muted">
-            The enrollment token is valid for 1 hour. It securely associates the remote node with your account UID{" "}
-            <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px] text-fg">{token.accountUid}</code>.
+            Connect Google Cloud first. MCPanel uses your Google OAuth authorization and does not require the Google Cloud CLI or inbound SSH access.
           </p>
-
-          <div className="relative rounded-lg border border-border bg-surface-2 p-3 font-mono text-xs text-fg">
-            <pre className="selectable pr-8 break-all whitespace-pre-wrap">{token.pairingCommand}</pre>
-            <Button variant="ghost" size="icon-sm" className="absolute top-2 right-2 text-muted hover:text-fg" onClick={copy} title="Copy command">
-              {copied ? <Check className="text-success size-4" /> : <Copy className="size-4" />}
-            </Button>
-          </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

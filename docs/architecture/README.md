@@ -26,6 +26,9 @@ local first (no accounts, no cloud service, **no telemetry**).
 
 Non-goals for v1: hosting in an MCPanel cloud, Kubernetes, Docker, Pterodactyl
 infrastructure, marketplaces, billing, MCPanel user accounts, mandatory remote management.
+Optional remote-host support connects existing Google Compute Engine VMs through an
+explicit Google OAuth grant. Google refresh credentials are held in the platform secret
+store. MCPanel does not provision VMs.
 
 ## 2. Technology stack
 
@@ -237,6 +240,14 @@ e.g. `plugins/floodgate/key.pem` and loader equivalents). Highly sensitive files
   verification-log.md, "Cloud storage OAuth".
 
 ## 10. Networking
+
+### Google Compute Engine hosts
+
+Existing VMs can be linked by project ID, zone, and instance name. A separate Google OAuth
+consent grants Compute Engine API access; the refresh token is kept in the platform secret
+store. The app calls Compute Engine REST for VM status, addresses, start, and stop. It does
+not require gcloud or SSH, and does not provision VMs, install Minecraft, or manage Minecraft
+processes. See [ADR-0010](../adr/0010-google-compute-engine-hosts.md).
 
 - `TunnelProvider` trait with `TunnelCaps.can_create_via_api`.
 - **Playit:** supervise the official agent; use only officially supported interfaces.

@@ -330,15 +330,43 @@ function Done() {
 }
 
 /** First-time setup: shown until finished or skipped. */
-export function OnboardingPage() {
+export function OnboardingPage({
+  onSkipForNow,
+  asRoute,
+}: {
+  onSkipForNow?: () => void;
+  asRoute?: boolean;
+} = {}) {
   const navigate = useNavigate();
   const save = useSaveSettings();
   const [step, setStep] = useState(0);
   const id = STEPS[step]?.id;
+
+  const skipForNow = () => {
+    if (onSkipForNow) {
+      onSkipForNow();
+    } else {
+      void navigate({ to: "/" });
+    }
+    toast.info("Setup skipped for now. Getting Started will appear on next launch, or you can manage it from Settings.", {
+      action: {
+        label: "Don't show again",
+        onClick: () => {
+          void save({ onboardingCompleted: true });
+          toast.success("Getting Started disabled on startup.");
+        },
+      },
+    });
+  };
+
   const finish = async (to: "/" | "/servers/new") => {
     await save({ onboardingCompleted: true });
+    if (onSkipForNow) {
+      onSkipForNow();
+    }
     void navigate({ to });
   };
+
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
 
   return (
@@ -372,14 +400,24 @@ export function OnboardingPage() {
           ))}
         </ol>
         <div className="flex-1" />
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-center gap-1.5 text-xs text-muted hover:text-fg"
-          onClick={() => void finish("/")}
-        >
-          <FastForward className="size-3.5" /> Skip setup
-        </Button>
+        <div className="space-y-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-center gap-1.5 text-xs text-muted hover:text-fg"
+            onClick={skipForNow}
+          >
+            <FastForward className="size-3.5" /> Skip setup
+          </Button>
+          {!asRoute && (
+            <button
+              className="w-full text-center text-[11px] text-faint transition-colors hover:text-muted"
+              onClick={() => void finish("/")}
+            >
+              Don't show on startup
+            </button>
+          )}
+        </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="setup-content min-h-0 flex-1 overflow-y-auto px-10 py-10">
@@ -402,7 +440,7 @@ export function OnboardingPage() {
             </div>
           </div>
           <div key={id} className="animate-page-in">
-            {id === "welcome" && <Welcome onSkip={() => void finish("/")} />}
+            {id === "welcome" && <Welcome onSkip={skipForNow} />}
             {id === "account" && <AccountStep next={next} />}
             {id === "appearance" && <AppearanceStep />}
             {id === "java" && <JavaStep />}
@@ -419,7 +457,7 @@ export function OnboardingPage() {
             {id !== "done" && (
               <Button
                 variant="ghost"
-                onClick={() => void finish("/")}
+                onClick={skipForNow}
                 className="text-muted hover:text-fg flex items-center gap-1.5"
               >
                 <FastForward className="size-3.5" /> Skip setup

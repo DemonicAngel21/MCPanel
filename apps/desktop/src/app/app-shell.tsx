@@ -13,7 +13,7 @@ import { startEventBridge } from "@/lib/events";
 import { accentVars, applyAccent } from "@/lib/accent";
 import { OnboardingPage } from "@/pages/onboarding";
 import { api } from "@/lib/api";
-import { useServers, useSettings } from "@/lib/queries";
+import { useServers, useSettings, useUpdateCheck } from "@/lib/queries";
 import { stateMeta } from "@/lib/server-state";
 import { cn } from "@/lib/utils";
 import { useUi } from "@/stores/ui";
@@ -80,6 +80,31 @@ function RailLink({ to, icon, label, exact }: { to: string; icon: ReactNode; lab
 function railItem(item: (typeof MAIN_NAV_ITEMS)[number]) {
   const Icon = item.icon;
   return <RailLink key={item.to} to={item.to} exact={item.exact} icon={<Icon />} label={item.label} />;
+}
+
+function SettingsRailLink({ item }: { item: (typeof MAIN_NAV_ITEMS)[number] }) {
+  const { data: updateInfo } = useUpdateCheck();
+  const Icon = item.icon;
+  const hasUpdate = updateInfo?.hasUpdate;
+  return (
+    <div className="relative">
+      <RailLink
+        to={item.to}
+        exact={item.exact}
+        icon={<Icon />}
+        label={hasUpdate ? `${item.label} (Update available)` : item.label}
+      />
+      {hasUpdate && (
+        <span
+          className="pointer-events-none absolute top-1 right-1 flex size-2.5 items-center justify-center"
+          title="Update available"
+        >
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
+          <span className="relative inline-flex size-2 rounded-full bg-accent" />
+        </span>
+      )}
+    </div>
+  );
 }
 
 /** Fades a page in on navigation; server tabs animate inside the server layout. */
@@ -188,6 +213,7 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const sessionSkipped = useUi((s) => s.sessionOnboardingDismissed);
   const startup = startupView(settingsQuery.isPending, settingsQuery.isError, settings);
   if (startup === "loading") {
     return (
@@ -210,10 +236,10 @@ export function AppShell() {
     );
   }
 
-  if (startup === "setup") {
+  if (startup === "setup" && !sessionSkipped) {
     return (
       <>
-        <OnboardingPage />
+        <OnboardingPage onSkipForNow={() => useUi.getState().setSessionOnboardingDismissed(true)} />
         <JobToasts />
       </>
     );
@@ -228,7 +254,9 @@ export function AppShell() {
         {MAIN_NAV_ITEMS.filter((item) => item.to !== "/settings").map(railItem)}
         <div className="flex-1" />
         <NotificationInbox />
-        {MAIN_NAV_ITEMS.filter((item) => item.to === "/settings").map(railItem)}
+        {MAIN_NAV_ITEMS.filter((item) => item.to === "/settings").map((item) => (
+          <SettingsRailLink key={item.to} item={item} />
+        ))}
       </nav>
       <ServerList />
       <main className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden">

@@ -26,10 +26,27 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 
+struct UpdateState {
+    status: tokio::sync::RwLock<mcpanel_core::updates::UpdateStatus>,
+    last_check: tokio::sync::RwLock<Option<mcpanel_core::updates::UpdateCheckResult>>,
+    client: tokio::sync::RwLock<Option<Arc<dyn mcpanel_core::updates::UpdateClient>>>,
+}
+
+impl Default for UpdateState {
+    fn default() -> Self {
+        Self {
+            status: tokio::sync::RwLock::new(mcpanel_core::updates::UpdateStatus::Idle),
+            last_check: tokio::sync::RwLock::new(None),
+            client: tokio::sync::RwLock::new(None),
+        }
+    }
+}
+
 pub struct Api {
     core: Arc<Core>,
     pub grants: GrantRegistry,
     version: String,
+    updates: Arc<UpdateState>,
 }
 
 fn server_id(s: &str) -> ApiResult<ServerId> {
@@ -70,6 +87,7 @@ impl Api {
             core,
             grants: GrantRegistry::default(),
             version: version.into(),
+            updates: Arc::new(UpdateState::default()),
         }
     }
 
@@ -141,6 +159,8 @@ impl Api {
                 backups_dir: None,
                 accent: patch.accent,
                 onboarding_completed: patch.onboarding_completed,
+                auto_check_updates: patch.auto_check_updates,
+                check_prerelease_updates: patch.check_prerelease_updates,
             })
             .await?
             .into())
@@ -948,6 +968,30 @@ impl Api {
             .core
             .files
             .search(server_id(id)?, path.into(), query.into(), limit as usize)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn files_search_content(
+        &self,
+        p: &Principal,
+        id: &str,
+        path: &str,
+        query: &str,
+        limit: u32,
+    ) -> ApiResult<Vec<ContentMatchDto>> {
+        p.authorize(Permission::FilesRead)?;
+        Ok(self
+            .core
+            .files
+            .search_content(
+                server_id(id)?,
+                path.to_string(),
+                query.to_string(),
+                limit as usize,
+            )
             .await?
             .into_iter()
             .map(Into::into)
@@ -2547,9 +2591,6 @@ impl Api {
         p.authorize(Permission::MultihostRead)?;
         let status = self.core.multihost.status().await?;
         Ok(MultihostStatusDto {
-            account_required: status.account_required,
-            signed_in: status.signed_in,
-            user_email: status.user_email,
             hosts: status.hosts.iter().map(Into::into).collect(),
         })
     }
@@ -2565,50 +2606,95 @@ impl Api {
         let host = self
             .core
             .multihost
-            .add_host(
+            .add_host(body.name, body.endpoint, body.tags, p.actor())
+            .await?;
+        Ok((&host).into())
+    }
+
+    pub async fn multihost_add_google_host(
+        &self,
+        p: &Principal,
+        body: AddGoogleHostDto,
+    ) -> ApiResult<HostDto> {
+        p.authorize(Permission::MultihostManage)?;
+        let host = self
+            .core
+            .multihost
+            .add_google_host(
                 body.name,
-                body.endpoint,
-                body.auth_token,
-                body.tags,
+                mcpanel_core::multihost::GoogleCloudVm {
+                    project_id: body.project_id,
+                    zone: body.zone,
+                    instance_name: body.instance_name,
+                },
                 p.actor(),
             )
             .await?;
         Ok((&host).into())
     }
 
+    pub async fn multihost_refresh_google_host(
+        &self,
+        p: &Principal,
+        host_id: &str,
+    ) -> ApiResult<HostDto> {
+        p.authorize(Permission::MultihostManage)?;
+        let host = self.core.multihost.refresh_google_host(host_id).await?;
+        Ok((&host).into())
+    }
+
+    pub async fn google_compute_auth_status(
+        &self,
+        p: &Principal,
+    ) -> ApiResult<GoogleComputeAuthDto> {
+        p.authorize(Permission::MultihostRead)?;
+        let progress = self.core.account.google_compute_progress();
+        let (state, message) = match progress {
+            Some(mcpanel_core::account::GoogleSignIn::Waiting { .. }) => {
+                (Some("waiting".into()), None)
+            }
+            Some(mcpanel_core::account::GoogleSignIn::Done) => (Some("done".into()), None),
+            Some(mcpanel_core::account::GoogleSignIn::Failed { message }) => {
+                (Some("failed".into()), Some(message))
+            }
+            None => (None, None),
+        };
+        Ok(GoogleComputeAuthDto {
+            connected: self.core.account.google_compute_connected()?,
+            state,
+            message,
+        })
+    }
+
+    pub async fn google_compute_auth_begin(&self, p: &Principal) -> ApiResult<String> {
+        p.authorize(Permission::MultihostManage)?;
+        Ok(self.core.account.begin_google_compute().await?)
+    }
+
+    pub fn google_compute_auth_cancel(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::MultihostManage)?;
+        self.core.account.cancel_google_compute();
+        Ok(())
+    }
+
+    pub async fn multihost_set_google_host_power(
+        &self,
+        p: &Principal,
+        host_id: &str,
+        start: bool,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::MultihostManage)?;
+        self.core
+            .multihost
+            .set_google_host_power(host_id, start, p.actor())
+            .await?;
+        Ok(())
+    }
+
     pub async fn multihost_remove_host(&self, p: &Principal, host_id: &str) -> ApiResult<()> {
         p.authorize(Permission::MultihostManage)?;
         self.core.multihost.remove_host(host_id, p.actor()).await?;
         Ok(())
-    }
-
-    pub async fn multihost_ping_host(
-        &self,
-        p: &Principal,
-        host_id: &str,
-    ) -> ApiResult<HostPingResultDto> {
-        p.authorize(Permission::MultihostRead)?;
-        let res = self.core.multihost.ping_host(host_id).await?;
-        Ok(HostPingResultDto {
-            host_id: res.host_id,
-            online: res.online,
-            latency_ms: res.latency_ms,
-            message: res.message,
-        })
-    }
-
-    pub async fn multihost_generate_token(
-        &self,
-        p: &Principal,
-    ) -> ApiResult<HostEnrollmentTokenDto> {
-        p.authorize(Permission::MultihostManage)?;
-        let token = self.core.multihost.generate_enrollment_token().await?;
-        Ok(HostEnrollmentTokenDto {
-            token: token.token,
-            account_uid: token.account_uid,
-            expires_at: token.expires_at,
-            pairing_command: token.pairing_command,
-        })
     }
 
     // ───────────────────────────── AI Assistant ───────────────────────────
@@ -2672,6 +2758,22 @@ impl Api {
     pub async fn ai_test_connection(&self, p: &Principal) -> ApiResult<()> {
         p.authorize(Permission::AiManage)?;
         self.core.ai.test_connection().await?;
+        Ok(())
+    }
+
+    pub async fn ai_test_provider(
+        &self,
+        p: &Principal,
+        provider: &str,
+        model: &str,
+        base_url: Option<String>,
+        api_key: Option<String>,
+    ) -> ApiResult<()> {
+        p.authorize(Permission::AiManage)?;
+        self.core
+            .ai
+            .test_provider_connection(provider, model, base_url.as_deref(), api_key.as_deref())
+            .await?;
         Ok(())
     }
 
@@ -2811,5 +2913,307 @@ impl Api {
                 }),
             },
         })
+    }
+
+    // ────────────────────────────── updates ──────────────────────────────
+
+    pub fn updates_attach_client(&self, client: Arc<dyn mcpanel_core::updates::UpdateClient>) {
+        let updates = Arc::clone(&self.updates);
+        tokio::spawn(async move {
+            *updates.client.write().await = Some(client);
+        });
+    }
+
+    pub async fn updates_check(&self, p: &Principal, force: bool) -> ApiResult<AppUpdateInfoDto> {
+        p.authorize(Permission::SystemRead)?;
+        let client = self.updates.client.read().await.clone();
+        let Some(client) = client else {
+            return Ok(AppUpdateInfoDto {
+                current_version: self.version.clone(),
+                latest_version: self.version.clone(),
+                has_update: false,
+                release_name: None,
+                release_notes: None,
+                published_at: None,
+                prerelease: false,
+                download_url: None,
+                asset_name: None,
+                asset_size: None,
+            });
+        };
+
+        if !force && let Some(cached) = self.updates.last_check.read().await.as_ref() {
+            let (download_url, asset_name, asset_size) = cached
+                .release
+                .as_ref()
+                .and_then(|r| r.asset.as_ref())
+                .map(|a| {
+                    (
+                        Some(a.download_url.clone()),
+                        Some(a.name.clone()),
+                        Some(a.size),
+                    )
+                })
+                .unwrap_or((None, None, None));
+
+            return Ok(AppUpdateInfoDto {
+                current_version: cached.current_version.clone(),
+                latest_version: cached.latest_version.clone(),
+                has_update: cached.has_update,
+                release_name: cached.release.as_ref().and_then(|r| r.name.clone()),
+                release_notes: cached.release.as_ref().and_then(|r| r.body.clone()),
+                published_at: cached.release.as_ref().and_then(|r| r.published_at.clone()),
+                prerelease: cached
+                    .release
+                    .as_ref()
+                    .map(|r| r.prerelease)
+                    .unwrap_or(false),
+                download_url,
+                asset_name,
+                asset_size,
+            });
+        }
+
+        *self.updates.status.write().await = mcpanel_core::updates::UpdateStatus::Checking;
+        let settings = self.core.settings.get().await.unwrap_or_default();
+        let res = match client
+            .check_for_updates(&self.version, settings.check_prerelease_updates)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                *self.updates.status.write().await = mcpanel_core::updates::UpdateStatus::Error {
+                    message: e.message.clone(),
+                };
+                return Err(ApiError::from(e));
+            }
+        };
+
+        *self.updates.last_check.write().await = Some(res.clone());
+        *self.updates.status.write().await = mcpanel_core::updates::UpdateStatus::Idle;
+
+        let (download_url, asset_name, asset_size) = res
+            .release
+            .as_ref()
+            .and_then(|r| r.asset.as_ref())
+            .map(|a| {
+                (
+                    Some(a.download_url.clone()),
+                    Some(a.name.clone()),
+                    Some(a.size),
+                )
+            })
+            .unwrap_or((None, None, None));
+
+        Ok(AppUpdateInfoDto {
+            current_version: res.current_version,
+            latest_version: res.latest_version,
+            has_update: res.has_update,
+            release_name: res.release.as_ref().and_then(|r| r.name.clone()),
+            release_notes: res.release.as_ref().and_then(|r| r.body.clone()),
+            published_at: res.release.as_ref().and_then(|r| r.published_at.clone()),
+            prerelease: res.release.as_ref().map(|r| r.prerelease).unwrap_or(false),
+            download_url,
+            asset_name,
+            asset_size,
+        })
+    }
+
+    pub async fn updates_get_status(&self, p: &Principal) -> ApiResult<UpdateStatusDto> {
+        p.authorize(Permission::SystemRead)?;
+        let status = self.updates.status.read().await.clone();
+        let dto = match status {
+            mcpanel_core::updates::UpdateStatus::Idle => UpdateStatusDto {
+                status: "idle".into(),
+                progress: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                installer_path: None,
+                version: None,
+                error: None,
+            },
+            mcpanel_core::updates::UpdateStatus::Checking => UpdateStatusDto {
+                status: "checking".into(),
+                progress: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                installer_path: None,
+                version: None,
+                error: None,
+            },
+            mcpanel_core::updates::UpdateStatus::Downloading {
+                progress,
+                downloaded_bytes,
+                total_bytes,
+            } => UpdateStatusDto {
+                status: "downloading".into(),
+                progress,
+                downloaded_bytes,
+                total_bytes,
+                installer_path: None,
+                version: None,
+                error: None,
+            },
+            mcpanel_core::updates::UpdateStatus::Ready {
+                installer_path,
+                version,
+            } => UpdateStatusDto {
+                status: "ready".into(),
+                progress: 1.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                installer_path: Some(installer_path),
+                version: Some(version),
+                error: None,
+            },
+            mcpanel_core::updates::UpdateStatus::Installing => UpdateStatusDto {
+                status: "installing".into(),
+                progress: 1.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                installer_path: None,
+                version: None,
+                error: None,
+            },
+            mcpanel_core::updates::UpdateStatus::Error { message } => UpdateStatusDto {
+                status: "error".into(),
+                progress: 0.0,
+                downloaded_bytes: 0,
+                total_bytes: None,
+                installer_path: None,
+                version: None,
+                error: Some(message),
+            },
+        };
+        Ok(dto)
+    }
+
+    pub async fn updates_download(&self, p: &Principal) -> ApiResult<UpdateStatusDto> {
+        p.authorize(Permission::SettingsWrite)?;
+        let client = self
+            .updates
+            .client
+            .read()
+            .await
+            .clone()
+            .ok_or_else(|| ApiError::invalid("Updates client is not attached"))?;
+
+        let check = self.updates.last_check.read().await.clone();
+        let release = check
+            .as_ref()
+            .and_then(|c| c.release.as_ref())
+            .ok_or_else(|| ApiError::invalid("No update checked. Check for updates first."))?;
+        let asset = release.asset.as_ref().ok_or_else(|| {
+            ApiError::invalid("No compatible installer asset found for this release.")
+        })?;
+
+        let target_dir = self.core.paths.data_dir.join("updates");
+        let file_name = if asset.name.is_empty() {
+            format!("MCPanel-Setup-{}.exe", release.version)
+        } else {
+            asset.name.clone()
+        };
+        let target_file = target_dir.join(&file_name);
+
+        *self.updates.status.write().await = mcpanel_core::updates::UpdateStatus::Downloading {
+            progress: 0.0,
+            downloaded_bytes: 0,
+            total_bytes: Some(asset.size),
+        };
+
+        let updates_arc = Arc::clone(&self.updates);
+        let asset_clone = asset.clone();
+        let version_clone = release.version.clone();
+        let target_file_clone = target_file.clone();
+
+        tokio::spawn(async move {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(u64, Option<u64>)>();
+            let updates_writer = Arc::clone(&updates_arc);
+
+            let progress_task = tokio::spawn(async move {
+                while let Some((downloaded, total)) = rx.recv().await {
+                    let progress = if let Some(tot) = total {
+                        if tot > 0 {
+                            (downloaded as f32 / tot as f32).min(1.0)
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    };
+                    let mut s = updates_writer.status.write().await;
+                    *s = mcpanel_core::updates::UpdateStatus::Downloading {
+                        progress,
+                        downloaded_bytes: downloaded,
+                        total_bytes: total,
+                    };
+                }
+            });
+
+            let progress_cb = Box::new(move |downloaded: u64, total: Option<u64>| {
+                let _ = tx.send((downloaded, total));
+            });
+
+            match client
+                .download_asset(&asset_clone, &target_file_clone, progress_cb)
+                .await
+            {
+                Ok(()) => {
+                    let _ = progress_task.await;
+                    let mut s = updates_arc.status.write().await;
+                    *s = mcpanel_core::updates::UpdateStatus::Ready {
+                        installer_path: target_file_clone.to_string_lossy().to_string(),
+                        version: version_clone,
+                    };
+                }
+                Err(e) => {
+                    let _ = progress_task.await;
+                    let mut s = updates_arc.status.write().await;
+                    *s = mcpanel_core::updates::UpdateStatus::Error { message: e.message };
+                }
+            }
+        });
+
+        self.updates_get_status(p).await
+    }
+
+    pub async fn updates_install(&self, p: &Principal) -> ApiResult<()> {
+        p.authorize(Permission::SettingsWrite)?;
+        let status = self.updates.status.read().await.clone();
+        let installer_path = match status {
+            mcpanel_core::updates::UpdateStatus::Ready { installer_path, .. } => installer_path,
+            _ => {
+                return Err(ApiError::invalid(
+                    "No downloaded update is ready for installation.",
+                ));
+            }
+        };
+
+        let path = std::path::PathBuf::from(&installer_path);
+        if !path.exists() {
+            return Err(ApiError::invalid("Installer file not found on disk."));
+        }
+
+        *self.updates.status.write().await = mcpanel_core::updates::UpdateStatus::Installing;
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+            std::process::Command::new(&path)
+                .creation_flags(DETACHED_PROCESS)
+                .spawn()
+                .map_err(|e| {
+                    ApiError::new("UPDATER_FAILED", format!("Failed to start installer: {e}"))
+                })?;
+        }
+        #[cfg(not(windows))]
+        {
+            std::process::Command::new(&path).spawn().map_err(|e| {
+                ApiError::new("UPDATER_FAILED", format!("Failed to start installer: {e}"))
+            })?;
+        }
+
+        Ok(())
     }
 }

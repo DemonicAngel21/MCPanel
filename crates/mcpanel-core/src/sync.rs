@@ -59,6 +59,8 @@ impl SyncedSettings {
             tray_notice_shown: None,
             backups_dir: None,
             onboarding_completed: None,
+            auto_check_updates: None,
+            check_prerelease_updates: None,
         }
     }
 }

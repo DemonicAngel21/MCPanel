@@ -103,10 +103,20 @@ async fn build_api() -> Result<Started, String> {
         firebase_key,
         &mcpanel_providers::cloud::CloudClientIds::from_env(),
     )));
+    api.updates_attach_client(Arc::new(mcpanel_providers::GitHubUpdateClient::new(
+        http.clone(),
+    )));
     let startup = Arc::clone(&api);
     tokio::spawn(async move {
         startup.playit_on_startup().await;
         startup.account_on_startup().await;
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let p = mcpanel_api::Principal::LocalUser;
+        if let Ok(settings) = startup.settings_get(&p).await
+            && settings.auto_check_updates
+        {
+            let _ = startup.updates_check(&p, false).await;
+        }
     });
     Ok((api, db, guards))
 }
@@ -255,6 +265,9 @@ fn main() {
             commands::account_sign_up,
             commands::account_sign_in,
             commands::account_google,
+            commands::google_compute_auth_begin,
+            commands::google_compute_auth_status,
+            commands::google_compute_auth_cancel,
             commands::account_cancel_google,
             commands::account_microsoft,
             commands::account_cancel_microsoft,
@@ -395,6 +408,7 @@ fn main() {
             commands::files_import,
             commands::files_export,
             commands::files_search,
+            commands::files_search_content,
             commands::jobs_list,
             commands::jobs_get,
             commands::jobs_cancel,
@@ -402,14 +416,20 @@ fn main() {
             commands::multihost_status,
             commands::multihost_list_hosts,
             commands::multihost_add_host,
+            commands::multihost_add_google_host,
+            commands::multihost_refresh_google_host,
+            commands::multihost_set_google_host_power,
             commands::multihost_remove_host,
-            commands::multihost_ping_host,
-            commands::multihost_generate_token,
             commands::ai_get_config,
             commands::ai_save_config,
             commands::ai_test_connection,
+            commands::ai_test_provider,
             commands::ai_chat,
             commands::ai_confirm_action,
+            commands::updates_check,
+            commands::updates_get_status,
+            commands::updates_download,
+            commands::updates_install,
         ])
         .build(tauri::generate_context!());
 

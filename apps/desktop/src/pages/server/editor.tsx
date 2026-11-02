@@ -4,7 +4,7 @@ import { Link, useBlocker } from "@tanstack/react-router";
 import * as monaco from "monaco-editor";
 import editorWorker from "monaco-editor/editor/editor.worker?worker";
 import jsonWorker from "monaco-editor/language/json/json.worker?worker";
-import { AlertTriangle, ArrowLeft, Lock, Save } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Lock, Save } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { parseDocument } from "yaml";
@@ -47,7 +47,7 @@ function languageFor(path: string): string {
 
 const EOL_LABEL: Record<string, string> = { lf: "LF", cr_lf: "CRLF", mixed: "Mixed", none: "—" };
 
-function ServerEditorInner({ serverId, path }: { serverId: string; path: string }) {
+function ServerEditorInner({ serverId, path, initialLine }: { serverId: string; path: string; initialLine?: number }) {
   const qc = useQueryClient();
   const docQuery = useQuery({
     queryKey: ["servers", serverId, "document", path],
@@ -60,6 +60,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
   const doc: TextDocumentDto | null = (saved && saved.basis === docQuery.dataUpdatedAt ? saved.doc : docQuery.data) ?? null;
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [conflict, setConflict] = useState(false);
   const autosave = useUi((s) => s.editorAutosave);
   const setAutosave = useUi((s) => s.setEditorAutosave);
@@ -67,7 +68,9 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
   const setWordWrap = useUi((s) => s.setEditorWordWrap);
   const [problems, setProblems] = useState<string | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const inFlightRef = useRef(false);
   const timer = useRef<number | null>(null);
+  const savedTimerRef = useRef<number | null>(null);
 
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
   useEffect(() => {
@@ -118,9 +121,10 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
   );
 
   const save = useCallback(
-    async (force = false) => {
+    async (force = false, isShortcut = false) => {
       const editor = editorRef.current;
-      if (!editor || !doc || readOnly) return;
+      if (!editor || !doc || readOnly || inFlightRef.current) return;
+      inFlightRef.current = true;
       setSaving(true);
       try {
         const savedDoc = await api.files.write(serverId, path, {
@@ -132,12 +136,20 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
         setSaved({ basis: docQuery.dataUpdatedAt, doc: savedDoc });
         setDirty(false);
         setConflict(false);
+        setJustSaved(true);
+        if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = window.setTimeout(() => setJustSaved(false), 3000);
+        if (isShortcut) {
+          const fileName = path.split("/").pop() ?? path;
+          toast.success(`Saved ${fileName}`);
+        }
         void qc.invalidateQueries({ queryKey: ["servers", serverId, "files"] });
         if (path === "server.properties") void qc.invalidateQueries({ queryKey: ["servers", serverId, "properties"] });
       } catch (e) {
         if (e instanceof ApiError && e.code === "FILE_CHANGED_ON_DISK") setConflict(true);
         else toast.error(errorMessage(e));
       } finally {
+        inFlightRef.current = false;
         setSaving(false);
       }
     },
@@ -151,18 +163,35 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
 
   const onMount: OnMount = (editor) => {
     editorRef.current = editor;
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void saveRef.current());
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void saveRef.current(false, true));
     validate(editor.getValue());
+    if (initialLine && initialLine > 0) {
+      setTimeout(() => {
+        editor.revealLineInCenter(initialLine);
+        editor.setPosition({ lineNumber: initialLine, column: 1 });
+        editor.focus();
+      }, 50);
+    }
   };
 
   useEffect(() => {
-    if (!autosave || !dirty || conflict) return;
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void saveRef.current(), 1500);
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
+      if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current);
     };
-  }, [autosave, dirty, conflict]);
+  }, []);
+
+  const handleContentChange = (v: string | undefined) => {
+    setDirty(true);
+    setJustSaved(false);
+    validate(v ?? "");
+    if (autosave && !conflict && !readOnly) {
+      if (timer.current) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => {
+        void saveRef.current(false, false);
+      }, 1500);
+    }
+  };
 
   useBlocker({
     shouldBlockFn: () => dirty && !window.confirm("You have unsaved changes. Leave without saving?"),
@@ -179,10 +208,20 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
             <ArrowLeft /> Files
           </Link>
         </Button>
-        <p className="min-w-0 flex-1 truncate font-mono text-xs text-fg">
-          {path}
-          {dirty && <span className="ml-2 text-warning">● unsaved</span>}
-        </p>
+        <div className="flex min-w-0 flex-1 items-center gap-2 font-mono text-xs text-fg">
+          <span className="truncate">{path}</span>
+          {saving && (
+            <span className="flex shrink-0 items-center gap-1 font-sans text-[11px] text-accent">
+              <Spinner className="size-3 text-accent" /> Saving…
+            </span>
+          )}
+          {!saving && dirty && <span className="shrink-0 font-sans text-[11px] text-warning">● Unsaved</span>}
+          {!saving && !dirty && justSaved && (
+            <span className="flex shrink-0 items-center gap-1 font-sans text-[11px] text-accent">
+              <Check className="size-3 text-accent" /> Saved
+            </span>
+          )}
+        </div>
         {problems && <span className="text-xs text-danger">{problems}</span>}
         <label className="flex items-center gap-2 text-xs text-muted">
           <Switch checked={wordWrap} onCheckedChange={setWordWrap} /> Word wrap
@@ -190,7 +229,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
         <label className="flex items-center gap-2 text-xs text-muted">
           <Switch checked={autosave} onCheckedChange={setAutosave} disabled={readOnly} /> Autosave
         </label>
-        <Button variant="primary" size="sm" disabled={!dirty || saving || readOnly} onClick={() => save()}>
+        <Button variant="primary" size="sm" disabled={!dirty || saving || readOnly} onClick={() => void save()}>
           {saving ? <Spinner className="text-accent-fg" /> : <Save />} Save
         </Button>
       </div>
@@ -216,7 +255,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
                   <Button size="sm" variant="ghost" onClick={reload}>
                     Discard my changes and reload
                   </Button>
-                  <Button size="sm" variant="danger-outline" onClick={() => save(true)}>
+                  <Button size="sm" variant="danger-outline" onClick={() => void save(true)}>
                     Overwrite
                   </Button>
                 </>
@@ -236,10 +275,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
               language={language}
               theme={theme === "light" ? "vs" : "vs-dark"}
               onMount={onMount}
-              onChange={(v) => {
-                setDirty(true);
-                validate(v ?? "");
-              }}
+              onChange={handleContentChange}
               options={{
                 readOnly,
                 minimap: { enabled: doc.size < 512 * 1024 },
@@ -278,6 +314,7 @@ function ServerEditorInner({ serverId, path }: { serverId: string; path: string 
 
 export default function ServerEditor() {
   const serverId = useServerId();
-  const { path } = serverEditorRoute.useSearch();
-  return <ServerEditorInner key={`${serverId}:${path}`} serverId={serverId} path={path} />;
+  const search = serverEditorRoute.useSearch();
+  const { path, line } = search;
+  return <ServerEditorInner key={`${serverId}:${path}`} serverId={serverId} path={path} initialLine={line} />;
 }

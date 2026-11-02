@@ -42,6 +42,8 @@ export const qk = {
   backupLocation: ["backups", "location"] as const,
   multihost: ["multihost"] as const,
   aiConfig: ["ai-config"] as const,
+  updates: ["updates"] as const,
+  updateStatus: ["updates", "status"] as const,
 };
 
 export const useAppInfo = () => useQuery({ queryKey: qk.appInfo, queryFn: api.app.info, staleTime: Infinity });
@@ -165,4 +167,21 @@ export const useAiConfig = () =>
     queryKey: qk.aiConfig,
     queryFn: api.ai.getConfig,
     staleTime: 30_000,
+  });
+
+export const useUpdateCheck = (force = false) =>
+  useQuery({
+    queryKey: [...qk.updates, force],
+    queryFn: () => api.updates.check(force),
+    staleTime: 60_000,
+  });
+
+export const useUpdateStatus = () =>
+  useQuery({
+    queryKey: qk.updateStatus,
+    queryFn: api.updates.getStatus,
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      return status === "downloading" ? 500 : 3_000;
+    },
   });

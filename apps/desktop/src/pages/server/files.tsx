@@ -42,7 +42,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/overlays";
-import { Checkbox, EmptyState, Input, Spinner, Tooltip } from "@/components/ui/primitives";
+import { Badge, Checkbox, EmptyState, Input, Spinner, Tooltip } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { qk } from "@/lib/queries";
@@ -58,6 +58,26 @@ const TEXT_EXT =
 
 function isEditable(e: FileEntryDto) {
   return e.kind === "file" && !e.sensitive && (TEXT_EXT.test(e.name) || !e.name.includes("."));
+}
+
+function HighlightedLine({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <span>{text}</span>;
+  const q = query.trim().toLowerCase();
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx === -1) return <span>{text}</span>;
+
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + q.length);
+  const after = text.slice(idx + q.length);
+
+  return (
+    <span>
+      {before}
+      <mark className="rounded bg-accent/30 px-0.5 font-semibold text-fg">{match}</mark>
+      {after}
+    </span>
+  );
 }
 
 function join(dir: string, name: string) {
@@ -157,15 +177,23 @@ export function ServerFiles() {
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
   const [dest, setDest] = useState<{ mode: "move" | "copy"; paths: string[] } | null>(null);
   const [search, setSearch] = useState("");
+  const [searchMode, setSearchMode] = useState<"name" | "content">("name");
+  const [targetFile, setTargetFile] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   const list = useQuery({ queryKey: qk.files(serverId, path), queryFn: () => api.files.list(serverId, path) });
   const searchResults = useQuery({
     queryKey: ["file-search", serverId, path, search],
     queryFn: () => api.files.search(serverId, path, search, 200),
-    enabled: search.trim().length >= 2,
+    enabled: searchMode === "name" && search.trim().length >= 2,
   });
-  const entries = search.trim().length >= 2 ? searchResults.data : list.data;
+  const contentSearchResults = useQuery({
+    queryKey: ["file-search-content", serverId, targetFile ?? path, search],
+    queryFn: () => api.files.searchContent(serverId, targetFile ?? path, search, 100),
+    enabled: searchMode === "content" && search.trim().length >= 2,
+  });
+  const entries = searchMode === "name" && search.trim().length >= 2 ? searchResults.data : list.data;
   const refresh = () => qc.invalidateQueries({ queryKey: ["servers", serverId, "files"] });
 
   const go = (p: string) => void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: { path: p } });
@@ -343,26 +371,81 @@ export function ServerFiles() {
             </button>
           </Tooltip>
         </nav>
-        <div className="relative w-56">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-faint" />
-          <Input
-            className="pr-7 pl-8"
-            placeholder="Search names in this folder"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setSearch("");
-            }}
-          />
-          {search && (
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center rounded-md border border-border bg-surface-2 p-0.5 text-xs">
             <button
               type="button"
-              onClick={() => setSearch("")}
-              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted hover:text-fg"
-              aria-label="Clear search"
+              onClick={() => {
+                setSearchMode("name");
+                setTargetFile(null);
+              }}
+              className={cn(
+                "rounded px-2 py-0.5 text-[11px] font-medium transition-colors",
+                searchMode === "name" ? "bg-surface text-fg shadow-xs" : "text-muted hover:text-fg",
+              )}
+              title="Search file names"
             >
-              <X className="size-3.5" />
+              Names
             </button>
+            <button
+              type="button"
+              onClick={() => setSearchMode("content")}
+              className={cn(
+                "rounded px-2 py-0.5 text-[11px] font-medium transition-colors",
+                searchMode === "content" ? "bg-surface text-fg shadow-xs" : "text-muted hover:text-fg",
+              )}
+              title="Search text/terms inside files"
+            >
+              In Files
+            </button>
+          </div>
+          <div className="relative w-56">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-faint" />
+            <Input
+              ref={searchInputRef}
+              className="pr-7 pl-8 text-xs"
+              placeholder={
+                searchMode === "content"
+                  ? targetFile
+                    ? `Terms in ${targetFile.split("/").pop()}…`
+                    : "Search terms in files…"
+                  : "Search names in this folder"
+              }
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearch("");
+                  setTargetFile(null);
+                }
+              }}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute top-1/2 right-2 -translate-y-1/2 text-muted hover:text-fg"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          {targetFile && (
+            <div className="flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[11px] text-accent">
+              <span className="max-w-[120px] truncate" title={targetFile}>
+                {targetFile.split("/").pop()}
+              </span>
+              <button
+                type="button"
+                onClick={() => setTargetFile(null)}
+                className="hover:text-fg"
+                title="Search across all files instead"
+                aria-label="Clear target file"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
           )}
         </div>
         <Tooltip content="New folder">
@@ -449,7 +532,61 @@ export function ServerFiles() {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface">
-        {list.isError ? (
+        {searchMode === "content" && search.trim().length >= 2 ? (
+          contentSearchResults.isFetching ? (
+            <div className="flex h-48 items-center justify-center gap-2 text-xs text-muted">
+              <Spinner className="size-4 text-accent" />
+              <span>Searching terms inside files…</span>
+            </div>
+          ) : !contentSearchResults.data || contentSearchResults.data.length === 0 ? (
+            <EmptyState
+              icon={<Search />}
+              title="No occurrences found"
+              description={`No matches found for "${search}" in ${targetFile ? targetFile : path ? `/${path}` : "server files"}.`}
+            />
+          ) : (
+            <div className="divide-y divide-border">
+              <div className="flex items-center justify-between bg-surface-2/60 px-4 py-2 text-xs text-muted">
+                <span>
+                  Found <strong className="text-fg">{contentSearchResults.data.length}</strong> occurrence
+                  {contentSearchResults.data.length === 1 ? "" : "s"} for <span className="font-semibold text-accent">"{search}"</span>
+                  {targetFile ? ` in ${targetFile}` : ""}
+                </span>
+                <span className="text-[11px] text-faint">Click any row to open in editor at that line</span>
+              </div>
+              {contentSearchResults.data.map((m, idx) => (
+                <div
+                  key={`${m.path}:${m.lineNumber}:${idx}`}
+                  onClick={() =>
+                    void navigate({
+                      to: "/servers/$serverId/edit",
+                      params: { serverId },
+                      search: { path: m.path, line: m.lineNumber },
+                    })
+                  }
+                  className="group flex cursor-pointer items-start justify-between gap-4 p-3 transition-colors hover:bg-surface-2"
+                >
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 text-xs">
+                      <FileText className="size-3.5 text-accent" />
+                      <span className="font-mono font-medium text-fg">{m.path}</span>
+                      <Badge tone="neutral" className="text-[10px]">
+                        Line {m.lineNumber}
+                      </Badge>
+                    </div>
+                    <div className="overflow-x-auto rounded bg-surface-3/50 px-2.5 py-1.5 font-mono text-xs text-muted">
+                      <HighlightedLine text={m.lineText} query={search} />
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs opacity-0 group-hover:opacity-100">
+                    <span>Open</span>
+                    <ChevronRight className="size-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )
+        ) : list.isError ? (
           <EmptyState tone="danger" icon={<AlertTriangle />} title="Cannot open this folder" description={errorMessage(list.error)} />
         ) : sorted.length === 0 ? (
           <EmptyState
@@ -545,11 +682,22 @@ export function ServerFiles() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
                         {isEditable(e) && (
-                          <DropdownMenuItem
-                            onSelect={() => void navigate({ to: "/servers/$serverId/edit", params: { serverId }, search: { path: e.path } })}
-                          >
-                            <FileText /> Edit
-                          </DropdownMenuItem>
+                          <>
+                            <DropdownMenuItem
+                              onSelect={() => void navigate({ to: "/servers/$serverId/edit", params: { serverId }, search: { path: e.path } })}
+                            >
+                              <FileText /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setSearchMode("content");
+                                setTargetFile(e.path);
+                                setTimeout(() => searchInputRef.current?.focus(), 50);
+                              }}
+                            >
+                              <Search /> Find terms in this file
+                            </DropdownMenuItem>
+                          </>
                         )}
                         {e.kind === "file" && !e.sensitive && (
                           <DropdownMenuItem onSelect={() => download(e)}>

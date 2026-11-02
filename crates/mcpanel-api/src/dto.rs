@@ -225,6 +225,8 @@ pub struct SettingsDto {
     /// Preset name, "system" or "#rrggbb".
     pub accent: String,
     pub onboarding_completed: bool,
+    pub auto_check_updates: bool,
+    pub check_prerelease_updates: bool,
 }
 
 impl From<AppSettings> for SettingsDto {
@@ -237,6 +239,8 @@ impl From<AppSettings> for SettingsDto {
             tick_sampling: s.tick_sampling,
             accent: s.accent,
             onboarding_completed: s.onboarding_completed,
+            auto_check_updates: s.auto_check_updates,
+            check_prerelease_updates: s.check_prerelease_updates,
         }
     }
 }
@@ -252,6 +256,8 @@ pub struct SettingsPatchDto {
     pub tick_sampling: Option<bool>,
     pub accent: Option<String>,
     pub onboarding_completed: Option<bool>,
+    pub auto_check_updates: Option<bool>,
+    pub check_prerelease_updates: Option<bool>,
 }
 
 pub(crate) fn parse_theme(s: &str) -> Option<ThemePreference> {
@@ -769,6 +775,29 @@ impl From<FileEntry> for FileEntryDto {
             modified: e.modified.map(|t| t.millis()),
             sensitive: e.sensitive,
             readonly: e.readonly,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ContentMatchDto {
+    pub path: String,
+    pub line_number: usize,
+    pub line_text: String,
+    pub match_start: usize,
+    pub match_length: usize,
+}
+
+impl From<mcpanel_core::files::service::ContentMatch> for ContentMatchDto {
+    fn from(m: mcpanel_core::files::service::ContentMatch) -> Self {
+        Self {
+            path: m.path,
+            line_number: m.line_number,
+            line_text: m.line_text,
+            match_start: m.match_start,
+            match_length: m.match_length,
         }
     }
 }
@@ -2844,6 +2873,7 @@ pub struct HostDto {
     pub id: String,
     pub name: String,
     pub endpoint: Option<String>,
+    pub google_cloud: Option<GoogleCloudVmDto>,
     pub is_local: bool,
     pub status: String,
     pub tags: Vec<String>,
@@ -2864,6 +2894,7 @@ impl From<&mcpanel_core::multihost::HostNode> for HostDto {
             id: h.id.clone(),
             name: h.name.clone(),
             endpoint: h.endpoint.clone(),
+            google_cloud: h.google_cloud.as_ref().map(Into::into),
             is_local: h.is_local,
             status: h.status.as_str().to_string(),
             tags: h.tags.clone(),
@@ -2883,42 +2914,56 @@ impl From<&mcpanel_core::multihost::HostNode> for HostDto {
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+pub struct GoogleCloudVmDto {
+    pub project_id: String,
+    pub zone: String,
+    pub instance_name: String,
+}
+
+impl From<&mcpanel_core::multihost::GoogleCloudVm> for GoogleCloudVmDto {
+    fn from(vm: &mcpanel_core::multihost::GoogleCloudVm) -> Self {
+        Self {
+            project_id: vm.project_id.clone(),
+            zone: vm.zone.clone(),
+            instance_name: vm.instance_name.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct MultihostStatusDto {
-    pub account_required: bool,
-    pub signed_in: bool,
-    pub user_email: Option<String>,
     pub hosts: Vec<HostDto>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, optional_fields)]
 pub struct AddHostDto {
     pub name: String,
     pub endpoint: String,
-    pub auth_token: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct HostPingResultDto {
-    pub host_id: String,
-    pub online: bool,
-    pub latency_ms: Option<u32>,
-    pub message: Option<String>,
+pub struct AddGoogleHostDto {
+    pub name: String,
+    pub project_id: String,
+    pub zone: String,
+    pub instance_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct HostEnrollmentTokenDto {
-    pub token: String,
-    pub account_uid: String,
-    pub expires_at: i64,
-    pub pairing_command: String,
+pub struct GoogleComputeAuthDto {
+    pub connected: bool,
+    pub state: Option<String>,
+    pub message: Option<String>,
 }
 
 // ───────────────────────────── AI Assistant ───────────────────────────
@@ -3006,4 +3051,36 @@ pub struct AiConfirmRequestDto {
     pub approved: bool,
     pub messages: Vec<AiChatMessageDto>,
     pub server_id: Option<String>,
+}
+
+// ─────────────────────────────── updates ──────────────────────────────
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AppUpdateInfoDto {
+    pub current_version: String,
+    pub latest_version: String,
+    pub has_update: bool,
+    pub release_name: Option<String>,
+    pub release_notes: Option<String>,
+    pub published_at: Option<String>,
+    pub prerelease: bool,
+    pub download_url: Option<String>,
+    pub asset_name: Option<String>,
+    pub asset_size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateStatusDto {
+    /// "idle" | "checking" | "downloading" | "ready" | "installing" | "error"
+    pub status: String,
+    pub progress: f32,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub installer_path: Option<String>,
+    pub version: Option<String>,
+    pub error: Option<String>,
 }

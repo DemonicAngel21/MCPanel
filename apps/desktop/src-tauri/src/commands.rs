@@ -648,6 +648,36 @@ pub async fn account_google(app: AppHandle, s: State<'_, AppState>) -> R<()> {
 }
 
 #[tauri::command]
+pub async fn google_compute_auth_begin(app: AppHandle, s: State<'_, AppState>) -> R<()> {
+    let url = s.api.google_compute_auth_begin(&s.principal()).await?;
+    let ok = tauri::Url::parse(&url)
+        .is_ok_and(|u| u.scheme() == "https" && u.host_str() == Some("accounts.google.com"));
+    if !ok {
+        s.api.google_compute_auth_cancel(&s.principal())?;
+        return Err(ApiError::invalid("Unexpected Google authorization address"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    if let Err(error) = app.opener().open_url(url, None::<&str>) {
+        s.api.google_compute_auth_cancel(&s.principal())?;
+        return Err(ApiError::new(
+            "IO",
+            format!("Cannot open the browser: {error}"),
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn google_compute_auth_status(s: State<'_, AppState>) -> R<GoogleComputeAuthDto> {
+    s.api.google_compute_auth_status(&s.principal()).await
+}
+
+#[tauri::command]
+pub fn google_compute_auth_cancel(s: State<'_, AppState>) -> R<()> {
+    s.api.google_compute_auth_cancel(&s.principal())
+}
+
+#[tauri::command]
 pub fn account_cancel_google(s: State<'_, AppState>) -> R<()> {
     s.api.account_cancel_google(&s.principal())
 }
@@ -1418,6 +1448,19 @@ pub async fn files_search(
         .await
 }
 
+#[tauri::command]
+pub async fn files_search_content(
+    s: State<'_, AppState>,
+    id: String,
+    path: String,
+    query: String,
+    limit: u32,
+) -> R<Vec<ContentMatchDto>> {
+    s.api
+        .files_search_content(&s.principal(), &id, &path, &query, limit)
+        .await
+}
+
 // ───────────────────────────── jobs / audit ───────────────────────
 
 #[tauri::command]
@@ -1465,18 +1508,34 @@ pub async fn multihost_add_host(s: State<'_, AppState>, req: AddHostDto) -> R<Ho
 }
 
 #[tauri::command]
+pub async fn multihost_add_google_host(
+    s: State<'_, AppState>,
+    req: AddGoogleHostDto,
+) -> R<HostDto> {
+    s.api.multihost_add_google_host(&s.principal(), req).await
+}
+
+#[tauri::command]
+pub async fn multihost_refresh_google_host(s: State<'_, AppState>, host_id: String) -> R<HostDto> {
+    s.api
+        .multihost_refresh_google_host(&s.principal(), &host_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn multihost_set_google_host_power(
+    s: State<'_, AppState>,
+    host_id: String,
+    start: bool,
+) -> R<()> {
+    s.api
+        .multihost_set_google_host_power(&s.principal(), &host_id, start)
+        .await
+}
+
+#[tauri::command]
 pub async fn multihost_remove_host(s: State<'_, AppState>, host_id: String) -> R<()> {
     s.api.multihost_remove_host(&s.principal(), &host_id).await
-}
-
-#[tauri::command]
-pub async fn multihost_ping_host(s: State<'_, AppState>, host_id: String) -> R<HostPingResultDto> {
-    s.api.multihost_ping_host(&s.principal(), &host_id).await
-}
-
-#[tauri::command]
-pub async fn multihost_generate_token(s: State<'_, AppState>) -> R<HostEnrollmentTokenDto> {
-    s.api.multihost_generate_token(&s.principal()).await
 }
 
 // ───────────────────────────── AI Assistant ───────────────────────────
@@ -1497,6 +1556,19 @@ pub async fn ai_test_connection(s: State<'_, AppState>) -> R<()> {
 }
 
 #[tauri::command]
+pub async fn ai_test_provider(
+    s: State<'_, AppState>,
+    provider: String,
+    model: String,
+    base_url: Option<String>,
+    api_key: Option<String>,
+) -> R<()> {
+    s.api
+        .ai_test_provider(&s.principal(), &provider, &model, base_url, api_key)
+        .await
+}
+
+#[tauri::command]
 pub async fn ai_chat(s: State<'_, AppState>, req: AiChatRequestDto) -> R<AiChatResponseDto> {
     s.api.ai_chat(&s.principal(), req).await
 }
@@ -1507,6 +1579,30 @@ pub async fn ai_confirm_action(
     req: AiConfirmRequestDto,
 ) -> R<AiChatResponseDto> {
     s.api.ai_confirm_action(&s.principal(), req).await
+}
+
+// ────────────────────────────── updates ──────────────────────────────
+
+#[tauri::command]
+pub async fn updates_check(s: State<'_, AppState>, force: Option<bool>) -> R<AppUpdateInfoDto> {
+    s.api
+        .updates_check(&s.principal(), force.unwrap_or(false))
+        .await
+}
+
+#[tauri::command]
+pub async fn updates_get_status(s: State<'_, AppState>) -> R<UpdateStatusDto> {
+    s.api.updates_get_status(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn updates_download(s: State<'_, AppState>) -> R<UpdateStatusDto> {
+    s.api.updates_download(&s.principal()).await
+}
+
+#[tauri::command]
+pub async fn updates_install(s: State<'_, AppState>) -> R<()> {
+    s.api.updates_install(&s.principal()).await
 }
 
 /// Show and focus the main window (used by tray and single-instance handler).

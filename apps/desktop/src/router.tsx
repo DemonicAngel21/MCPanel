@@ -16,6 +16,7 @@ import { SettingsPage } from "@/pages/settings";
 import { AccountPage } from "@/pages/account";
 import { HostsPage } from "@/pages/hosts";
 import { AiPage } from "@/pages/ai";
+import { OnboardingPage } from "@/pages/onboarding";
 import { ServerLayout } from "@/pages/server/layout";
 import { ServerOverview } from "@/pages/server/overview";
 import { ServerManage } from "@/pages/server/manage";
@@ -52,6 +53,7 @@ const settings = createRoute({ getParentRoute: () => rootRoute, path: "/settings
 const account = createRoute({ getParentRoute: () => rootRoute, path: "/account", component: AccountPage });
 const hosts = createRoute({ getParentRoute: () => rootRoute, path: "/hosts", component: HostsPage });
 const ai = createRoute({ getParentRoute: () => rootRoute, path: "/ai", component: AiPage });
+const gettingStarted = createRoute({ getParentRoute: () => rootRoute, path: "/getting-started", component: () => <OnboardingPage asRoute /> });
 
 export const serverRoute = createRoute({ getParentRoute: () => rootRoute, path: "/servers/$serverId", component: ServerLayout });
 const serverManage = createRoute({ getParentRoute: () => serverRoute, path: "/", component: ServerManage });
@@ -66,7 +68,10 @@ export const serverFilesRoute = createRoute({
 export const serverEditorRoute = createRoute({
   getParentRoute: () => serverRoute,
   path: "/edit",
-  validateSearch: (s: Record<string, unknown>): { path: string } => ({ path: typeof s.path === "string" ? s.path : "" }),
+  validateSearch: (s: Record<string, unknown>): { path: string; line?: number } => ({
+    path: typeof s.path === "string" ? s.path : "",
+    line: typeof s.line === "number" ? s.line : typeof s.line === "string" && !isNaN(Number(s.line)) ? Number(s.line) : undefined,
+  }),
   component: ServerEditor,
 });
 const serverProperties = createRoute({ getParentRoute: () => serverRoute, path: "/properties", component: ServerProperties });
@@ -91,6 +96,7 @@ const routeTree = rootRoute.addChildren([
   account,
   playit,
   ai,
+  gettingStarted,
   serverRoute.addChildren([
     serverManage,
     serverOverview,

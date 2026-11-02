@@ -23,6 +23,7 @@ const IDENTITY: &str = "https://identitytoolkit.googleapis.com/v1";
 const SECURE_TOKEN: &str = "https://securetoken.googleapis.com/v1/token";
 const GOOGLE_AUTH: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
+const GOOGLE_COMPUTE: &str = "https://compute.googleapis.com/compute/v1";
 const MICROSOFT_AUTH: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 const MICROSOFT_TOKEN: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const FIRESTORE: &str = "https://firestore.googleapis.com/v1";
@@ -537,6 +538,42 @@ impl AuthBackend for FirebaseAuth {
         ))
     }
 
+    fn google_compute_authorize_url(
+        &self,
+        redirect: &str,
+        challenge: &str,
+        state: &str,
+    ) -> CoreResult<String> {
+        let guard = self
+            .google_client_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        let id = guard.as_deref().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                "Google sign-in is not available in this build.",
+            )
+        })?;
+        Ok(format!(
+            "{GOOGLE_AUTH}?{}",
+            form(&[
+                ("client_id", id),
+                ("redirect_uri", redirect),
+                ("response_type", "code"),
+                (
+                    "scope",
+                    "openid email profile https://www.googleapis.com/auth/compute"
+                ),
+                ("access_type", "offline"),
+                ("include_granted_scopes", "true"),
+                ("code_challenge", challenge),
+                ("code_challenge_method", "S256"),
+                ("state", state),
+                ("prompt", "consent select_account"),
+            ])
+        ))
+    }
+
     async fn google_exchange(
         &self,
         code: &str,
@@ -600,6 +637,80 @@ impl AuthBackend for FirebaseAuth {
             refresh_token,
             access_token,
         })
+    }
+
+    async fn google_refresh_access_token(
+        &self,
+        refresh_token: &SecretString,
+    ) -> CoreResult<SecretString> {
+        let client_id = self
+            .google_client_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::Unsupported,
+                    "Google OAuth is not configured in this build.",
+                )
+            })?;
+        let secret = self
+            .google_secret
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let mut params = vec![
+            ("client_id", client_id.as_str()),
+            ("refresh_token", refresh_token.expose_secret()),
+            ("grant_type", "refresh_token"),
+        ];
+        if let Some(secret) = secret.as_ref() {
+            params.push(("client_secret", secret.expose_secret()));
+        }
+        let response = self
+            .client
+            .post(&self.google_token)
+            .timeout(Duration::from_secs(30))
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body(form(&params))
+            .send()
+            .await
+            .map_err(unreachable_err)?;
+        let value = read(response).await?;
+        str_of(&value, "access_token")
+            .map(SecretString::from)
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::ProviderError,
+                    "Google did not return an access token.",
+                )
+            })
+    }
+
+    async fn google_compute_request(
+        &self,
+        access_token: &SecretString,
+        method: &str,
+        url: &str,
+    ) -> CoreResult<Value> {
+        if !url.starts_with(GOOGLE_COMPUTE) || !matches!(method, "GET" | "POST") {
+            return Err(CoreError::invalid("Invalid Google Compute Engine request."));
+        }
+        let request = match method {
+            "GET" => self.client.get(url),
+            "POST" => self.client.post(url),
+            _ => unreachable!(),
+        };
+        let response = request
+            .bearer_auth(access_token.expose_secret())
+            .timeout(Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(unreachable_err)?;
+        read(response).await
     }
 
     async fn sign_in_with_microsoft(

@@ -666,6 +666,166 @@ pub fn search(root: &SafeRoot, rel: &str, query: &str, limit: usize) -> CoreResu
     Ok(out)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentMatch {
+    pub path: String,
+    pub line_number: usize,
+    pub line_text: String,
+    pub match_start: usize,
+    pub match_length: usize,
+}
+
+pub const MAX_SEARCH_CONTENT_FILE_BYTES: u64 = 4 * 1024 * 1024;
+pub const MAX_SEARCH_CONTENT_LINE_LEN: usize = 300;
+
+fn is_binary_extension(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".jar")
+        || lower.ends_with(".zip")
+        || lower.ends_with(".tar")
+        || lower.ends_with(".gz")
+        || lower.ends_with(".mca")
+        || lower.ends_with(".dat")
+        || lower.ends_with(".dat_old")
+        || lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".gif")
+        || lower.ends_with(".ico")
+        || lower.ends_with(".nbt")
+        || lower.ends_with(".db")
+        || lower.ends_with(".sqlite")
+        || lower.ends_with(".sqlite3")
+        || lower.ends_with(".exe")
+        || lower.ends_with(".dll")
+        || lower.ends_with(".so")
+        || lower.ends_with(".dylib")
+        || lower.ends_with(".class")
+        || lower.ends_with(".lock")
+}
+
+/// Case-insensitive search for text terms inside files below `rel` or inside a specific file.
+pub fn search_content(
+    root: &SafeRoot,
+    rel: &str,
+    query: &str,
+    limit: usize,
+) -> CoreResult<Vec<ContentMatch>> {
+    let q = query.trim();
+    if q.is_empty() {
+        return Ok(Vec::new());
+    }
+    let q_lower = q.to_lowercase();
+    let target = resolve_user_path(root, rel)?;
+    let mut out = Vec::new();
+    let max_results = limit.clamp(1, 200);
+
+    let abs = target.absolute();
+    let Ok(md) = fs::metadata(&abs) else {
+        return Ok(Vec::new());
+    };
+
+    if md.is_file() {
+        if ensure_not_sensitive(&target).is_err() || is_binary_extension(&target.relative()) {
+            return Ok(Vec::new());
+        }
+        if md.len() > MAX_SEARCH_CONTENT_FILE_BYTES {
+            return Ok(Vec::new());
+        }
+        let Ok(bytes) = fs::read(&abs) else {
+            return Ok(Vec::new());
+        };
+        if text::looks_binary(&bytes) {
+            return Ok(Vec::new());
+        }
+        let text_content = String::from_utf8_lossy(&bytes);
+        for (idx, line) in text_content.lines().enumerate() {
+            let line_lower = line.to_lowercase();
+            if let Some(pos) = line_lower.find(&q_lower) {
+                let snippet = if line.len() > MAX_SEARCH_CONTENT_LINE_LEN {
+                    format!("{}…", &line[..MAX_SEARCH_CONTENT_LINE_LEN])
+                } else {
+                    line.to_string()
+                };
+                out.push(ContentMatch {
+                    path: target.relative(),
+                    line_number: idx + 1,
+                    line_text: snippet,
+                    match_start: pos,
+                    match_length: q.len(),
+                });
+                if out.len() >= max_results {
+                    break;
+                }
+            }
+        }
+        return Ok(out);
+    }
+
+    let mut budget: u32 = 20_000;
+    let mut stack = vec![target];
+    while let Some(dir) = stack.pop() {
+        let Ok(rd) = fs::read_dir(dir.absolute()) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            budget = budget.saturating_sub(1);
+            if budget == 0 || out.len() >= max_results {
+                return Ok(out);
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if dir.is_root() && name.eq_ignore_ascii_case(RESERVED_DIR) {
+                continue;
+            }
+            if name.starts_with('.') {
+                continue;
+            }
+            let Ok(child) = dir.join(&name) else { continue };
+            let Ok(entry_md) = fs::symlink_metadata(entry.path()) else {
+                continue;
+            };
+            if entry_md.is_dir() && !is_reparse_point(&entry_md) {
+                stack.push(child);
+            } else if entry_md.is_file() {
+                if is_binary_extension(&name) || entry_md.len() > MAX_SEARCH_CONTENT_FILE_BYTES {
+                    continue;
+                }
+                if ensure_not_sensitive(&child).is_err() {
+                    continue;
+                }
+                let Ok(bytes) = fs::read(child.absolute()) else {
+                    continue;
+                };
+                if text::looks_binary(&bytes) {
+                    continue;
+                }
+                let text_content = String::from_utf8_lossy(&bytes);
+                for (idx, line) in text_content.lines().enumerate() {
+                    let line_lower = line.to_lowercase();
+                    if let Some(pos) = line_lower.find(&q_lower) {
+                        let snippet = if line.len() > MAX_SEARCH_CONTENT_LINE_LEN {
+                            format!("{}…", &line[..MAX_SEARCH_CONTENT_LINE_LEN])
+                        } else {
+                            line.to_string()
+                        };
+                        out.push(ContentMatch {
+                            path: child.relative(),
+                            line_number: idx + 1,
+                            line_text: snippet,
+                            match_start: pos,
+                            match_length: q.len(),
+                        });
+                        if out.len() >= max_results {
+                            return Ok(out);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -890,5 +1050,40 @@ mod tests {
         let hits = search(&r, "", "config", 10).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].path, "plugins/Essentials/config.yml");
+    }
+
+    #[test]
+    fn search_content_finds_terms_in_directory_and_specific_file() {
+        let (d, r) = root();
+        fs::create_dir_all(d.path().join("config")).unwrap();
+        fs::write(
+            d.path().join("config/paper.yml"),
+            b"verbose: false\nmax-players: 20\nuse-faster-eigencraft: true",
+        )
+        .unwrap();
+        fs::write(
+            d.path().join("server.properties"),
+            b"motd=Minecraft Server\nmax-players=20\nallow-flight=false",
+        )
+        .unwrap();
+
+        // Search directory
+        let hits = search_content(&r, "", "max-players", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        assert!(
+            hits.iter()
+                .any(|h| h.path == "config/paper.yml" && h.line_number == 2)
+        );
+        assert!(
+            hits.iter()
+                .any(|h| h.path == "server.properties" && h.line_number == 2)
+        );
+
+        // Search specific file
+        let specific_hits = search_content(&r, "server.properties", "motd", 10).unwrap();
+        assert_eq!(specific_hits.len(), 1);
+        assert_eq!(specific_hits[0].path, "server.properties");
+        assert_eq!(specific_hits[0].line_number, 1);
+        assert!(specific_hits[0].line_text.contains("motd=Minecraft Server"));
     }
 }

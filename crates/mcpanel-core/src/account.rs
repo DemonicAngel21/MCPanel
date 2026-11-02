@@ -20,6 +20,7 @@ const REFRESH_SECRET: &str = "account-refresh-token";
 const PROFILE_KEY: &str = "account.profile";
 pub const OAUTH_CREDENTIALS_SETTINGS_KEY: &str = "account.oauth_credentials";
 pub const GOOGLE_SECRET_KEY: &str = "account-google-secret";
+pub const GOOGLE_COMPUTE_REFRESH_SECRET: &str = "google-compute-refresh-token";
 pub const MICROSOFT_SECRET_KEY: &str = "account-microsoft-secret";
 pub const GUEST_KEY: &str = "account.is_guest";
 const GOOGLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -153,6 +154,17 @@ pub trait AuthBackend: Send + Sync {
         challenge: &str,
         state: &str,
     ) -> CoreResult<String>;
+    fn google_compute_authorize_url(
+        &self,
+        _redirect: &str,
+        _challenge: &str,
+        _state: &str,
+    ) -> CoreResult<String> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Google Cloud authorization is not supported.",
+        ))
+    }
     /// Exchange Google's code for its tokens.
     async fn google_exchange(
         &self,
@@ -160,6 +172,26 @@ pub trait AuthBackend: Send + Sync {
         verifier: &str,
         redirect: &str,
     ) -> CoreResult<GoogleAuthTokens>;
+    async fn google_refresh_access_token(
+        &self,
+        _refresh_token: &SecretString,
+    ) -> CoreResult<SecretString> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Google Cloud authorization is not supported.",
+        ))
+    }
+    async fn google_compute_request(
+        &self,
+        _access_token: &SecretString,
+        _method: &str,
+        _url: &str,
+    ) -> CoreResult<serde_json::Value> {
+        Err(CoreError::new(
+            ErrorCode::Unsupported,
+            "Google Cloud API is not supported.",
+        ))
+    }
     /// Microsoft's consent page for `redirect` with a PKCE `challenge`.
     fn microsoft_authorize_url(
         &self,
@@ -239,6 +271,7 @@ pub struct AccountService {
     secrets: Arc<dyn SecretStore>,
     settings: Arc<dyn SettingsRepository>,
     google: Mutex<Option<GoogleFlow>>,
+    google_compute: Mutex<Option<GoogleFlow>>,
     microsoft: Mutex<Option<MicrosoftFlow>>,
     sync_service: crate::sync::SettingsSyncService,
     credentials_loaded: AtomicBool,
@@ -279,6 +312,7 @@ impl AccountService {
             sync_service: crate::sync::SettingsSyncService::new(Arc::clone(&settings)),
             settings,
             google: Mutex::new(None),
+            google_compute: Mutex::new(None),
             microsoft: Mutex::new(None),
             credentials_loaded: AtomicBool::new(false),
             cloud: OnceLock::new(),
@@ -693,6 +727,113 @@ impl AccountService {
         if let Some((_, task)) = self.google.lock().unwrap_or_else(|e| e.into_inner()).take() {
             task.abort();
         }
+    }
+
+    pub async fn begin_google_compute(self: &Arc<Self>) -> CoreResult<String> {
+        if let Some(GoogleSignIn::Waiting { url }) = self.google_compute_progress() {
+            return Ok(url);
+        }
+        let backend = self.backend.get().cloned().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                "Google OAuth is not configured in this build.",
+            )
+        })?;
+        if !backend.google_available() {
+            return Err(CoreError::new(
+                ErrorCode::Unsupported,
+                "Google OAuth is not configured in this build.",
+            ));
+        }
+        let loopback = Loopback::bind("127.0.0.1", 0, "/").await?;
+        let redirect = format!("http://127.0.0.1:{}/", loopback.port);
+        let verifier = pkce::verifier();
+        let state = pkce::state();
+        let url = backend.google_compute_authorize_url(
+            &redirect,
+            &pkce::challenge_s256(&verifier),
+            &state,
+        )?;
+        let progress = Arc::new(Mutex::new(GoogleSignIn::Waiting { url: url.clone() }));
+        let prog = Arc::clone(&progress);
+        let secrets = Arc::clone(&self.secrets);
+        let task = tokio::spawn(async move {
+            let result: CoreResult<()> = async {
+                let code = match loopback.wait(GOOGLE_TIMEOUT).await? {
+                    Callback::Code { code, state: got } if got == state => code,
+                    Callback::Code { .. } => return Err(CoreError::new(ErrorCode::GrantInvalid, "The authorization response did not match. Try again.")),
+                    Callback::Error { error, .. } if error == "access_denied" => return Err(CoreError::new(ErrorCode::Cancelled, "Google Cloud authorization was cancelled.")),
+                    Callback::Error { error, description, .. } => return Err(CoreError::new(ErrorCode::ProviderError, format!("Google Cloud authorization failed: {}", description.unwrap_or(error)))),
+                };
+                let tokens = backend.google_exchange(&code, &verifier, &redirect).await?;
+                let refresh = tokens.refresh_token.ok_or_else(|| CoreError::new(
+                    ErrorCode::GrantInvalid,
+                    "Google did not return offline access. Remove MCPanel access from your Google Account and connect again.",
+                ))?;
+                secrets.set(GOOGLE_COMPUTE_REFRESH_SECRET, &refresh)?;
+                Ok(())
+            }.await;
+            *prog.lock().unwrap_or_else(|e| e.into_inner()) = match result {
+                Ok(()) => GoogleSignIn::Done,
+                Err(e) => GoogleSignIn::Failed { message: e.message },
+            };
+        });
+        if let Some((_, old)) = self
+            .google_compute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .replace((progress, task))
+        {
+            old.abort();
+        }
+        Ok(url)
+    }
+
+    pub fn google_compute_progress(&self) -> Option<GoogleSignIn> {
+        self.google_compute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|(state, _)| state.lock().unwrap_or_else(|e| e.into_inner()).clone())
+    }
+
+    pub fn google_compute_connected(&self) -> CoreResult<bool> {
+        Ok(self.secrets.get(GOOGLE_COMPUTE_REFRESH_SECRET)?.is_some())
+    }
+
+    pub fn cancel_google_compute(&self) {
+        if let Some((_, task)) = self
+            .google_compute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        {
+            task.abort();
+        }
+    }
+
+    pub async fn google_compute_request(
+        &self,
+        method: &str,
+        url: &str,
+    ) -> CoreResult<serde_json::Value> {
+        let refresh = self
+            .secrets
+            .get(GOOGLE_COMPUTE_REFRESH_SECRET)?
+            .ok_or_else(|| {
+                CoreError::new(
+                    ErrorCode::PermissionDenied,
+                    "Connect a Google account with Compute Engine access first.",
+                )
+            })?;
+        let backend = self.backend.get().cloned().ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::Unsupported,
+                "Google OAuth is not configured in this build.",
+            )
+        })?;
+        let access = backend.google_refresh_access_token(&refresh).await?;
+        backend.google_compute_request(&access, method, url).await
     }
 
     /// Start "Continue with Microsoft": returns Microsoft's consent page; the result arrives

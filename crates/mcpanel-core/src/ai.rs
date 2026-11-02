@@ -294,30 +294,35 @@ impl AiService {
             return Ok(Some(SecretString::new("local".into())));
         }
         let account_id = self.current_account_id().await;
+        let p = provider.to_ascii_lowercase();
 
-        // 1. Account-specific key (provider-specific or shared)
-        let key_name = Self::secret_key_for_provider(&account_id, provider, use_shared);
-        if let Some(k) = self.secrets.get(&key_name)? {
-            return Ok(Some(k));
-        }
-
-        // 2. If provider-specific didn't match, check account shared key
-        if !use_shared {
+        if use_shared {
             let shared_key = Self::secret_key_for_provider(&account_id, provider, true);
             if let Some(k) = self.secrets.get(&shared_key)? {
                 return Ok(Some(k));
             }
+            if let Some(k) = self.secrets.get(AI_SECRET_KEY)? {
+                return Ok(Some(k));
+            }
+            return Ok(None);
         }
 
-        // 3. Fallback: Global provider key without account scope
-        let p = provider.to_ascii_lowercase();
+        // 1. Account-specific key for this distinct provider
+        let key_name = Self::secret_key_for_provider(&account_id, provider, false);
+        if let Some(k) = self.secrets.get(&key_name)? {
+            return Ok(Some(k));
+        }
+
+        // 2. Fallback: Global provider key without account scope
         let global_p_key = format!("ai_api_key:{p}");
         if let Some(k) = self.secrets.get(&global_p_key)? {
             return Ok(Some(k));
         }
 
-        // 4. Fallback: Legacy flat AI_SECRET_KEY
-        if let Some(k) = self.secrets.get(AI_SECRET_KEY)? {
+        // 3. Fallback: Legacy flat AI_SECRET_KEY only for Gemini
+        if p == "gemini"
+            && let Some(k) = self.secrets.get(AI_SECRET_KEY)?
+        {
             return Ok(Some(k));
         }
 
@@ -326,7 +331,7 @@ impl AiService {
 
     pub async fn has_key_for_provider(&self, provider: &str, use_shared: bool) -> bool {
         if Self::is_local_provider(provider) {
-            return true;
+            return false;
         }
         self.resolve_api_key(provider, use_shared)
             .await
@@ -464,7 +469,11 @@ impl AiService {
             let key_name = Self::secret_key_for_provider(&account_id, &provider, use_shared_key);
             if trimmed.is_empty() {
                 let _ = self.secrets.delete(&key_name);
-                let _ = self.secrets.delete(AI_SECRET_KEY);
+                let p = provider.to_ascii_lowercase();
+                let _ = self.secrets.delete(&format!("ai_api_key:{p}"));
+                if provider == "gemini" || use_shared_key {
+                    let _ = self.secrets.delete(AI_SECRET_KEY);
+                }
             } else {
                 let sec = SecretString::new(trimmed.to_string().into_boxed_str());
                 self.secrets.set(&key_name, &sec)?;
@@ -493,27 +502,40 @@ impl AiService {
 
     pub async fn test_connection(&self) -> CoreResult<()> {
         let config = self.get_config().await?;
-        let key = match self
-            .resolve_api_key(&config.provider, config.use_shared_key)
-            .await?
-        {
-            Some(k) => k,
-            None if Self::is_local_provider(&config.provider) => SecretString::new("local".into()),
-            None => {
-                return Err(CoreError::new(
-                    ErrorCode::InvalidInput,
-                    "No AI API key set for this provider. Please enter an API key or select a local provider.",
-                ));
+        self.test_provider_connection(
+            &config.provider,
+            &config.model,
+            config.base_url.as_deref(),
+            None,
+        )
+        .await
+    }
+
+    pub async fn test_provider_connection(
+        &self,
+        provider: &str,
+        model: &str,
+        base_url: Option<&str>,
+        api_key: Option<&str>,
+    ) -> CoreResult<()> {
+        let key = if let Some(k) = api_key.filter(|s| !s.trim().is_empty()) {
+            SecretString::new(k.trim().to_string().into_boxed_str())
+        } else if Self::is_local_provider(provider) {
+            SecretString::new("local".into())
+        } else {
+            let config = self.get_config().await.ok();
+            let use_shared = config.as_ref().map(|c| c.use_shared_key).unwrap_or(false);
+            match self.resolve_api_key(provider, use_shared).await? {
+                Some(k) => k,
+                None => {
+                    return Err(CoreError::new(
+                        ErrorCode::InvalidInput,
+                        format!("No API key configured for {provider}. Enter an API key first."),
+                    ));
+                }
             }
         };
-        self.client
-            .test_key(
-                &key,
-                &config.provider,
-                &config.model,
-                config.base_url.as_deref(),
-            )
-            .await
+        self.client.test_key(&key, provider, model, base_url).await
     }
 
     /// Build the full set of MCPanel tools available to the AI.

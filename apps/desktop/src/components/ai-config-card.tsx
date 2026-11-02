@@ -190,9 +190,10 @@ function AiConfigForm({ config }: { config: AiConfigDto | undefined }) {
   const isLocal = currentProvider.isLocal;
 
   const currentProviderHasKey = Boolean(
-    useSharedKey
-      ? config?.configured
-      : config?.configuredProviders?.includes(provider) || (config?.provider === provider && config?.hasKeyForProvider),
+    !isLocal &&
+      (useSharedKey
+        ? config?.configured
+        : config?.configuredProviders?.includes(provider) || (config?.provider === provider && config?.hasKeyForProvider)),
   );
 
   const accountLabel =

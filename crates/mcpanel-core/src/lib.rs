@@ -45,6 +45,7 @@ pub mod sync;
 pub mod templates;
 pub mod time;
 pub mod tunnels;
+pub mod updates;
 
 pub use crate::core::{Core, CoreDeps, Repositories};
 pub use error::{CoreError, CoreResult, ErrorCode};
